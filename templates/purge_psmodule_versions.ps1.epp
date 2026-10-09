@@ -1,0 +1,14 @@
+<%- | Stdlib::Windowspath $module_dir,
+      String[1]           $version,
+| -%>
+$ErrorActionPreference = 'Stop'
+$moduleDir = '<%= $module_dir %>'
+
+if (Test-Path -LiteralPath $moduleDir) {
+    Get-ChildItem -LiteralPath $moduleDir -Directory |
+        Where-Object { $_.Name -ne '<%= $version %>' } |
+        ForEach-Object {
+            Write-Verbose "Removing side-by-side version $($_.Name)" -Verbose
+            Remove-Item -LiteralPath $_.FullName -Recurse -Force
+        }
+}

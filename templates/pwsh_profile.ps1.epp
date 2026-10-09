@@ -1,0 +1,12 @@
+# Predictive IntelliSense, interactive sessions only.
+$isInteractiveShell = [Environment]::UserInteractive -and !([Environment]::GetCommandLineArgs() | Where-Object { $_ -ilike '-NonI*' })
+$isCompatibleOS = [System.Environment]::OSVersion.Version.Major -ge 10
+if ($isInteractiveShell -and $isCompatibleOS) {
+    Import-Module PSReadLine
+    Set-PSReadLineOption -EditMode Windows
+    Set-PSReadLineOption -PredictionViewStyle ListView
+    Set-PSReadLineOption -PredictionSource History -HistoryNoDuplicates
+    Set-PSReadLineOption -HistorySearchCursorMovesToEnd:$true
+    Set-PSReadLineKeyHandler -Key UpArrow -Function HistorySearchBackward
+    Set-PSReadLineKeyHandler -Key DownArrow -Function HistorySearchForward
+}

@@ -1,0 +1,52 @@
+---
+name: Release to the Puppet Forge
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Publish to the Forge
+    runs-on: ubuntu-latest
+    environment: forge
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: true
+        env:
+          PUPPET_GEM_VERSION: '~> 8.0'
+
+      - name: Tag must match metadata.json's version
+        run: |
+          tag_version="${GITHUB_REF_NAME#v}"
+          metadata_version="$(ruby -rjson -e "puts JSON.parse(File.read('metadata.json'))['version']")"
+          if [ "$tag_version" != "$metadata_version" ]; then
+            echo "::error::Tag v${tag_version} does not match metadata.json version ${metadata_version}."
+            exit 1
+          fi
+
+      - name: Full test suite (syntax, lint, metadata, rspec)
+        run: |
+          bundle exec rake syntax
+          bundle exec rake lint
+          bundle exec rake metadata_lint
+          bundle exec rake rubocop
+          bundle exec rake parallel_spec
+        env:
+          PUPPET_GEM_VERSION: '~> 8.0'
+
+      - name: Build and push to the Puppet Forge
+        env:
+          BLACKSMITH_FORGE_USERNAME: ${{ secrets.FORGE_USERNAME }}
+          BLACKSMITH_FORGE_API_KEY: ${{ secrets.FORGE_API_KEY }}
+          PUPPET_GEM_VERSION: '~> 8.0'
+        run: bundle exec rake module:push

@@ -1,0 +1,3 @@
+--pattern spec/{classes,defines,functions,type_aliases,unit}/**/*_spec.rb
+--color
+--format documentation

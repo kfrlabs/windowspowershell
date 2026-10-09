@@ -1,0 +1,10 @@
+<%- | Windowspowershell::Name  $modulename,
+      Stdlib::Windowspath      $module_dir,
+| -%>
+# Skip the removal (exit 0) only when there is nothing left to remove: the
+# machine-wide directory is gone AND PowerShellGet no longer lists the module.
+$moduleDir = '<%= $module_dir %>'
+if (Test-Path -LiteralPath $moduleDir) { exit 1 }
+
+$registered = Get-InstalledModule -Name '<%= $modulename %>' -AllVersions -ErrorAction SilentlyContinue
+if ($registered) { exit 1 } else { exit 0 }

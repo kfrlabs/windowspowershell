@@ -1,0 +1,22 @@
+<%- | String[1]                  $modulename,
+      Optional[String[1]]        $version,
+      String[1]                  $repository,
+      Optional[Stdlib::HTTPUrl]  $proxy,
+| -%>
+$ErrorActionPreference = 'Stop'
+[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+
+# -Force also suppresses the prompt raised by an untrusted repository, so the
+# repository's InstallationPolicy is left as the administrator set it.
+Install-Module -Name '<%= $modulename %>' `
+<% if $version =~ NotUndef { -%>
+    -RequiredVersion '<%= $version %>' `
+<% } -%>
+    -Repository '<%= $repository %>' `
+    -Scope AllUsers `
+    -Force `
+    -AllowClobber `
+<% if $proxy =~ NotUndef { -%>
+    -Proxy '<%= $proxy %>' `
+<% } -%>
+    -Verbose

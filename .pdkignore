@@ -1,0 +1,9 @@
+.git/
+.*.sw[op]
+.metadata/
+pkg/
+coverage/
+spec/fixtures/modules/
+.vendor/
+vendor/
+.bundle/

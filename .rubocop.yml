@@ -1,0 +1,7 @@
+---
+inherit_gem:
+  voxpupuli-test: rubocop.yml
+
+# Spec files are loaded by rspec-puppet, never performance-sensitive.
+Style/FrozenStringLiteralComment:
+  Enabled: false

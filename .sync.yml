@@ -1,0 +1,12 @@
+---
+# PDK templates configuration.
+#
+# This module tracks the PDK defaults. Document any intentional divergence
+# from the upstream PDK skeleton here, so that a `pdk update` does not
+# silently revert it.
+#
+# Current intentional divergences:
+# - .github/workflows/ci.yml and release.yml are hand-maintained (not PDK- or
+#   GitHub Actions-template-generated), to match this module's own Gemfile
+#   and Rakefile (puppetlabs_spec_helper + puppet-blacksmith for Forge
+#   publishing).

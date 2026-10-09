@@ -1,0 +1,44 @@
+{
+  "name": "kfrlabs-windowspowershell",
+  "version": "4.0.0",
+  "author": "kfrlabs",
+  "summary": "Manages the Windows PowerShell environment: machine-wide profiles, one or more in-house PowerShell modules built from Puppet-deployed scripts, and third-party PowerShell modules",
+  "license": "Apache-2.0",
+  "source": "https://github.com/kfrlabs/windowspowershell",
+  "project_page": "https://github.com/kfrlabs/windowspowershell",
+  "issues_url": "https://github.com/kfrlabs/windowspowershell/issues",
+  "dependencies": [
+    {
+      "name": "puppetlabs/concat",
+      "version_requirement": ">= 4.1.0 < 10.0.0"
+    },
+    {
+      "name": "puppetlabs/stdlib",
+      "version_requirement": ">= 8.0.0 < 11.0.0"
+    },
+    {
+      "name": "puppetlabs/powershell",
+      "version_requirement": ">= 5.0.0 < 7.0.0"
+    }
+  ],
+  "operatingsystem_support": [
+    {
+      "operatingsystem": "windows",
+      "operatingsystemrelease": [
+        "2016",
+        "2019",
+        "2022",
+        "2025",
+        "10",
+        "11"
+      ]
+    }
+  ],
+  "requirements": [
+    {
+      "name": "puppet",
+      "version_requirement": ">= 7.0.0 < 9.0.0"
+    }
+  ],
+  "pdk-version": "3.4.0"
+}

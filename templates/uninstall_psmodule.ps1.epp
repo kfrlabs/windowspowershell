@@ -1,0 +1,18 @@
+<%- | Windowspowershell::Name  $modulename,
+      Stdlib::Windowspath      $module_dir,
+| -%>
+$ErrorActionPreference = 'Stop'
+
+# Unregister from PowerShellGet first, so Get-InstalledModule stops listing the
+# module and a later reinstall starts from a clean record. SilentlyContinue on
+# this call alone: a module deployed by file copy was never registered, and a
+# missing registration is not a failure here.
+Uninstall-Module -Name '<%= $modulename %>' -AllVersions -Force -ErrorAction SilentlyContinue -Verbose
+
+# Then take the whole tree under the machine-wide module directory, which also
+# catches versions this module deployed by file copy, that PowerShellGet has no
+# record of.
+$moduleDir = '<%= $module_dir %>'
+if (Test-Path -LiteralPath $moduleDir) {
+    Remove-Item -LiteralPath $moduleDir -Recurse -Force
+}

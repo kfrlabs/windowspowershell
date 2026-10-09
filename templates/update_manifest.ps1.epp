@@ -1,0 +1,36 @@
+<%- | Stdlib::Windowspath $module_path,
+      Stdlib::Windowspath $functions_path,
+      Stdlib::Windowspath $manifest_path,
+      String[1]           $module_name,
+      String[1]           $company_name,
+      String[1]           $author,
+      String[1]           $guid,
+| -%>
+$ErrorActionPreference = 'Stop'
+
+$modulePath    = '<%= $module_path %>'
+$functionsPath = '<%= $functions_path %>'
+$manifestPath  = '<%= $manifest_path %>'
+$moduleName    = '<%= $module_name %>'
+
+# Only the scripts deployed under Functions/ become NestedModules, and each one
+# exports the function it is named after. The root module (<moduleName>.psm1)
+# lives at the module root, not under Functions/, and is declared separately as
+# -RootModule; scanning Functions/ therefore keeps it out of NestedModules and
+# out of FunctionsToExport. Piping through ForEach-Object keeps an empty
+# Functions/ safe: it yields @() instead of calling a method on a $null
+# FullName, so New-ModuleManifest still gets valid (empty) arrays.
+$functions     = @(Get-ChildItem -Path $functionsPath -Recurse -Include *.ps1, *.psm1)
+$nestedModules = @($functions | ForEach-Object { $_.FullName.Replace("${modulePath}\", '') })
+$functionNames = @($functions | ForEach-Object { $_.BaseName })
+
+New-ModuleManifest -Path $manifestPath `
+    -Guid '<%= $guid %>' `
+    -RootModule "${moduleName}.psm1" `
+    -NestedModules $nestedModules `
+    -FileList $nestedModules `
+    -FunctionsToExport $functionNames `
+    -VariablesToExport '*' `
+    -AliasesToExport '*' `
+    -Author '<%= $author %>' `
+    -CompanyName '<%= $company_name %>'

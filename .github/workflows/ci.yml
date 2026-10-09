@@ -1,0 +1,103 @@
+---
+name: CI
+
+on:
+  pull_request: {}
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  BUNDLE_WITHOUT: development
+
+jobs:
+  lint:
+    name: 'Syntax, lint & metadata'
+    runs-on: ubuntu-latest
+    env:
+      PUPPET_GEM_VERSION: '~> 8.0'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: true
+      - name: puppet parser validate (manifests, types)
+        run: bundle exec rake syntax
+      - name: puppet-lint
+        run: bundle exec rake lint
+      - name: metadata-json-lint
+        run: bundle exec rake metadata_lint
+      - name: rubocop
+        run: bundle exec rake rubocop
+      - name: Repo hygiene (symlinks, stray dotfiles, test fixtures)
+        run: |
+          bundle exec rake check:symlinks
+          bundle exec rake check:git_ignore
+          bundle exec rake check:dot_underscore
+          bundle exec rake check:test_file
+      - name: REFERENCE.md is up to date
+        run: |
+          bundle exec rake strings:generate:reference
+          git diff --exit-code REFERENCE.md || \
+            (echo '::error::REFERENCE.md is out of date. Run `bundle exec rake strings:generate:reference` and commit the result.' && exit 1)
+
+  spec:
+    name: 'rspec-puppet (Puppet ${{ matrix.puppet_version }}, Ruby ${{ matrix.ruby }})'
+    needs: lint
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - puppet_version: '~> 7.0'
+            ruby: '2.7'
+          - puppet_version: '~> 8.0'
+            ruby: '3.2'
+    env:
+      PUPPET_GEM_VERSION: ${{ matrix.puppet_version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ matrix.ruby }}
+          bundler-cache: true
+      - name: rspec-puppet
+        run: bundle exec rake parallel_spec
+
+  module_build:
+    name: 'puppet module build'
+    needs: lint
+    runs-on: ubuntu-latest
+    env:
+      PUPPET_GEM_VERSION: '~> 8.0'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: true
+      - name: Build the module package, the way the Forge would
+        run: bundle exec rake build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: module-package
+          path: pkg/*.tar.gz
+          retention-days: 7
+
+  tests:
+    name: Test suite
+    needs:
+      - lint
+      - spec
+      - module_build
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo 'All CI jobs passed.'

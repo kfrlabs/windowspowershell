@@ -1,0 +1,11 @@
+<%- | Stdlib::Windowspath $module_dir,
+      String[1]           $version,
+| -%>
+$moduleDir = '<%= $module_dir %>'
+
+if (-not (Test-Path -LiteralPath $moduleDir)) { exit 0 }
+
+$extra = Get-ChildItem -LiteralPath $moduleDir -Directory |
+    Where-Object { $_.Name -ne '<%= $version %>' }
+
+if ($extra) { exit 1 } else { exit 0 }

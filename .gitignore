@@ -1,0 +1,9 @@
+pkg/
+Gemfile.lock
+.bundle/
+.vendor/
+vendor/
+spec/fixtures/modules/
+coverage/
+.idea/
+.dpl.json

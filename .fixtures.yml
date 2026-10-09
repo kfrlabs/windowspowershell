@@ -1,0 +1,7 @@
+---
+fixtures:
+  forge_modules:
+    stdlib: "puppetlabs/stdlib"
+    powershell: "puppetlabs/powershell"
+  symlinks:
+    windowspowershell: "#{source_dir}"
