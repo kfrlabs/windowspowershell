@@ -8,7 +8,7 @@ describe 'windowspowershell' do
       it { is_expected.to compile.with_all_deps }
 
       # No mandatory parameter any more: the in-house module identity moved
-      # to windowspowershell::inhouse_module, so `include windowspowershell`
+      # to windowspowershell::module, so `include windowspowershell`
       # alone must compile and lay out nothing but the shared module root.
       it 'declares only the shared module root, nothing module-specific' do
         is_expected.to contain_file('C:\Program Files\WindowsPowerShell\Modules').with_ensure('directory')
@@ -81,7 +81,7 @@ describe 'windowspowershell' do
       # probe module (declared here, not by the class) is what makes the
       # bootstrap nuget Exec carry the -Proxy the class computed.
       context 'proxy autodetection from the http_proxy fact' do
-        let(:pre_condition) { "windowspowershell::module { 'ProxyProbe': repository => 'PSGallery' }" }
+        let(:pre_condition) { "windowspowershell::external_module { 'ProxyProbe': repository => 'PSGallery' }" }
 
         context 'with a fact carrying both host and port' do
           let(:facts) { os_facts.merge('http_proxy' => { 'host' => 'proxy.example.net', 'port' => 8080 }) }

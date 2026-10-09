@@ -1,7 +1,7 @@
 # @summary Bootstraps PowerShellGet so modules can be installed from a
 #   repository.
 #
-# Included on demand by `windowspowershell::module`, and therefore absent from
+# Included on demand by `windowspowershell::external_module`, and therefore absent from
 # nodes that only deploy scripts or file-sourced modules.
 #
 # Only the NuGet package provider is managed here. The repository's

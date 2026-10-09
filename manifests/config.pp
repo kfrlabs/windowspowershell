@@ -1,9 +1,9 @@
 # @summary Lays out the machine-wide PowerShell profile skeletons that
-#   in-house and third-party modules add their Import-Module lines to.
+#   in-house and external modules add their Import-Module lines to.
 #
 # This class owns no module identity: it only declares the `concat` targets.
-# Each `windowspowershell::inhouse_module` (when `import_in_profile => true`,
-# the default) and each `windowspowershell::module` (when
+# Each `windowspowershell::module` (when `import_in_profile => true`,
+# the default) and each `windowspowershell::external_module` (when
 # `import_in_profile => true` is passed) attaches its own `concat::fragment`
 # to the paths listed in `$windowspowershell::profile_paths`.
 #
@@ -12,9 +12,9 @@ class windowspowershell::config {
   assert_private()
 
   if $windowspowershell::manage_profiles {
-    # Plain file skeletons: each in-house or third-party module that opts
+    # Plain file skeletons: each in-house or external module that opts
     # into profile import amends these with a collector (see
-    # windowspowershell::inhouse_module), so the Import-Module lines live on
+    # windowspowershell::module), so the Import-Module lines live on
     # the File resources themselves, where rspec-puppet and `puppet resource`
     # can see them.
     file { [

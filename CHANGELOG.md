@@ -18,22 +18,26 @@ by side, each named explicitly.
   `windowspowershell` class. There is no module-wide default module identity
   any more: `include windowspowershell` alone compiles and lays out nothing
   but the shared machine-wide module directory.
-- Added `windowspowershell::inhouse_module` (title = module name), which owns
+- Added `windowspowershell::module` (title = module name), which owns
   everything that used to be built once by `windowspowershell::install` for
   the single configured module: the module directory, the root module file,
   manifest regeneration, and file unblocking, now namespaced per module name
   so several can coexist on the same node.
 - `windowspowershell::script` now requires a `modulename` parameter naming the
-  `windowspowershell::inhouse_module` it deploys into. A module named by a
+  `windowspowershell::module` it deploys into. A module named by a
   script that was never declared explicitly is still built automatically,
   with every default, via `ensure_resource` -- declaring
-  `windowspowershell::inhouse_module` by hand is only needed to override a
+  `windowspowershell::module` by hand is only needed to override a
   default (`version`, `companyname`, `author`).
+- Added `windowspowershell::external_module` for third-party modules
+  (repository or file-source install, `ensure` carrying the version). The
+  short `windowspowershell::module` name is reserved for in-house modules
+  built from `windowspowershell::script` resources.
 - Removed the bundled example scripts previously shipped under
   `files/scripts/` (Puppet agent helpers, desktop and monitoring utilities).
   They were specific to the environment this module was forked from and are
   not portable as-is; ship your own scripts via `windowspowershell::script` or
-  the new `source` parameter on `windowspowershell::inhouse_module` instead.
+  the new `source` parameter on `windowspowershell::module` instead.
 - `data/common.yaml` no longer ships a module identity. The module data layer
   now ships no override at all; every parameter already has a working,
   neutral default.
@@ -43,9 +47,9 @@ by side, each named explicitly.
 
 ### Added
 
-- `windowspowershell::inhouse_module`, a new defined type: one resource is one
+- `windowspowershell::module`, a new defined type: one resource is one
   in-house module identity (see Breaking changes above).
-- `source` parameter on `windowspowershell::inhouse_module`: an optional
+- `source` parameter on `windowspowershell::module`: an optional
   Puppet file source that recursively, and **purgingly**, deploys a whole
   directory of scripts into `Functions` in one go -- the "dynamic" way to
   build a module, where dropping a new `.ps1` under that source is enough, no

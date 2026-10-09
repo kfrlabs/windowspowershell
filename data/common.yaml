@@ -2,9 +2,9 @@
 # Module data layer: ships neutral, working defaults only.
 #
 # Nothing is set here on purpose. The in-house module identity
-# (`modulename`, `version`, `companyname`, `author`) is no longer a global
+# (`version`, `companyname`, `author`) is no longer a global
 # setting: it is now declared per in-house module via
-# `windowspowershell::inhouse_module`, with neutral defaults baked into that
+# `windowspowershell::module`, with neutral defaults baked into that
 # defined type. Site-wide settings (`module_root`, `manage_profiles`,
 # `manage_pwsh_profile`, `proxy`) already have working neutral defaults in
 # `manifests/init.pp`.

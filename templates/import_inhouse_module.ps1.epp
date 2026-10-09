@@ -1,2 +1,0 @@
-<%- | Stdlib::Windowspath $manifest_path | -%>
-Import-Module '<%= $manifest_path %>' -ErrorAction SilentlyContinue
