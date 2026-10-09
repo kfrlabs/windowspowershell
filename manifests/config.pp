@@ -12,14 +12,24 @@ class windowspowershell::config {
   assert_private()
 
   if $windowspowershell::manage_profiles {
-    concat { 'C:\Windows\System32\WindowsPowerShell\v1.0\profile.ps1': }
+    # Plain file skeletons: each in-house or third-party module that opts
+    # into profile import amends these with a collector (see
+    # windowspowershell::inhouse_module), so the Import-Module lines live on
+    # the File resources themselves, where rspec-puppet and `puppet resource`
+    # can see them.
+    file { [
+        'C:\Windows\System32\WindowsPowerShell\v1.0\profile.ps1',
+        'C:\Windows\SysWOW64\WindowsPowerShell\v1.0\profile.ps1',
+      ]:
+        ensure  => file,
+        content => "# Managed by Puppet (windowspowershell).\n",
+    }
 
     # 32-bit Windows PowerShell reads its own profile from SysWOW64, not
     # System32. Without this a module imported in the profile would be
     # missing from any 32-bit PowerShell session. SysWOW64\WindowsPowerShell\v1.0
     # exists on every 64-bit Windows, so the file can be written
     # unconditionally.
-    concat { 'C:\Windows\SysWOW64\WindowsPowerShell\v1.0\profile.ps1': }
 
     if $windowspowershell::manage_pwsh {
       # Forcing the profile on a node without PowerShell 7 would write
@@ -29,12 +39,9 @@ class windowspowershell::config {
         fail('windowspowershell: manage_pwsh_profile is true but PowerShell 7 was not detected (no pwsh.exe). Install PowerShell 7, or leave manage_pwsh_profile unset to manage the profile only where PowerShell 7 is present.')
       }
 
-      concat { 'C:\Program Files\PowerShell\7\profile.ps1': }
-
-      concat::fragment { 'windowspowershell pwsh predictive IntelliSense':
-        target  => 'C:\Program Files\PowerShell\7\profile.ps1',
+      file { 'C:\Program Files\PowerShell\7\profile.ps1':
+        ensure  => file,
         content => epp('windowspowershell/pwsh_profile.ps1.epp'),
-        order   => '00',
       }
     }
   }

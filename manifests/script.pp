@@ -63,7 +63,10 @@ define windowspowershell::script (
   # since this define does not own that resource and must not guess its path
   # independently.
   ensure_resource('windowspowershell::inhouse_module', $modulename)
-  $module_version = getparam(Windowspowershell::Inhouse_module[$modulename], 'version')
+  # getparam only sees explicitly set parameters, never the define defaults,
+  # so an implicitly built module (no version given) reads as undef here.
+  # Fall back to the $version default declared on the define itself.
+  $module_version = pick(getparam(Windowspowershell::Inhouse_module[$modulename], 'version'), '1.0')
   $functions_path = "${windowspowershell::module_root}\\${modulename}\\${module_version}\\Functions"
 
   $script_folder = $folder ? {
@@ -81,8 +84,8 @@ define windowspowershell::script (
     # that names it, hence ensure_resource.
     if $folder =~ NotUndef {
       ensure_resource('file', $script_folder, {
-        'ensure'  => 'directory',
-        'require' => File[$functions_path],
+          'ensure'  => 'directory',
+          'require' => File[$functions_path],
       })
     }
 

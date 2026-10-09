@@ -84,8 +84,16 @@ jobs:
         with:
           ruby-version: '3.2'
           bundler-cache: true
+      - name: Install PDK
+        # `rake build` (puppetlabs_spec_helper) shells out to the `pdk`
+        # binary, which the runner image does not ship.
+        run: |
+          wget -q "https://apt.puppet.com/puppet-tools-release-$(lsb_release -cs).deb"
+          sudo dpkg -i "puppet-tools-release-$(lsb_release -cs).deb"
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq pdk
       - name: Build the module package, the way the Forge would
-        run: bundle exec rake build
+        run: pdk build
       - uses: actions/upload-artifact@v4
         with:
           name: module-package

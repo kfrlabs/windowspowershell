@@ -93,12 +93,12 @@ define windowspowershell::module (
     # them on an Exec neither user wrote.
     exec { "windowspowershell uninstall ${name}":
       command   => epp('windowspowershell/uninstall_psmodule.ps1.epp', {
-        'modulename' => $modulename,
-        'module_dir' => $module_dir,
+          'modulename' => $modulename,
+          'module_dir' => $module_dir,
       }),
       unless    => epp('windowspowershell/check_psmodule_absent.ps1.epp', {
-        'modulename' => $modulename,
-        'module_dir' => $module_dir,
+          'modulename' => $modulename,
+          'module_dir' => $module_dir,
       }),
       provider  => powershell,
       timeout   => 300,
@@ -110,14 +110,14 @@ define windowspowershell::module (
 
       exec { "windowspowershell install ${name}":
         command   => epp('windowspowershell/install_psmodule.ps1.epp', {
-          'modulename' => $modulename,
-          'version'    => $module_version,
-          'repository' => $repository,
-          'proxy'      => $windowspowershell::proxy_url,
+            'modulename' => $modulename,
+            'version'    => $module_version,
+            'repository' => $repository,
+            'proxy'      => $windowspowershell::proxy_url,
         }),
         unless    => epp('windowspowershell/check_psmodule.ps1.epp', {
-          'module_dir' => $module_dir,
-          'version'    => $module_version,
+            'module_dir' => $module_dir,
+            'version'    => $module_version,
         }),
         provider  => powershell,
         timeout   => 900,
@@ -128,8 +128,8 @@ define windowspowershell::module (
     } else {
       # Shared by every version of the same module, hence ensure_resource.
       ensure_resource('file', $module_dir, {
-        'ensure'  => 'directory',
-        'require' => File[$windowspowershell::module_root],
+          'ensure'  => 'directory',
+          'require' => File[$windowspowershell::module_root],
       })
 
       file { "${module_dir}\\${module_version}":
@@ -147,12 +147,12 @@ define windowspowershell::module (
     if $purge_versions and $module_version =~ NotUndef {
       exec { "windowspowershell purge other versions of ${name}":
         command   => epp('windowspowershell/purge_psmodule_versions.ps1.epp', {
-          'module_dir' => $module_dir,
-          'version'    => $module_version,
+            'module_dir' => $module_dir,
+            'version'    => $module_version,
         }),
         unless    => epp('windowspowershell/check_psmodule_versions.ps1.epp', {
-          'module_dir' => $module_dir,
-          'version'    => $module_version,
+            'module_dir' => $module_dir,
+            'version'    => $module_version,
         }),
         provider  => powershell,
         timeout   => 300,
@@ -163,16 +163,15 @@ define windowspowershell::module (
 
     if $import_in_profile {
       $import_content = epp('windowspowershell/import_module.ps1.epp', {
-        'modulename' => $modulename,
-        'version'    => $module_version,
+          'modulename' => $modulename,
+          'version'    => $module_version,
       })
 
+      # Same collector pattern as windowspowershell::inhouse_module: the
+      # Import-Module line lands on the profile File resources themselves.
       $windowspowershell::profile_paths.each |$profile_path| {
-        concat::fragment { "windowspowershell import ${name} (${profile_path})":
-          target  => $profile_path,
+        File <| title == $profile_path |> {
           content => $import_content,
-          order   => '10',
-          require => $installed_by,
         }
       }
     }
