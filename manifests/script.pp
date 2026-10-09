@@ -6,11 +6,11 @@
 # `ensure => absent`.
 #
 # @param modulename
-#   Name of the in-house module (a `windowspowershell::inhouse_module`
+#   Name of the in-house module (a `windowspowershell::module`
 #   resource) this script is deployed into. Mandatory: there is no default
 #   module any more, so every script has to say where it is going. A module
 #   named here that was never declared explicitly is created with every
-#   default (see `windowspowershell::inhouse_module`).
+#   default (see `windowspowershell::module`).
 # @param ensure
 #   Whether the script should be present or absent.
 # @param scriptname
@@ -56,17 +56,17 @@ define windowspowershell::script (
   }
 
   # The target module gets every default when nothing declared it yet, the
-  # same way windowspowershell::module shares a module directory it did not
+  # same way windowspowershell::external_module shares a module directory it did not
   # create. getparam then reads back the version this particular module
   # identity resolved to -- either the default above, or whatever an explicit
-  # windowspowershell::inhouse_module { $modulename: ... } declared earlier --
+  # windowspowershell::module { $modulename: ... } declared earlier --
   # since this define does not own that resource and must not guess its path
   # independently.
-  ensure_resource('windowspowershell::inhouse_module', $modulename)
+  ensure_resource('windowspowershell::module', $modulename)
   # getparam only sees explicitly set parameters, never the define defaults,
   # so an implicitly built module (no version given) reads as undef here.
   # Fall back to the $version default declared on the define itself.
-  $module_version = pick(getparam(Windowspowershell::Inhouse_module[$modulename], 'version'), '1.0')
+  $module_version = pick(getparam(Windowspowershell::Module[$modulename], 'version'), '1.0')
   $functions_path = "${windowspowershell::module_root}\\${modulename}\\${module_version}\\Functions"
 
   $script_folder = $folder ? {
@@ -79,7 +79,7 @@ define windowspowershell::script (
     # No-op: the class declares nothing on this node, so there is no Functions
     # directory to write into and no Exec to notify.
   } elsif $ensure == 'present' {
-    # The Functions directory itself belongs to windowspowershell::inhouse_module;
+    # The Functions directory itself belongs to windowspowershell::module;
     # only a sub-folder needs creating here, and it is shared by every script
     # that names it, hence ensure_resource.
     if $folder =~ NotUndef {

@@ -14,7 +14,7 @@ describe 'windowspowershell::script' do
         it { is_expected.to compile.with_all_deps }
 
         it 'implicitly builds the named in-house module with every default' do
-          is_expected.to contain_windowspowershell__inhouse_module('Acme')
+          is_expected.to contain_windowspowershell__module('Acme')
           is_expected.to contain_file("#{functions}\\Get-Example.ps1").
             with_ensure('file').
             with_content("Write-Output 'example'\n").
@@ -26,7 +26,7 @@ describe 'windowspowershell::script' do
       context 'with an explicitly declared module overriding defaults' do
         let(:pre_condition) do
           <<~PUPPET
-            windowspowershell::inhouse_module { 'Acme':
+            windowspowershell::module { 'Acme':
               version     => '2.0',
               companyname => 'Acme Corp',
               author      => 'Platform Team',
@@ -50,8 +50,8 @@ describe 'windowspowershell::script' do
         it { is_expected.to compile.with_all_deps }
 
         it 'builds both modules independently' do
-          is_expected.to contain_windowspowershell__inhouse_module('Acme')
-          is_expected.to contain_windowspowershell__inhouse_module('OtherModule')
+          is_expected.to contain_windowspowershell__module('Acme')
+          is_expected.to contain_windowspowershell__module('OtherModule')
           is_expected.to contain_file("#{functions}\\Get-Example.ps1")
           is_expected.to contain_file('C:\Program Files\WindowsPowerShell\Modules\OtherModule\1.0\Functions\Get-Other.ps1')
         end

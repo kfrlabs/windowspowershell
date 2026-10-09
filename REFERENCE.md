@@ -10,28 +10,28 @@
 
 * [`windowspowershell`](#windowspowershell): Manages the Windows PowerShell environment: the machine-wide
 profiles, and the site-wide settings shared by every in-house and
-third-party PowerShell module this module deploys.
+external PowerShell module this module deploys.
 
 #### Private Classes
 
 * `windowspowershell::config`: Lays out the machine-wide PowerShell profile skeletons that
-in-house and third-party modules add their Import-Module lines to.
+in-house and external modules add their Import-Module lines to.
 * `windowspowershell::install`: Creates the machine-wide PowerShell module directory shared by
-every in-house module and by third-party module installs.
+every in-house module and by external module installs.
 * `windowspowershell::psget`: Bootstraps PowerShellGet so modules can be installed from a
 repository.
 
 ### Defined types
 
-* [`windowspowershell::inhouse_module`](#windowspowershell--inhouse_module): Builds one in-house PowerShell module whose functions are the
-`.ps1` scripts deployed by `windowspowershell::script`.
-* [`windowspowershell::module`](#windowspowershell--module): Installs a third-party PowerShell module, either from a repository
+* [`windowspowershell::external_module`](#windowspowershell--external_module): Installs a third-party PowerShell module, either from a repository
 such as the PowerShell Gallery or by copying files from a Puppet source.
+* [`windowspowershell::module`](#windowspowershell--module): Builds one in-house PowerShell module whose functions are the
+`.ps1` scripts deployed by `windowspowershell::script`.
 * [`windowspowershell::script`](#windowspowershell--script): Deploys a PowerShell script as a function of an in-house module.
 
 ### Data types
 
-* [`Windowspowershell::Moduleensure`](#Windowspowershell--Moduleensure): Desired state of a PowerShell module, mirroring the `package` type: a literal version pins that exact version, `present` accepts any version,
+* [`Windowspowershell::Externalmoduleensure`](#Windowspowershell--Externalmoduleensure): Desired state of an external PowerShell module, mirroring the `package` type: a literal version pins that exact version, `present` accepts any version,
 * [`Windowspowershell::Name`](#Windowspowershell--Name): A single path component: a script, folder or module name.  Two properties are guaranteed, and the module relies on both:  * It names one comp
 * [`Windowspowershell::Psstring`](#Windowspowershell--Psstring): Free text that ends up inside a single-quoted PowerShell string, such as the author or company written into the module manifest.  Unlike Wind
 * [`Windowspowershell::Reponame`](#Windowspowershell--Reponame): Name of a PowerShell repository, as registered by `Register-PSRepository` and passed to `Install-Module -Repository`.  Deliberately narrower 
@@ -44,7 +44,7 @@ such as the PowerShell Gallery or by copying files from a Puppet source.
 
 This class owns every *site-wide* path and setting. It does **not** own an
 in-house module identity any more: a site can build as many in-house
-modules as it wants, each declared with `windowspowershell::inhouse_module`
+modules as it wants, each declared with `windowspowershell::module`
 (title = the module name) and populated with
 `windowspowershell::script { ... modulename => '<that title>' }`. There is
 no module-wide default module name: each `windowspowershell::script` has to
@@ -61,7 +61,7 @@ system.
 ```puppet
 include windowspowershell
 
-windowspowershell::inhouse_module { 'Acme':
+windowspowershell::module { 'Acme':
   version     => '1.2',
   companyname => 'Acme Corp',
   author      => 'Platform Team',
@@ -76,7 +76,7 @@ windowspowershell::script { 'Get-DiskUsage':
 ##### Deploy a third-party module
 
 ```puppet
-windowspowershell::module { 'PSWindowsUpdate':
+windowspowershell::external_module { 'PSWindowsUpdate':
   ensure     => '2.2.1.5',
   repository => 'PSGallery',
 }
@@ -96,8 +96,7 @@ The following parameters are available in the `windowspowershell` class:
 Data type: `Windowspowershell::Rootpath`
 
 Machine-wide PowerShell module directory, shared by every in-house module
-this class lays out and by `windowspowershell::module` (third-party
-modules). The module manages this directory itself (via ensure_resource,
+this class lays out and by `windowspowershell::external_module`. The module manages this directory itself (via ensure_resource,
 so it can be co-managed by another module), but its parent must already
 exist.
 
@@ -109,7 +108,7 @@ Data type: `Boolean`
 
 Whether to manage the machine-wide PowerShell profiles. Each in-house
 module with `import_in_profile => true` (the default) adds its own
-`Import-Module` line to these profiles; `windowspowershell::module` does
+`Import-Module` line to these profiles; `windowspowershell::external_module` does
 the same for a third-party module when `import_in_profile => true` is
 passed to it.
 
@@ -140,13 +139,122 @@ Default value: `undef`
 
 ## Defined types
 
-### <a name="windowspowershell--inhouse_module"></a>`windowspowershell::inhouse_module`
+### <a name="windowspowershell--external_module"></a>`windowspowershell::external_module`
+
+One resource manages one module, not one version, so `ensure` carries the
+version the way it does on the `package` type. By default every other version
+found side by side is removed, which is what makes a single resource enough
+to express "this node runs 2.2.1.5 and nothing else".
+
+This is separate from `windowspowershell::script`: a third-party module ships
+its own manifest, so it takes no part in regenerating the in-house one.
+
+#### Examples
+
+##### Pin a version from the PowerShell Gallery
+
+```puppet
+windowspowershell::external_module { 'PSWindowsUpdate':
+  ensure     => '2.2.1.5',
+  repository => 'PSGallery',
+}
+```
+
+##### Copy the files from a Puppet source instead
+
+```puppet
+windowspowershell::external_module { 'PSWindowsUpdate':
+  ensure => '2.2.1.5',
+  source => 'puppet:///modules/windowsupdate/PSWindowsUpdate/2.2.1.5/',
+}
+```
+
+##### Remove a module entirely
+
+```puppet
+windowspowershell::external_module { 'PSWindowsUpdate':
+  ensure => absent,
+}
+```
+
+#### Parameters
+
+The following parameters are available in the `windowspowershell::external_module` defined type:
+
+* [`ensure`](#-windowspowershell--external_module--ensure)
+* [`modulename`](#-windowspowershell--external_module--modulename)
+* [`repository`](#-windowspowershell--external_module--repository)
+* [`source`](#-windowspowershell--external_module--source)
+* [`purge_versions`](#-windowspowershell--external_module--purge_versions)
+* [`import_in_profile`](#-windowspowershell--external_module--import_in_profile)
+
+##### <a name="-windowspowershell--external_module--ensure"></a>`ensure`
+
+Data type: `Windowspowershell::Externalmoduleensure`
+
+`absent` removes every version installed under the machine-wide (`AllUsers`)
+module directory and unregisters the module from PowerShellGet. `present`
+accepts any version and installs the newest one if none is there, which
+requires `repository`. It is install-once: once any version is present it is
+never upgraded on later runs. To move a node to a newer version, pin that
+version in `ensure`.
+A version string pins that exact version.
+
+Default value: `'present'`
+
+##### <a name="-windowspowershell--external_module--modulename"></a>`modulename`
+
+Data type: `Windowspowershell::Name`
+
+Name of the PowerShell module. Defaults to the resource title.
+
+Default value: `$name`
+
+##### <a name="-windowspowershell--external_module--repository"></a>`repository`
+
+Data type: `Optional[Windowspowershell::Reponame]`
+
+Repository to install from, e.g. `PSGallery`. Mutually exclusive with
+`source`.
+
+Default value: `undef`
+
+##### <a name="-windowspowershell--external_module--source"></a>`source`
+
+Data type: `Optional[String[1]]`
+
+Puppet file source holding the module files, for nodes that cannot reach a
+repository. Mutually exclusive with `repository`.
+
+Default value: `undef`
+
+##### <a name="-windowspowershell--external_module--purge_versions"></a>`purge_versions`
+
+Data type: `Boolean`
+
+Whether to remove versions of the module other than the one in `ensure`.
+Ignored unless `ensure` is a version.
+
+Default value: `true`
+
+##### <a name="-windowspowershell--external_module--import_in_profile"></a>`import_in_profile`
+
+Data type: `Boolean`
+
+Whether to add an `Import-Module` line for this module to every profile
+file managed by `windowspowershell::config` (see `manage_profiles` /
+`manage_pwsh_profile` on the main class). Pins `-RequiredVersion` when
+`ensure` is a specific version. Ignored (no-op) when `ensure => absent`.
+
+Default value: `false`
+
+### <a name="windowspowershell--module"></a>`windowspowershell::module`
 
 One resource is one module identity: its manifest (`.psd1`) is regenerated
 by a shared, refresh-only `Exec`, namespaced to this module's name, that
 every `windowspowershell::script { ..., modulename => <this title> }`
 notifies. A site that needs several in-house modules declares one
-`windowspowershell::inhouse_module` per module name; nothing here is a
+`windowspowershell::module` per module name; nothing here is a
 module-wide singleton any more.
 
 A `windowspowershell::script` that names a module which was never declared
@@ -158,9 +266,9 @@ only fills in the gap when nothing has claimed the title yet.
 
 The resource title is the in-house module name: this is the value every
 `windowspowershell::script` must pass as its own `modulename` to land its
-scripts here. Unlike `windowspowershell::module` (third-party, where several
+scripts here. Unlike `windowspowershell::external_module` (third-party, where several
 resource titles may legitimately share a target module), one
-`windowspowershell::inhouse_module` resource is the one and only build of
+`windowspowershell::module` resource is the one and only build of
 that module identity: the manifest, the root module file and the Functions
 directory are singletons, so declaring the same module name twice is a
 genuine conflict and fails to compile like any other duplicate resource
@@ -171,7 +279,7 @@ declaration, rather than being silently merged.
 ##### Declare a module with non-default identity, then deploy scripts into it
 
 ```puppet
-windowspowershell::inhouse_module { 'Acme':
+windowspowershell::module { 'Acme':
   version     => '1.2',
   companyname => 'Acme Corp',
   author      => 'Platform Team',
@@ -186,22 +294,22 @@ windowspowershell::script { 'Get-DiskUsage':
 ##### Build a module dynamically from a whole directory of scripts
 
 ```puppet
-windowspowershell::inhouse_module { 'Acme':
+windowspowershell::module { 'Acme':
   source => 'puppet:///modules/profile/acme-scripts',
 }
 ```
 
 #### Parameters
 
-The following parameters are available in the `windowspowershell::inhouse_module` defined type:
+The following parameters are available in the `windowspowershell::module` defined type:
 
-* [`version`](#-windowspowershell--inhouse_module--version)
-* [`companyname`](#-windowspowershell--inhouse_module--companyname)
-* [`author`](#-windowspowershell--inhouse_module--author)
-* [`import_in_profile`](#-windowspowershell--inhouse_module--import_in_profile)
-* [`source`](#-windowspowershell--inhouse_module--source)
+* [`version`](#-windowspowershell--module--version)
+* [`companyname`](#-windowspowershell--module--companyname)
+* [`author`](#-windowspowershell--module--author)
+* [`import_in_profile`](#-windowspowershell--module--import_in_profile)
+* [`source`](#-windowspowershell--module--source)
 
-##### <a name="-windowspowershell--inhouse_module--version"></a>`version`
+##### <a name="-windowspowershell--module--version"></a>`version`
 
 Data type: `Windowspowershell::Version`
 
@@ -209,7 +317,7 @@ Version folder the module is installed under. Defaults to `1.0`.
 
 Default value: `'1.0'`
 
-##### <a name="-windowspowershell--inhouse_module--companyname"></a>`companyname`
+##### <a name="-windowspowershell--module--companyname"></a>`companyname`
 
 Data type: `Windowspowershell::Psstring`
 
@@ -218,7 +326,7 @@ the neutral `Unknown`; override with the real company.
 
 Default value: `'Unknown'`
 
-##### <a name="-windowspowershell--inhouse_module--author"></a>`author`
+##### <a name="-windowspowershell--module--author"></a>`author`
 
 Data type: `Windowspowershell::Psstring`
 
@@ -228,7 +336,7 @@ person's name, since it stays meaningful over time.
 
 Default value: `'Unknown'`
 
-##### <a name="-windowspowershell--inhouse_module--import_in_profile"></a>`import_in_profile`
+##### <a name="-windowspowershell--module--import_in_profile"></a>`import_in_profile`
 
 Data type: `Boolean`
 
@@ -238,7 +346,7 @@ file managed by `windowspowershell::config` (see `manage_profiles` /
 
 Default value: `true`
 
-##### <a name="-windowspowershell--inhouse_module--source"></a>`source`
+##### <a name="-windowspowershell--module--source"></a>`source`
 
 Data type: `Optional[String[1]]`
 
@@ -256,115 +364,6 @@ resources, which remains the right choice for dynamic content (e.g. a
 template).
 
 Default value: `undef`
-
-### <a name="windowspowershell--module"></a>`windowspowershell::module`
-
-One resource manages one module, not one version, so `ensure` carries the
-version the way it does on the `package` type. By default every other version
-found side by side is removed, which is what makes a single resource enough
-to express "this node runs 2.2.1.5 and nothing else".
-
-This is separate from `windowspowershell::script`: a third-party module ships
-its own manifest, so it takes no part in regenerating the in-house one.
-
-#### Examples
-
-##### Pin a version from the PowerShell Gallery
-
-```puppet
-windowspowershell::module { 'PSWindowsUpdate':
-  ensure     => '2.2.1.5',
-  repository => 'PSGallery',
-}
-```
-
-##### Copy the files from a Puppet source instead
-
-```puppet
-windowspowershell::module { 'PSWindowsUpdate':
-  ensure => '2.2.1.5',
-  source => 'puppet:///modules/windowsupdate/PSWindowsUpdate/2.2.1.5/',
-}
-```
-
-##### Remove a module entirely
-
-```puppet
-windowspowershell::module { 'PSWindowsUpdate':
-  ensure => absent,
-}
-```
-
-#### Parameters
-
-The following parameters are available in the `windowspowershell::module` defined type:
-
-* [`ensure`](#-windowspowershell--module--ensure)
-* [`modulename`](#-windowspowershell--module--modulename)
-* [`repository`](#-windowspowershell--module--repository)
-* [`source`](#-windowspowershell--module--source)
-* [`purge_versions`](#-windowspowershell--module--purge_versions)
-* [`import_in_profile`](#-windowspowershell--module--import_in_profile)
-
-##### <a name="-windowspowershell--module--ensure"></a>`ensure`
-
-Data type: `Windowspowershell::Moduleensure`
-
-`absent` removes every version installed under the machine-wide (`AllUsers`)
-module directory and unregisters the module from PowerShellGet. `present`
-accepts any version and installs the newest one if none is there, which
-requires `repository`. It is install-once: once any version is present it is
-never upgraded on later runs. To move a node to a newer version, pin that
-version in `ensure`.
-A version string pins that exact version.
-
-Default value: `'present'`
-
-##### <a name="-windowspowershell--module--modulename"></a>`modulename`
-
-Data type: `Windowspowershell::Name`
-
-Name of the PowerShell module. Defaults to the resource title.
-
-Default value: `$name`
-
-##### <a name="-windowspowershell--module--repository"></a>`repository`
-
-Data type: `Optional[Windowspowershell::Reponame]`
-
-Repository to install from, e.g. `PSGallery`. Mutually exclusive with
-`source`.
-
-Default value: `undef`
-
-##### <a name="-windowspowershell--module--source"></a>`source`
-
-Data type: `Optional[String[1]]`
-
-Puppet file source holding the module files, for nodes that cannot reach a
-repository. Mutually exclusive with `repository`.
-
-Default value: `undef`
-
-##### <a name="-windowspowershell--module--purge_versions"></a>`purge_versions`
-
-Data type: `Boolean`
-
-Whether to remove versions of the module other than the one in `ensure`.
-Ignored unless `ensure` is a version.
-
-Default value: `true`
-
-##### <a name="-windowspowershell--module--import_in_profile"></a>`import_in_profile`
-
-Data type: `Boolean`
-
-Whether to add an `Import-Module` line for this module to every profile
-file managed by `windowspowershell::config` (see `manage_profiles` /
-`manage_pwsh_profile` on the main class). Pins `-RequiredVersion` when
-`ensure` is a specific version. Ignored (no-op) when `ensure => absent`.
-
-Default value: `false`
 
 ### <a name="windowspowershell--script"></a>`windowspowershell::script`
 
@@ -409,11 +408,11 @@ The following parameters are available in the `windowspowershell::script` define
 
 Data type: `Windowspowershell::Name`
 
-Name of the in-house module (a `windowspowershell::inhouse_module`
+Name of the in-house module (a `windowspowershell::module`
 resource) this script is deployed into. Mandatory: there is no default
 module any more, so every script has to say where it is going. A module
 named here that was never declared explicitly is created with every
-default (see `windowspowershell::inhouse_module`).
+default (see `windowspowershell::module`).
 
 ##### <a name="-windowspowershell--script--ensure"></a>`ensure`
 
@@ -458,9 +457,9 @@ Default value: `undef`
 
 ## Data types
 
-### <a name="Windowspowershell--Moduleensure"></a>`Windowspowershell::Moduleensure`
+### <a name="Windowspowershell--Externalmoduleensure"></a>`Windowspowershell::Externalmoduleensure`
 
-Desired state of a PowerShell module, mirroring the `package` type: a
+Desired state of an external PowerShell module, mirroring the `package` type: a
 literal version pins that exact version, `present` accepts any version, and
 `absent` removes every version installed under the machine-wide (`AllUsers`)
 module directory and unregisters the module from PowerShellGet.

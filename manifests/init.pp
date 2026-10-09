@@ -1,10 +1,10 @@
 # @summary Manages the Windows PowerShell environment: the machine-wide
 #   profiles, and the site-wide settings shared by every in-house and
-#   third-party PowerShell module this module deploys.
+#   external PowerShell module this module deploys.
 #
 # This class owns every *site-wide* path and setting. It does **not** own an
 # in-house module identity any more: a site can build as many in-house
-# modules as it wants, each declared with `windowspowershell::inhouse_module`
+# modules as it wants, each declared with `windowspowershell::module`
 # (title = the module name) and populated with
 # `windowspowershell::script { ... modulename => '<that title>' }`. There is
 # no module-wide default module name: each `windowspowershell::script` has to
@@ -16,14 +16,13 @@
 #
 # @param module_root
 #   Machine-wide PowerShell module directory, shared by every in-house module
-#   this class lays out and by `windowspowershell::module` (third-party
-#   modules). The module manages this directory itself (via ensure_resource,
+#   this class lays out and by `windowspowershell::external_module`. The module manages this directory itself (via ensure_resource,
 #   so it can be co-managed by another module), but its parent must already
 #   exist.
 # @param manage_profiles
 #   Whether to manage the machine-wide PowerShell profiles. Each in-house
 #   module with `import_in_profile => true` (the default) adds its own
-#   `Import-Module` line to these profiles; `windowspowershell::module` does
+#   `Import-Module` line to these profiles; `windowspowershell::external_module` does
 #   the same for a third-party module when `import_in_profile => true` is
 #   passed to it.
 # @param manage_pwsh_profile
@@ -41,7 +40,7 @@
 # @example Build an in-house module and deploy a script into it
 #   include windowspowershell
 #
-#   windowspowershell::inhouse_module { 'Acme':
+#   windowspowershell::module { 'Acme':
 #     version     => '1.2',
 #     companyname => 'Acme Corp',
 #     author      => 'Platform Team',
@@ -53,7 +52,7 @@
 #   }
 #
 # @example Deploy a third-party module
-#   windowspowershell::module { 'PSWindowsUpdate':
+#   windowspowershell::external_module { 'PSWindowsUpdate':
 #     ensure     => '2.2.1.5',
 #     repository => 'PSGallery',
 #   }
@@ -64,8 +63,8 @@ class windowspowershell (
   Optional[Stdlib::HTTPUrl] $proxy = undef,
 ) {
   # Whether this node gets any resources at all. Read by
-  # windowspowershell::script, windowspowershell::inhouse_module and
-  # windowspowershell::module, which must no-op on the same nodes this class
+  # windowspowershell::script, windowspowershell::module and
+  # windowspowershell::external_module, which must no-op on the same nodes this class
   # does, so that node classification never has to filter on the operating
   # system.
   $supported = $facts['os']['family'] == 'windows'
@@ -108,7 +107,7 @@ class windowspowershell (
   }
 
   # Every profile file windowspowershell::config manages, exposed here so that
-  # windowspowershell::inhouse_module and windowspowershell::module can target
+  # windowspowershell::module and windowspowershell::external_module can target
   # the same set when asked to add an Import-Module line for a module.
   $profile_paths = $manage_profiles ? {
     false   => [],
