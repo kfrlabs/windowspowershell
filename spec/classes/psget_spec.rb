@@ -1,12 +1,12 @@
 require 'spec_helper'
 
 # windowspowershell::psget is @api private: its only legitimate caller is
-# windowspowershell::module when installing from a repository. It is therefore
+# windowspowershell::external_module when installing from a repository. It is therefore
 # tested here, through that caller -- covering both the privacy guarantee and
 # the NuGet-provider bootstrap Exec the class declares (its guard, timeout,
 # log policy and proxy propagation), which module_spec only touches
 # incidentally.
-describe 'windowspowershell::module', type: :define do
+describe 'windowspowershell::external_module', type: :define do
   let(:title) { 'ExampleModule' }
 
   on_supported_os.each do |os, os_facts|

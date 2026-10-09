@@ -21,21 +21,21 @@ Manages the Windows PowerShell environment on Windows nodes:
 There is no module-wide default identity and no mandatory parameter anywhere:
 `include windowspowershell` alone compiles and lays out nothing but the shared
 machine-wide module directory. Every in-house module is its own resource
-(`windowspowershell::inhouse_module`), named by its own title, and every script
+(`windowspowershell::module`), named by its own title, and every script
 says explicitly which in-house module it belongs to.
 
 ## Usage
 
 The module exposes one class and three defined types. The defined types that
 manage something concrete (`windowspowershell::script`,
-`windowspowershell::module`) are ensurable, so adding and retiring something is
+`windowspowershell::external_module`) are ensurable, so adding and retiring something is
 the same resource with a different `ensure`.
 
 ```puppet
 include windowspowershell
 ```
 
-### In-house modules: `windowspowershell::inhouse_module`
+### In-house modules: `windowspowershell::module`
 
 One resource is one module identity. Declaring it explicitly is only needed to
 override a default (`version`, `companyname`, `author`); otherwise, naming the
@@ -43,7 +43,7 @@ module from a `windowspowershell::script` is enough and it is built with every
 default.
 
 ```puppet
-windowspowershell::inhouse_module { 'Acme':
+windowspowershell::module { 'Acme':
   version     => '1.2',
   companyname => 'Acme Corp',
   author      => 'Platform Team',
@@ -79,19 +79,19 @@ windowspowershell::script { 'Get-OldThing':
 Exactly one of `content` or `source` is required when `ensure => present`.
 
 A module named by a script that was never declared explicitly is built with
-every default -- the same `ensure_resource` pattern `windowspowershell::module`
+every default -- the same `ensure_resource` pattern `windowspowershell::external_module`
 uses for the shared machine-wide module directory.
 
 ### Building a module dynamically from a whole directory
 
 For a whole tree of scripts instead of one resource per script, pass a Puppet
-file `source` straight to `windowspowershell::inhouse_module`: it recurses and
+file `source` straight to `windowspowershell::module`: it recurses and
 **purges** `Functions` from that source, preserving the source's own
 sub-folder layout. Drop a new `.ps1` under that directory and it ships on the
 next Puppet run, with no Puppet code change.
 
 ```puppet
-windowspowershell::inhouse_module { 'Acme':
+windowspowershell::module { 'Acme':
   source => 'puppet:///modules/profile/acme-scripts',
 }
 ```
@@ -100,7 +100,7 @@ Because this copy purges the whole `Functions` directory, do not mix it with
 `windowspowershell::script` resources naming the same module: each would strip
 what the other deployed on the next run. Pick one mechanism per module.
 
-### Third-party modules: `windowspowershell::module`
+### External modules: `windowspowershell::external_module`
 
 One resource manages one **module**, not one version. `ensure` carries the
 version the way it does on the `package` type, and by default every other
@@ -108,19 +108,19 @@ version found side by side is removed.
 
 ```puppet
 # From the PowerShell Gallery
-windowspowershell::module { 'PSWindowsUpdate':
+windowspowershell::external_module { 'PSWindowsUpdate':
   ensure     => '2.2.1.5',
   repository => 'PSGallery',
 }
 
 # By copying files, for nodes that cannot reach a repository
-windowspowershell::module { 'PSWindowsUpdate':
+windowspowershell::external_module { 'PSWindowsUpdate':
   ensure => '2.2.1.5',
   source => 'puppet:///modules/windowsupdate/PSWindowsUpdate/2.2.1.5/',
 }
 
 # Remove every version
-windowspowershell::module { 'PSWindowsUpdate':
+windowspowershell::external_module { 'PSWindowsUpdate':
   ensure => absent,
 }
 ```
@@ -177,7 +177,7 @@ mutating machine-wide PowerShellGet configuration.
 
 Manifest regeneration is centralized in one refresh-only `Exec` **per in-house
 module** (`Exec["windowspowershell update-manifest ${modulename}"]`), declared
-by `windowspowershell::inhouse_module`. Every script notifies the Exec of the
+by `windowspowershell::module`. Every script notifies the Exec of the
 module it belongs to, and Puppet refreshes a resource once per transaction
 regardless of how many notifiers fire -- so changing ten scripts of the same
 module in one run rebuilds its manifest once, not ten times. Two in-house
@@ -246,7 +246,7 @@ See [REFERENCE.md](REFERENCE.md), generated with
 - The parent of `module_root` must already exist.
 - Requires `puppetlabs/powershell` for the `powershell` Exec provider,
   `puppetlabs/stdlib`, and `puppetlabs/concat` for the profile fragments.
-- Version purging (`windowspowershell::module`) works on the versioned
+- Version purging (`windowspowershell::external_module`) works on the versioned
   directory layout (`Modules\\<Name>\\<Version>\\`). A module installed the old
   flat way, with its files directly under `Modules\\<Name>\\`, is left alone.
 - Third-party module management is confined to the **AllUsers** scope in the

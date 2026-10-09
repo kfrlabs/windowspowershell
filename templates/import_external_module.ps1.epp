@@ -1,0 +1,2 @@
+<%- | String[1] $modulename, Optional[String[1]] $version = undef | -%>
+Import-Module '<%= $modulename %>'<% if $version { %> -RequiredVersion '<%= $version %>'<% } %> -ErrorAction SilentlyContinue
