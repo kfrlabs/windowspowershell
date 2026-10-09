@@ -167,12 +167,11 @@ define windowspowershell::module (
           'version'    => $module_version,
       })
 
+      # Same collector pattern as windowspowershell::inhouse_module: the
+      # Import-Module line lands on the profile File resources themselves.
       $windowspowershell::profile_paths.each |$profile_path| {
-        concat::fragment { "windowspowershell import ${name} (${profile_path})":
-          target  => $profile_path,
+        File <| title == $profile_path |> {
           content => $import_content,
-          order   => '10',
-          require => $installed_by,
         }
       }
     }
