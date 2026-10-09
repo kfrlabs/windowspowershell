@@ -146,13 +146,13 @@ define windowspowershell::inhouse_module (
     # One command, two triggers. A stable -Guid (derived above) keeps the
     # module identity constant across regenerations.
     $manifest_command = epp('windowspowershell/update_manifest.ps1.epp', {
-      'module_path'    => $module_path,
-      'functions_path' => $functions_path,
-      'manifest_path'  => $manifest_path,
-      'module_name'    => $modulename,
-      'company_name'   => $companyname,
-      'author'         => $author,
-      'guid'           => $manifest_guid,
+        'module_path'    => $module_path,
+        'functions_path' => $functions_path,
+        'manifest_path'  => $manifest_path,
+        'module_name'    => $modulename,
+        'company_name'   => $companyname,
+        'author'         => $author,
+        'guid'           => $manifest_guid,
     })
 
     # Self-heal: rebuild the manifest whenever it is missing, independent of
@@ -200,7 +200,7 @@ define windowspowershell::inhouse_module (
         concat::fragment { "windowspowershell import ${modulename} (${profile_path})":
           target  => $profile_path,
           content => epp('windowspowershell/import_inhouse_module.ps1.epp', {
-            'manifest_path' => $manifest_path,
+              'manifest_path' => $manifest_path,
           }),
           order   => '00',
         }

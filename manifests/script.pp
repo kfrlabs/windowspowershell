@@ -81,8 +81,8 @@ define windowspowershell::script (
     # that names it, hence ensure_resource.
     if $folder =~ NotUndef {
       ensure_resource('file', $script_folder, {
-        'ensure'  => 'directory',
-        'require' => File[$functions_path],
+          'ensure'  => 'directory',
+          'require' => File[$functions_path],
       })
     }
 

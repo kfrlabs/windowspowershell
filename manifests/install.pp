@@ -13,6 +13,6 @@ class windowspowershell::install {
   # (third-party) instance requires File[$windowspowershell::module_root],
   # declared exactly once here.
   ensure_resource('file', $windowspowershell::module_root, {
-    'ensure' => 'directory',
+      'ensure' => 'directory',
   })
 }

@@ -18,7 +18,7 @@ class windowspowershell::psget {
   # outbound call, hence the TLS 1.2 opt-in and the proxy.
   exec { 'windowspowershell install nuget provider':
     command   => epp('windowspowershell/install_nuget.ps1.epp', {
-      'proxy' => $windowspowershell::proxy_url,
+        'proxy' => $windowspowershell::proxy_url,
     }),
     unless    => epp('windowspowershell/check_nuget.ps1.epp'),
     provider  => powershell,
