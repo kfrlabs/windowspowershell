@@ -85,7 +85,10 @@ jobs:
           ruby-version: '3.2'
           bundler-cache: true
       - name: Build the module package, the way the Forge would
-        run: bundle exec rake build
+        # `rake build` (puppetlabs_spec_helper) shells out to the `pdk`
+        # binary, which is not installed on the runner; `puppet module build`
+        # produces the same pkg/*.tar.gz without it.
+        run: bundle exec puppet module build
       - uses: actions/upload-artifact@v4
         with:
           name: module-package
