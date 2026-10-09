@@ -8,9 +8,7 @@
 
 #### Public Classes
 
-* [`windowspowershell`](#windowspowershell): Manages the Windows PowerShell environment: the machine-wide
-profiles, and the site-wide settings shared by every in-house and
-external PowerShell module this module deploys.
+* [`windowspowershell`](#windowspowershell): Builds custom per-node PowerShell modules from Puppet sources and manages profiles.
 
 #### Private Classes
 
@@ -25,8 +23,7 @@ repository.
 
 * [`windowspowershell::external_module`](#windowspowershell--external_module): Installs a third-party PowerShell module, either from a repository
 such as the PowerShell Gallery or by copying files from a Puppet source.
-* [`windowspowershell::module`](#windowspowershell--module): Builds one in-house PowerShell module whose functions are the
-`.ps1` scripts deployed by `windowspowershell::script`.
+* [`windowspowershell::module`](#windowspowershell--module): Builds a custom per-node PowerShell module dynamically from Puppet sources.
 * [`windowspowershell::script`](#windowspowershell--script): Deploys a PowerShell script as a function of an in-house module.
 
 ### Data types
