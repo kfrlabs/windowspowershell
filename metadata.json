@@ -2,7 +2,7 @@
   "name": "kfrlabs-windowspowershell",
   "version": "4.0.0",
   "author": "kfrlabs",
-  "summary": "Manages the Windows PowerShell environment: machine-wide profiles, one or more in-house PowerShell modules built from Puppet-deployed scripts, and third-party PowerShell modules",
+  "summary": "Manages Windows PowerShell profiles, in-house modules built from scripts, and third-party modules",
   "license": "Apache-2.0",
   "source": "https://github.com/kfrlabs/windowspowershell",
   "project_page": "https://github.com/kfrlabs/windowspowershell",
