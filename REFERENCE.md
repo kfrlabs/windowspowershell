@@ -31,7 +31,7 @@ such as the PowerShell Gallery or by copying files from a Puppet source.
 
 ### Data types
 
-* [`Windowspowershell::Externalmoduleensure`](#Windowspowershell--Externalmoduleensure): Desired state of an external PowerShell module, mirroring the `package` type: a literal version pins that exact version, `present` accepts any version,
+* [`Windowspowershell::Externalmoduleensure`](#Windowspowershell--Externalmoduleensure): Desired state of an external PowerShell module, mirroring the `package` type: a literal version pins that exact version, `present` accepts an
 * [`Windowspowershell::Name`](#Windowspowershell--Name): A single path component: a script, folder or module name.  Two properties are guaranteed, and the module relies on both:  * It names one comp
 * [`Windowspowershell::Psstring`](#Windowspowershell--Psstring): Free text that ends up inside a single-quoted PowerShell string, such as the author or company written into the module manifest.  Unlike Wind
 * [`Windowspowershell::Reponame`](#Windowspowershell--Reponame): Name of a PowerShell repository, as registered by `Register-PSRepository` and passed to `Install-Module -Repository`.  Deliberately narrower 
