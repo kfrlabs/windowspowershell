@@ -1,5 +1,14 @@
 # windowspowershell
 
+[![CI](https://github.com/kfrlabs/windowspowershell/actions/workflows/ci.yml/badge.svg)](https://github.com/kfrlabs/windowspowershell/actions/workflows/ci.yml)
+[![Release to the Puppet Forge](https://github.com/kfrlabs/windowspowershell/actions/workflows/release.yml/badge.svg)](https://github.com/kfrlabs/windowspowershell/actions/workflows/release.yml)
+[![Puppet Forge version](https://img.shields.io/puppetforge/v/kfrlabs/windowspowershell.svg)](https://forge.puppet.com/modules/kfrlabs/windowspowershell)
+[![Puppet Forge downloads](https://img.shields.io/puppetforge/dt/kfrlabs/windowspowershell.svg)](https://forge.puppet.com/modules/kfrlabs/windowspowershell)
+[![License: Apache-2.0](https://img.shields.io/github/license/kfrlabs/windowspowershell.svg)](LICENSE)
+[![Puppet >= 7.0, < 9.0](https://img.shields.io/badge/puppet-%3E%3D7.0_%3C9.0-blue.svg)](metadata.json)
+[![PDK 3.4.0](https://img.shields.io/badge/PDK-3.4.0-orange.svg)](https://puppet.com/docs/pdk/latest/pdk.html)
+[![Windows 2016–2025, 10/11](https://img.shields.io/badge/windows-2016--2025_%7C_10%2F11-0078D6.svg?logo=windows)](metadata.json)
+
 ## Table of Contents
 
 1. [Description](#description)

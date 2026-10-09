@@ -5,7 +5,7 @@ All notable changes to this module are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [4.0.0] - Unreleased
+## [1.0.0] - Unreleased
 
 First public release, published independently of the internal fork this
 module started from. The in-house module identity is no longer a singleton
@@ -60,39 +60,3 @@ by side, each named explicitly.
   every push and pull request.
 - GitHub Actions release workflow (`release.yml`): publishes the module to the
   Puppet Forge via `puppet-blacksmith` when a `v*.*.*` tag is pushed.
-
-## [3.2.0] - 2026-08-30
-
-### Added
-
-- Windows Server 2025 to `operatingsystem_support` in `metadata.json`.
-- `spec/classes/psget_spec.rb` covering the NuGet-provider bootstrap
-  (`unless`, `timeout`, `logoutput` and proxy propagation).
-- This `CHANGELOG.md` and a `LICENSE` file backing the `proprietary` license
-  declared in `metadata.json` at the time.
-- `.sync.yml` to document divergence from PDK defaults (currently none).
-
-### Documentation
-
-- `README.md` and the `ensure` param doc in `manifests/module.pp` now state
-  that `ensure => present` is install-once: it installs the newest version only
-  when none is present and never upgrades an already-installed one. Pin the
-  version in `ensure` to move a node forward.
-
-### Changed
-
-- `Unblock-File` now runs at deploy time via a single refresh-only
-  `Exec['windowspowershell unblock-files']` (notified by the root module and by
-  every `windowspowershell::script`), instead of on every module import from
-  `files/rootmodule.psm1`. Files are unblocked once per transaction when they
-  change, rather than walking the whole module tree on each PowerShell session.
-- `README.md`: the Description now lists both third-party module deployment
-  modes in priority order (repository first, Puppet file source as the
-  network-less fallback), and Limitations documents the AllUsers/64-bit
-  install scope and the `powershell7` / `http_proxy` facts the module depends
-  on.
-
-## [3.1.0]
-
-- Baseline: the version declared in `metadata.json` when this changelog was
-  introduced. Prior history is available in the Git log.

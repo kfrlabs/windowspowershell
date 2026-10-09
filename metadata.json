@@ -1,6 +1,6 @@
 {
   "name": "kfrlabs-windowspowershell",
-  "version": "4.0.0",
+  "version": "1.0.0",
   "author": "kfrlabs",
   "summary": "Manages Windows PowerShell profiles, in-house modules built from scripts, and third-party modules",
   "license": "Apache-2.0",
