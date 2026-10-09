@@ -18,11 +18,14 @@
 
 ## Description
 
-Manages the Windows PowerShell environment on Windows nodes:
+Builds custom, per-node PowerShell modules from Puppet sources on Windows nodes:
 
+- one or more **in-house PowerShell modules**, assembled dynamically from
+  `.ps1` scripts deployed by Puppet (`content` / `source`, `puppet:///`),
+  with its manifest (`.psd1`) regenerated automatically. Classification and
+  Hiera decide which scripts land on which node, so two nodes can build two
+  different contents under the same module name;
 - the machine-wide profiles (Windows PowerShell 5.1 and PowerShell 7);
-- one or more **in-house PowerShell modules**, each built from `.ps1` scripts
-  deployed by Puppet, with its manifest (`.psd1`) regenerated automatically;
 - **third-party PowerShell modules**, installed from a PowerShell repository
   (the PowerShell Gallery by default) or, for nodes without network access,
   deployed from a Puppet file source.

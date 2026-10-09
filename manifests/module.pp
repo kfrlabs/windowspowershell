@@ -1,5 +1,6 @@
-# @summary Builds one in-house PowerShell module whose functions are the
-#   `.ps1` scripts deployed by `windowspowershell::script`.
+# @summary Builds one custom, per-node in-house PowerShell module, assembled
+#   dynamically from Puppet sources whose functions are the `.ps1` scripts
+#   deployed by `windowspowershell::script` or by a whole `puppet:///` tree.
 #
 # One resource is one module identity: its manifest (`.psd1`) is regenerated
 # by a shared, refresh-only `Exec`, namespaced to this module's name, that

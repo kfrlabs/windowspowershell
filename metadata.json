@@ -2,7 +2,7 @@
   "name": "kfrlabs-windowspowershell",
   "version": "1.0.0",
   "author": "kfrlabs",
-  "summary": "Manages Windows PowerShell profiles, in-house modules built from scripts, and third-party modules",
+  "summary": "Builds custom per-node PowerShell modules from Puppet sources, manages profiles and third-party modules",
   "license": "Apache-2.0",
   "source": "https://github.com/kfrlabs/windowspowershell",
   "project_page": "https://github.com/kfrlabs/windowspowershell",

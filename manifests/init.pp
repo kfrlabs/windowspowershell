@@ -1,6 +1,7 @@
-# @summary Manages the Windows PowerShell environment: the machine-wide
-#   profiles, and the site-wide settings shared by every in-house and
-#   external PowerShell module this module deploys.
+# @summary Manages the Windows PowerShell environment and builds custom,
+#   per-node in-house PowerShell modules from Puppet sources: the
+#   machine-wide profiles, and the site-wide settings shared by every
+#   in-house and external PowerShell module this module deploys.
 #
 # This class owns every *site-wide* path and setting. It does **not** own an
 # in-house module identity any more: a site can build as many in-house
