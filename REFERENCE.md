@@ -129,11 +129,11 @@ Default value: `undef`
 Data type: `Optional[Stdlib::HTTPUrl]`
 
 Proxy passed to `Install-Module` when installing a third-party module from
-a repository. Left `undef`, no proxy is used (direct install).
-Set it to use a proxy explicitly. Supports URLs with authentication
-(e.g. 'http://user:pass@proxy.example.net:3128').
-This parameter replaces the external `http_proxy` fact; the module no longer
-reads any site-provided structured fact for proxy detection.
+a repository. Left `undef`, it is taken from the external `http_proxy`
+fact (a structured fact of shape `{ host => String, port => Integer }`,
+provided at the site level, not by this module); nodes without that fact,
+or with only a partial one (missing `host` or `port`), go out directly.
+Set it to override that autodetection.
 
 Default value: `undef`
 

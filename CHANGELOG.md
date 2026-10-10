@@ -7,16 +7,6 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [1.0.0] - Unreleased
 
-### Changed
-- Proxy configuration now uses only the `$proxy` class parameter, removing dependence on the external `http_proxy` fact
-  - `$proxy` `undef` → installations go out directly (no proxy)
-  - `$proxy` set → URL passed to `Install-Module`, supports authentication (e.g. `http://user:pass@proxy:port`)
-  - Parameter validated at compile time via `Stdlib::HTTPUrl` type
-  - Proxy can be set via Hiera, node definition, or `windowspowershell::external_module`
-  - See [Proxy](#-windowspowershell--proxy) reference documentation
-
-### Fixed
-
 First public release, published independently of the internal fork this
 module started from. The in-house module identity is no longer a singleton
 owned by the main class: a site can now build several in-house modules side
