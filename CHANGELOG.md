@@ -45,6 +45,16 @@ by side, each named explicitly.
   new Forge namespace (`kfrlabs-windowspowershell`) and a new public GitHub
   repository.
 
+## [1.0.0] - Unreleased
+
+### Changed
+- Proxy configuration now uses only the `$proxy` class parameter, removing dependence on the external `http_proxy` fact
+  - `$proxy` `undef` → installations go out directly (no proxy)
+  - `$proxy` set → URL passed to `Install-Module`, supports authentication (e.g. `http://user:pass@proxy:port`)
+  - Parameter validated at compile time via `Stdlib::HTTPUrl` type
+  - Proxy can be set via Hiera, node definition, or `windowspowershell::external_module`
+  - See [Proxy](#-windowspowershell--proxy) reference documentation
+
 ### Added
 
 - `windowspowershell::module`, a new defined type: one resource is one
