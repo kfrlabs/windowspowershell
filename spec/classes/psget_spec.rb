@@ -50,9 +50,9 @@ describe 'windowspowershell::external_module', type: :define do
             with_command(%r{Tls12})
         end
 
-        # No proxy fact and no explicit proxy: the bootstrap goes out directly,
-        # with no -Proxy on the command. rspec-puppet's without_command only
-        # compares literals, so the negative assertion reads the catalogue.
+        # No proxy parameter: the bootstrap goes out directly, with no -Proxy
+        # on the command. rspec-puppet's without_command only compares
+        # literals, so the negative assertion reads the catalogue.
         context 'with no proxy configured' do
           it 'sends no -Proxy to the bootstrap' do
             cmd = catalogue.resource('Exec', 'windowspowershell install nuget provider')[:command]
@@ -60,14 +60,23 @@ describe 'windowspowershell::external_module', type: :define do
           end
         end
 
-        # The proxy the init.pp class assembles from the http_proxy fact must
-        # reach the bootstrap command.
-        context 'with an http_proxy fact carrying host and port' do
-          let(:facts) { os_facts.merge('http_proxy' => { 'host' => 'proxy.example.net', 'port' => 8080 }) }
+        # The $proxy class parameter must reach the bootstrap command.
+        context 'with an explicit proxy on the class' do
+          let(:pre_condition) { "class { 'windowspowershell': proxy => 'http://proxy.example.net:3128' }" }
 
-          it 'propagates the assembled proxy URL to the bootstrap' do
+          it 'propagates the proxy URL to the bootstrap' do
             is_expected.to contain_exec('windowspowershell install nuget provider').
-              with_command(%r{-Proxy 'http://proxy\.example\.net:8080'})
+              with_command(%r{-Proxy 'http://proxy\.example\.net:3128'})
+          end
+        end
+
+        # An authenticated proxy URL must reach the bootstrap unchanged.
+        context 'with an authenticated proxy on the class' do
+          let(:pre_condition) { "class { 'windowspowershell': proxy => 'http://user:pass@proxy.example.net:3128' }" }
+
+          it 'propagates the authenticated proxy URL to the bootstrap' do
+            is_expected.to contain_exec('windowspowershell install nuget provider').
+              with_command(%r{-Proxy 'http://user:pass@proxy\.example\.net:3128'})
           end
         end
       end
