@@ -169,7 +169,7 @@ sees an interactive user's Internet Options, and it ignores the machine-wide
 **WinHTTP** proxy (`netsh winhttp set proxy`) entirely. The proxy therefore has
 to be passed to `Install-Module` explicitly.
 
-The class does that from the `http_proxy` fact. Nodes without that fact go out
+The class does that from the `$proxy` parameter. Nodes without that fact go out
 directly. The `proxy` parameter overrides the autodetection.
 
 #### Bootstrap
@@ -236,7 +236,7 @@ The module ships one custom fact and relies on one external fact:
   `undef` follows this fact. Forcing it `true` on a node without PowerShell 7
   fails the catalogue with an explicit message rather than writing a profile
   into a directory that does not exist.
-- **`http_proxy`** (external, site-provided -- **not** shipped by this module) --
+- **`proxy`** (class parameter -- **not** a fact) --
   a structured fact `{ host => String, port => Integer }` consumed to build the
   proxy passed to `Install-Module` (see [Proxy](#proxy)). Nodes without it go
   out directly. The `proxy` parameter overrides it.
@@ -265,5 +265,5 @@ See [REFERENCE.md](REFERENCE.md), generated with
   checked for idempotency nor purged.
 - Relies on two facts (see [Facts](#facts)): the module-shipped `powershell7`
   custom fact, which `manage_pwsh_profile` follows when left `undef`, and the
-  site-provided external `http_proxy` fact, which builds the proxy for
+  site-provided external facts for fact-metadata, which builds the proxy for
   `Install-Module` -- a node without it goes out directly.
