@@ -89,7 +89,7 @@ context 'proxy via $proxy parameter' do
     it 'goes out directly without -Proxy' do
       is_expected.to contain_exec('windowspowershell install nuget provider').
         with_command(%r{-Proxy }).
-        that_matches(%r{-Proxy .*-Proxy} => %r{/})
+        that_matches(%r{-Proxy .*-Proxy})
     end
   end
 
