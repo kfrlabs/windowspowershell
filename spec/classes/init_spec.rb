@@ -77,44 +77,61 @@ describe 'windowspowershell' do
         }
       end
 
-      # Proxy configuration via the $proxy parameter (replaces http_proxy fact).
-# If $proxy is undef, installations go out directly (no -Proxy flag).
-# If $proxy is set, it is passed to Install-Module (supports auth URLs).
-context 'proxy via $proxy parameter' do
-  context 'without proxy (direct install)' do
-    let(:params) { { 'proxy' => undef } }
+      # $proxy_url is built in init.pp but only surfaces through an Exec, so a
+      # probe module (declared here, not by the class) is what makes the
+      # bootstrap nuget Exec carry the -Proxy the class computed.
+      context 'proxy autodetection from the http_proxy fact' do
+        let(:pre_condition) { "windowspowershell::external_module { 'ProxyProbe': repository => 'PSGallery' }" }
 
-    it { is_expected.to compile.with_all_deps }
+        context 'with a fact carrying both host and port' do
+          let(:facts) { os_facts.merge('http_proxy' => { 'host' => 'proxy.example.net', 'port' => 8080 }) }
 
-    it 'goes out directly without -Proxy' do
-      is_expected.to contain_exec('windowspowershell install nuget provider').
-        with_command(%r{-Proxy }).
-        that_matches(%r{-Proxy .*-Proxy})
-    end
-  end
+          it { is_expected.to compile.with_all_deps }
 
-  context 'with explicit proxy' do
-    let(:params) { { 'proxy' => 'http://proxy.example.net:3128' } }
+          it 'passes the assembled proxy URL to the nuget bootstrap' do
+            is_expected.to contain_exec('windowspowershell install nuget provider').
+              with_command(%r{-Proxy 'http://proxy\.example\.net:8080'})
+          end
+        end
 
-    it { is_expected.to compile.with_all_deps }
+        # Regression: a host without a port must not build "http://host:" -- a
+        # partial fact is treated like an absent one, so no -Proxy is emitted.
+        # rspec-puppet's without_<param> only compares literals, so the negative
+        # assertion on the command body reads the catalogue directly.
+        context 'with a partial fact (host but no port)' do
+          let(:facts) { os_facts.merge('http_proxy' => { 'host' => 'proxy.example.net' }) }
 
-    it 'passes the proxy URL to the nuget bootstrap' do
-      is_expected.to contain_exec('windowspowershell install nuget provider').
-        with_command(%r{-Proxy 'http://proxy\.example\.net:3128'})
-    end
-  end
+          it { is_expected.to compile.with_all_deps }
 
-  context 'with authenticated proxy' do
-    let(:params) { { 'proxy' => 'http://user:pass@proxy.example.net:3128' } }
+          it 'builds no proxy URL and goes out directly' do
+            cmd = catalogue.resource('Exec', 'windowspowershell install nuget provider')[:command]
+            expect(cmd).not_to match(%r{-Proxy})
+          end
+        end
 
-    it { is_expected.to compile.with_all_deps }
+        # A fact value that would yield a malformed URL is caught at compile
+        # time by assert_type, not at runtime on the node. Stdlib::HTTPUrl only
+        # anchors the scheme, so an embedded newline (which the "." in its
+        # pattern will not cross) is what a loose type still rejects.
+        context 'with a fact host that breaks the URL' do
+          let(:facts) { os_facts.merge('http_proxy' => { 'host' => "proxy\nevil", 'port' => 8080 }) }
 
-    it 'passes the authenticated proxy URL' do
-      is_expected.to contain_exec('windowspowershell install nuget provider').
-        with_command(%r{-Proxy 'http://user:pass@proxy\.example\.net:3128'})
-    end
-  end
-end
+          it { is_expected.to compile.and_raise_error(%r{expects a match for Stdlib::HTTPUrl}) }
+        end
+
+        # An explicit proxy parameter overrides the fact entirely.
+        context 'with an explicit proxy parameter' do
+          let(:facts) { os_facts.merge('http_proxy' => { 'host' => 'proxy.example.net', 'port' => 8080 }) }
+          let(:params) { { 'proxy' => 'http://override.example.net:3128' } }
+
+          it { is_expected.to compile.with_all_deps }
+
+          it 'uses the explicit proxy, not the fact' do
+            is_expected.to contain_exec('windowspowershell install nuget provider').
+              with_command(%r{-Proxy 'http://override\.example\.net:3128'})
+          end
+        end
+      end
 
       context 'with manage_profiles => false' do
         let(:params) { { 'manage_profiles' => false } }

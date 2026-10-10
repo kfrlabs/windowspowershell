@@ -31,11 +31,11 @@
 #   whole agent environment in or out.
 # @param proxy
 #   Proxy passed to `Install-Module` when installing a third-party module from
-#   a repository. Left `undef`, no proxy is used (direct install).
-#   Set it to use a proxy explicitly. Supports URLs with authentication
-#   (e.g. 'http://user:pass@proxy.example.net:3128').
-#   This parameter replaces the external `http_proxy` fact; the module no longer
-#   reads any site-provided structured fact for proxy detection.
+#   a repository. Left `undef`, it is taken from the external `http_proxy`
+#   fact (a structured fact of shape `{ host => String, port => Integer }`,
+#   provided at the site level, not by this module); nodes without that fact,
+#   or with only a partial one (missing `host` or `port`), go out directly.
+#   Set it to override that autodetection.
 #
 # @example Build an in-house module and deploy a script into it
 #   include windowspowershell
@@ -75,12 +75,18 @@ class windowspowershell (
   # machine-wide WinHTTP proxy entirely. So the proxy has to be passed to
   # Install-Module explicitly rather than inherited from the system.
   #
-  # Proxy is now configured exclusively via the `$proxy` class parameter.
-  # The module no longer reads any site-provided structured fact for proxy detection.
-  # If `$proxy` is `undef`, installations go out directly (no proxy).
-  # If `$proxy` is set, it is used as-is (supports 'http://user:pass@host:port').
-  # The `Stdlib::HTTPUrl` type validates the URL at compile time.
-  $proxy_url = $proxy
+  # `http_proxy` is an external, site-provided structured fact
+  # (`{ host => String, port => Integer }`); this module does not ship it. On a
+  # node without it, autodetection yields no proxy and installs go out directly.
+  # Both host and port are required before an URL is built. A host without a
+  # port would interpolate to "http://proxy.example.net:" - an invalid URL that
+  # .NET only rejects at runtime on the node, in an opaque error. Requiring both
+  # here treats a partial fact like an absent one (no proxy, direct install),
+  # and assert_type turns any still-malformed URL into a compile-time failure
+  # rather than a node-side one, matching the guarantee the $proxy type gives
+  # the explicit path.
+  $fact_proxy_host = $facts.dig('http_proxy', 'host')
+  $fact_proxy_port = $facts.dig('http_proxy', 'port')
   $proxy_url = $proxy ? {
     undef   => if $fact_proxy_host =~ String[1] and $fact_proxy_port =~ NotUndef {
       assert_type(Stdlib::HTTPUrl, "http://${fact_proxy_host}:${fact_proxy_port}")
