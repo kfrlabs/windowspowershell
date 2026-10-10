@@ -239,7 +239,7 @@ The module ships one custom fact and relies on one external fact:
   Proxy passed to `Install-Module` via the `$proxy` class parameter.
   Supports URLs with authentication (e.g. 'http://user:pass@proxy.example.net:3128').
   Set it in Hiera or node definition; if `undef`, installations go out directly.
-  This parameter replaces the external `http_proxy` fact; the module no longer reads any site-provided structured fact for proxy detection.
+  This parameter replaces the external `http_proxy` fact; the module no longer reads any site-provided structured fact for proxy detection. the module no longer reads any site-provided structured fact for proxy detection.
 
 ## Reference
 
