@@ -66,7 +66,7 @@ describe 'windowspowershell::external_module' do
         end
       end
 
-      context 'from a repository, without a proxy fact' do
+      context 'from a repository, without a proxy' do
         let(:params) { { 'ensure' => '2.1.0', 'repository' => 'PSGallery' } }
 
         it 'passes no -Proxy at all' do
@@ -75,9 +75,9 @@ describe 'windowspowershell::external_module' do
         end
       end
 
-      context 'from a repository, with a proxy fact' do
-        let(:facts) { os_facts.merge('http_proxy' => { 'host' => '172.18.69.200', 'port' => '8080' }) }
+      context 'from a repository, with a proxy on the class' do
         let(:params) { { 'ensure' => '2.1.0', 'repository' => 'PSGallery' } }
+        let(:pre_condition) { "class { 'windowspowershell': proxy => 'http://172.18.69.200:8080' }" }
 
         it { is_expected.to compile.with_all_deps }
 
@@ -89,12 +89,30 @@ describe 'windowspowershell::external_module' do
         end
       end
 
-      context 'from a repository, with the proxy overridden on the class' do
+      context 'from a repository, with an authenticated proxy on the class' do
+        let(:params) { { 'ensure' => '2.1.0', 'repository' => 'PSGallery' } }
+        let(:pre_condition) { "class { 'windowspowershell': proxy => 'http://user:pass@172.18.69.200:8080' }" }
+
+        it { is_expected.to compile.with_all_deps }
+
+        it 'passes the authenticated proxy to Install-Module and to the NuGet bootstrap' do
+          is_expected.to contain_exec('windowspowershell install ExampleModule').
+            with_command(%r{-Proxy 'http://user:pass@172\.18\.69\.200:8080'})
+          is_expected.to contain_exec('windowspowershell install nuget provider').
+            with_command(%r{-Proxy 'http://user:pass@172\.18\.69\.200:8080'})
+        end
+      end
+
+      context 'from a repository, with a stray http_proxy fact' do
         let(:facts) { os_facts.merge('http_proxy' => { 'host' => '172.18.69.200', 'port' => '8080' }) }
         let(:params) { { 'ensure' => '2.1.0', 'repository' => 'PSGallery' } }
-        let(:pre_condition) { "class { 'windowspowershell': proxy => 'http://other.proxy:3128' }" }
 
-        it { is_expected.to contain_exec('windowspowershell install ExampleModule').with_command(%r{-Proxy 'http://other\.proxy:3128'}) }
+        it { is_expected.to compile.with_all_deps }
+
+        it 'ignores the fact and passes no -Proxy at all' do
+          expect(command_of('windowspowershell install ExampleModule')).not_to match(%r{-Proxy})
+          expect(command_of('windowspowershell install nuget provider')).not_to match(%r{-Proxy})
+        end
       end
 
       context 'from a repository, with ensure => present' do
