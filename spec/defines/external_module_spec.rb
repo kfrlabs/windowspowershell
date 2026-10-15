@@ -349,7 +349,7 @@ describe 'windowspowershell::external_module' do
       context 'with import_in_profile and an in-house module sharing the modulename' do
         let(:params) { { 'ensure' => '2.1.0', 'repository' => 'PSGallery', 'modulename' => 'Acme', 'import_in_profile' => true } }
         let(:pre_condition) do
-          super() + <<~PUPPET
+          super().dup << <<~PUPPET
             windowspowershell::module { 'Acme': }
           PUPPET
         end

@@ -21,7 +21,7 @@ describe 'windowspowershell' do
     it 'orders the header before the in-house import before the external import' do
       profile = 'C:\Windows\System32\WindowsPowerShell\v1.0\profile.ps1'
       orders = catalogue.resources.select { |r| r.type == 'Concat::Fragment' && r[:target] == profile }.
-        to_h { |r| [r.title, r[:order]] }
+               to_h { |r| [r.title, r[:order]] }
       expect(orders["windowspowershell header #{profile}"]).to eq('00')
       expect(orders["windowspowershell import Acme in #{profile}"]).to eq('50')
       expect(orders["windowspowershell import external ExampleModule in #{profile}"]).to eq('60')
@@ -253,7 +253,7 @@ describe 'windowspowershell' do
         it 'orders the pwsh header before the in-house import before the external import' do
           profile = 'C:\Program Files\PowerShell\7\profile.ps1'
           orders = catalogue.resources.select { |r| r.type == 'Concat::Fragment' && r[:target] == profile }.
-            to_h { |r| [r.title, r[:order]] }
+                   to_h { |r| [r.title, r[:order]] }
           expect(orders["windowspowershell header #{profile}"]).to eq('00')
           expect(orders["windowspowershell import Acme in #{profile}"]).to eq('50')
           expect(orders["windowspowershell import external ExampleModule in #{profile}"]).to eq('60')

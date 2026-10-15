@@ -36,13 +36,14 @@ class windowspowershell::config {
       # The PowerShell 7 profile ships a richer header (predictive
       # IntelliSense); Windows PowerShell profiles get a plain
       # managed-by-Puppet header.
+      $header_content = $profile_path ? {
+        $pwsh_profile => epp('windowspowershell/pwsh_profile.ps1.epp'),
+        default       => "# Managed by Puppet (windowspowershell).\n",
+      }
       concat::fragment { "windowspowershell header ${profile_path}":
         target  => $profile_path,
         order   => '00',
-        content => $profile_path ? {
-          $pwsh_profile => epp('windowspowershell/pwsh_profile.ps1.epp'),
-          default       => "# Managed by Puppet (windowspowershell).\n",
-        },
+        content => $header_content,
       }
     }
   }
