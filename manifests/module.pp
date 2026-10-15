@@ -195,13 +195,13 @@ define windowspowershell::module (
     -> Exec["windowspowershell unblock-files ${modulename}"]
 
     if $import_in_profile {
-      # Amend the profile skeletons owned by windowspowershell::config with a
-      # collector, so the Import-Module line lands on the File resources
-      # themselves. A collector override is order-independent (unlike
-      # ensure_resource) and keeps working no matter which manifest first
-      # pulls in the windowspowershell class.
+      # One fragment per managed profile: concat assembles the header
+      # (owned by windowspowershell::config) plus one Import-Module line
+      # per module, so several modules no longer overwrite each other.
       $windowspowershell::profile_paths.each |$profile_path| {
-        File <| title == $profile_path |> {
+        concat::fragment { "windowspowershell import ${modulename} in ${profile_path}":
+          target  => $profile_path,
+          order   => '50',
           content => epp('windowspowershell/import_module.ps1.epp', {
               'manifest_path' => $manifest_path,
           }),
