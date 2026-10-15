@@ -15,6 +15,10 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   fragment, and `windowspowershell::module` / `windowspowershell::external_module`
   each contribute one `concat::fragment` per profile (orders `50` / `60`), so
   several in-house and external modules can be imported side by side.
+- Regression test for issue #13: the PowerShell 7 profile keeps its PSReadLine
+  header (order `00`) next to the `Import-Module` fragments (orders `50` / `60`)
+  when a module imports into it. The `concat` assembly introduced for issue #12
+  already fixes the behavior; no manifest change was needed.
 
 ## [1.1.0] - 2026-10-10
 

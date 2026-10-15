@@ -258,6 +258,18 @@ describe 'windowspowershell' do
           expect(orders["windowspowershell import Acme in #{profile}"]).to eq('50')
           expect(orders["windowspowershell import external ExampleModule in #{profile}"]).to eq('60')
         end
+
+        it 'keeps the PSReadLine header alongside the Import-Module lines on the pwsh profile' do
+          profile = 'C:\Program Files\PowerShell\7\profile.ps1'
+          is_expected.to contain_concat(profile).with_ensure('present')
+          is_expected.to contain_concat_fragment("windowspowershell header #{profile}").
+            with_target(profile).
+            with_order('00').
+            with_content(%r{Set-PSReadLineOption -PredictionViewStyle ListView})
+          is_expected.to contain_concat_fragment("windowspowershell import Acme in #{profile}").
+            with_target(profile).
+            with_content(%r{Acme\.psd1})
+        end
       end
     end
   end
