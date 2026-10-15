@@ -77,18 +77,40 @@ describe 'windowspowershell::module' do
           with_command(%r{-RootModule "\$\{moduleName\}\.psm1"})
       end
 
-      it 'imports the module from the Windows PowerShell profile by default' do
-        is_expected.to contain_file('C:\Windows\System32\WindowsPowerShell\v1.0\profile.ps1').
-          with_content(%r{Import-Module 'C:\\Program Files\\WindowsPowerShell\\Modules\\Acme\\1\.0\\Acme\.psd1'})
-        is_expected.to contain_file('C:\Windows\SysWOW64\WindowsPowerShell\v1.0\profile.ps1').
-          with_content(%r{Import-Module 'C:\\Program Files\\WindowsPowerShell\\Modules\\Acme\\1\.0\\Acme\.psd1'})
+      it 'imports the module from the Windows PowerShell profiles by default' do
+        [
+          'C:\Windows\System32\WindowsPowerShell\v1.0\profile.ps1',
+          'C:\Windows\SysWOW64\WindowsPowerShell\v1.0\profile.ps1',
+        ].each do |profile|
+          is_expected.to contain_concat_fragment("windowspowershell import Acme in #{profile}").
+            with_target(profile).
+            with_order('50').
+            with_content(%r{Import-Module 'C:\\Program Files\\WindowsPowerShell\\Modules\\Acme\\1\.0\\Acme\.psd1'})
+        end
+      end
+
+      context 'with PowerShell 7 installed' do
+        let(:facts) { os_facts.merge('powershell7' => { 'installed' => true, 'path' => 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' }) }
+
+        it 'adds an Import-Module fragment to the pwsh profile' do
+          profile = 'C:\Program Files\PowerShell\7\profile.ps1'
+          is_expected.to contain_concat_fragment("windowspowershell import Acme in #{profile}").
+            with_target(profile).
+            with_order('50').
+            with_content(%r{Import-Module 'C:\\Program Files\\WindowsPowerShell\\Modules\\Acme\\1\.0\\Acme\.psd1'})
+        end
       end
 
       context 'with import_in_profile => false' do
         let(:params) { { 'import_in_profile' => false } }
 
-        it 'adds no Import-Module line to the profiles' do
-          is_expected.to contain_file('C:\Windows\System32\WindowsPowerShell\v1.0\profile.ps1').without_content(%r{Acme})
+        it 'adds no Import-Module fragment to the profiles' do
+          [
+            'C:\Windows\System32\WindowsPowerShell\v1.0\profile.ps1',
+            'C:\Windows\SysWOW64\WindowsPowerShell\v1.0\profile.ps1',
+          ].each do |profile|
+            is_expected.not_to contain_concat_fragment("windowspowershell import Acme in #{profile}")
+          end
         end
       end
 
@@ -163,6 +185,21 @@ describe 'windowspowershell::module' do
           is_expected.to contain_exec('windowspowershell update-manifest Acme')
           is_expected.to contain_exec('windowspowershell update-manifest OtherModule')
         end
+
+        # Regression test for issue #12: the profile Import-Module lines used
+        # to overwrite each other through a File collector, so only one
+        # module survived in the profile. Each module now owns its fragment.
+        it 'keeps an Import-Module fragment for each module instead of overwriting' do
+          profile = 'C:\Windows\System32\WindowsPowerShell\v1.0\profile.ps1'
+          is_expected.to contain_concat_fragment("windowspowershell import Acme in #{profile}").
+            with_target(profile).
+            with_order('50').
+            with_content(%r{Acme\.psd1})
+          is_expected.to contain_concat_fragment("windowspowershell import OtherModule in #{profile}").
+            with_target(profile).
+            with_order('50').
+            with_content(%r{OtherModule\.psd1})
+        end
       end
 
       context 'with a source: dynamic, directory-wide deployment' do
@@ -199,7 +236,7 @@ describe 'windowspowershell::module' do
     it { is_expected.to compile.with_all_deps }
 
     it 'declares nothing at all' do
-      expect(catalogue.resources.select { |r| %w[File Exec Concat::Fragment].include?(r.type) }).to be_empty
+      expect(catalogue.resources.select { |r| %w[File Exec Concat Concat::Fragment].include?(r.type) }).to be_empty
     end
   end
 end

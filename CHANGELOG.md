@@ -5,6 +5,17 @@ All notable changes to this module are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Profile `Import-Module` lines no longer overwrite each other when several
+  modules import into the profile (issue #12). `windowspowershell::config`
+  now declares each managed profile as a `concat` target with a header
+  fragment, and `windowspowershell::module` / `windowspowershell::external_module`
+  each contribute one `concat::fragment` per profile (orders `50` / `60`), so
+  several in-house and external modules can be imported side by side.
+
 ## [1.1.0] - 2026-10-10
 
 ### Changed

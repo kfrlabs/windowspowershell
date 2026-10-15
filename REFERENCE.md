@@ -12,7 +12,7 @@
 
 #### Private Classes
 
-* `windowspowershell::config`: Lays out the machine-wide PowerShell profile skeletons that
+* `windowspowershell::config`: Lays out the machine-wide PowerShell profiles that
 in-house and external modules add their Import-Module lines to.
 * `windowspowershell::install`: Creates the machine-wide PowerShell module directory shared by
 every in-house module and by external module installs.

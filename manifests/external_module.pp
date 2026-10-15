@@ -167,10 +167,15 @@ define windowspowershell::external_module (
           'version'    => $module_version,
       })
 
-      # Same collector pattern as windowspowershell::module: the
-      # Import-Module line lands on the profile File resources themselves.
+      # One fragment per managed profile, like windowspowershell::module:
+      # concat assembles the header plus one Import-Module line per module.
+      # The title keys on $name (not $modulename) and carries an
+      # `external` prefix, so two resources sharing a modulename -- or an
+      # in-house module with the same modulename -- never collide.
       $windowspowershell::profile_paths.each |$profile_path| {
-        File <| title == $profile_path |> {
+        concat::fragment { "windowspowershell import external ${name} in ${profile_path}":
+          target  => $profile_path,
+          order   => '60',
           content => $import_content,
         }
       }

@@ -298,6 +298,90 @@ describe 'windowspowershell::external_module' do
         end
       end
 
+      context 'with import_in_profile => true' do
+        let(:params) { { 'ensure' => '2.1.0', 'repository' => 'PSGallery', 'import_in_profile' => true } }
+
+        it { is_expected.to compile.with_all_deps }
+
+        it 'adds one fragment per managed profile, pinned to the version' do
+          [
+            'C:\Windows\System32\WindowsPowerShell\v1.0\profile.ps1',
+            'C:\Windows\SysWOW64\WindowsPowerShell\v1.0\profile.ps1',
+          ].each do |profile|
+            is_expected.to contain_concat_fragment("windowspowershell import external ExampleModule in #{profile}").
+              with_target(profile).
+              with_order('60').
+              with_content(%r{Import-Module 'ExampleModule' -RequiredVersion '2\.1\.0'})
+          end
+        end
+      end
+
+      context 'with PowerShell 7 installed and import_in_profile => true' do
+        let(:facts) { os_facts.merge('powershell7' => { 'installed' => true, 'path' => 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' }) }
+        let(:params) { { 'ensure' => '2.1.0', 'repository' => 'PSGallery', 'import_in_profile' => true } }
+
+        it { is_expected.to compile.with_all_deps }
+
+        it 'adds the pinned fragment to the pwsh profile' do
+          profile = 'C:\Program Files\PowerShell\7\profile.ps1'
+          is_expected.to contain_concat_fragment("windowspowershell import external ExampleModule in #{profile}").
+            with_target(profile).
+            with_order('60').
+            with_content(%r{Import-Module 'ExampleModule' -RequiredVersion '2\.1\.0'})
+        end
+      end
+
+      context 'with ensure => present and import_in_profile => true' do
+        let(:params) { { 'ensure' => 'present', 'repository' => 'PSGallery', 'import_in_profile' => true } }
+
+        it { is_expected.to compile.with_all_deps }
+
+        it 'imports without pinning a version' do
+          profile = 'C:\Windows\System32\WindowsPowerShell\v1.0\profile.ps1'
+          is_expected.to contain_concat_fragment("windowspowershell import external ExampleModule in #{profile}").
+            with_target(profile).
+            with_order('60').
+            with_content(%r{Import-Module 'ExampleModule'})
+          expect(catalogue.resource('Concat::Fragment', "windowspowershell import external ExampleModule in #{profile}")[:content]).not_to match(%r{-RequiredVersion})
+        end
+      end
+
+      context 'with import_in_profile and an in-house module sharing the modulename' do
+        let(:params) { { 'ensure' => '2.1.0', 'repository' => 'PSGallery', 'modulename' => 'Acme', 'import_in_profile' => true } }
+        let(:pre_condition) do
+          super().dup << <<~PUPPET
+            windowspowershell::module { 'Acme': }
+          PUPPET
+        end
+
+        it { is_expected.to compile.with_all_deps }
+
+        it 'keeps both fragments under distinct titles instead of colliding' do
+          profile = 'C:\Windows\System32\WindowsPowerShell\v1.0\profile.ps1'
+          is_expected.to contain_concat_fragment("windowspowershell import Acme in #{profile}").
+            with_order('50').
+            with_content(%r{Acme\.psd1})
+          is_expected.to contain_concat_fragment("windowspowershell import external ExampleModule in #{profile}").
+            with_order('60').
+            with_content(%r{Import-Module 'Acme' -RequiredVersion '2\.1\.0'})
+        end
+      end
+
+      context 'with ensure => absent and import_in_profile => true' do
+        let(:params) { { 'ensure' => 'absent', 'import_in_profile' => true } }
+
+        it { is_expected.to compile.with_all_deps }
+
+        it 'adds no import fragment (absent stays a no-op for profiles)' do
+          [
+            'C:\Windows\System32\WindowsPowerShell\v1.0\profile.ps1',
+            'C:\Windows\SysWOW64\WindowsPowerShell\v1.0\profile.ps1',
+          ].each do |profile|
+            is_expected.not_to contain_concat_fragment("windowspowershell import external ExampleModule in #{profile}")
+          end
+        end
+      end
+
       context 'logs the PowerShell output on failure' do
         let(:params) { { 'ensure' => '2.1.0', 'repository' => 'PSGallery' } }
 
@@ -340,7 +424,7 @@ describe 'windowspowershell::external_module' do
     it { is_expected.to compile.with_all_deps }
 
     it 'declares nothing at all' do
-      expect(catalogue.resources.select { |r| %w[File Exec].include?(r.type) }).to be_empty
+      expect(catalogue.resources.select { |r| %w[File Exec Concat Concat::Fragment].include?(r.type) }).to be_empty
       is_expected.not_to contain_class('windowspowershell::psget')
     end
 
