@@ -174,6 +174,44 @@ to be passed to `Install-Module` explicitly.
 
 The class does that from the `$proxy` parameter. Nodes without that parameter go out directly.
 
+For a proxy that requires authentication, keep the endpoint in `proxy` and pass
+the credentials separately in `proxy_credential`, with a `Sensitive` password:
+
+```puppet
+class { 'windowspowershell':
+  proxy            => 'http://proxy.example.net:3128',
+  proxy_credential => {
+    username => 'svc-puppet',
+    password => Sensitive('s3cret'),
+  },
+}
+```
+
+The credentials reach `Install-Module` and `Install-PackageProvider` through
+`-ProxyCredential`. The script reads them from the `WPS_PROXY_USER` and
+`WPS_PROXY_PASSWORD` environment variables of the `Exec`, so the secret never
+appears in the `command` or `unless` text. The `environment` of the `Exec` is
+wrapped in `Sensitive`, which keeps it out of Puppet reports and logs. It still
+reaches the agent inside the catalog, as for any secret an agent has to use.
+
+A hash cannot carry a `Sensitive` value straight from Hiera. Wrap the secret in
+Puppet code instead, e.g. in a profile:
+
+```puppet
+class { 'windowspowershell':
+  proxy            => lookup('profile::proxy::url'),
+  proxy_credential => {
+    username => lookup('profile::proxy::username'),
+    password => Sensitive(lookup('profile::proxy::password')),
+  },
+}
+```
+
+> **Deprecated:** credentials embedded in the URL (`http://user:pass@host`) are
+> still accepted, with a warning, but they end up in clear text in the `Exec`
+> command and .NET may not honor them. Move them to `proxy_credential`. Setting
+> both at once fails the catalogue.
+
 #### Bootstrap
 
 Installing from a repository pulls in `windowspowershell::psget`, which
@@ -240,8 +278,12 @@ The module ships one custom fact:
   into a directory that does not exist.
 - **`proxy`** (class parameter -- **not** a fact) --
   Proxy passed to `Install-Module` via the `$proxy` class parameter.
-  Supports URLs with authentication (e.g. 'http://user:pass@proxy.example.net:3128').
   Set it in Hiera or node definition; if `undef`, installations go out directly.
+  Credentials embedded in the URL (e.g. 'http://user:pass@proxy.example.net:3128')
+  are deprecated: use `proxy_credential`.
+- **`proxy_credential`** (class parameter) --
+  Credentials for an authenticating proxy, as `{ username => String, password =>
+  Sensitive[String] }`. Requires `proxy`. See [Proxy](#proxy).
 
 ## Reference
 

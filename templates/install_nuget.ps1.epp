@@ -1,5 +1,13 @@
-<%- | Optional[Stdlib::HTTPUrl] $proxy | -%>
+<%- | Optional[Stdlib::HTTPUrl] $proxy,
+      Boolean                   $use_proxy_credential = false,
+| -%>
 $ErrorActionPreference = 'Stop'
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 
-Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force<% if $proxy =~ NotUndef { %> -Proxy '<%= $proxy %>'<% } %> | Out-Null
+<% if $use_proxy_credential { -%>
+# The secret comes from the Exec environment, never from this script text
+$secure = ConvertTo-SecureString $env:WPS_PROXY_PASSWORD -AsPlainText -Force
+$proxyCredential = New-Object System.Management.Automation.PSCredential($env:WPS_PROXY_USER, $secure)
+
+<% } -%>
+Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force<% if $proxy =~ NotUndef { %> -Proxy '<%= $proxy %>'<% if $use_proxy_credential { %> -ProxyCredential $proxyCredential<% } %><% } %> | Out-Null

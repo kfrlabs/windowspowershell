@@ -70,6 +70,18 @@ windowspowershell::script { 'Get-DiskUsage':
 }
 ```
 
+##### Install through an authenticating proxy
+
+```puppet
+class { 'windowspowershell':
+  proxy            => 'http://proxy.example.net:3128',
+  proxy_credential => {
+    username => 'svc-puppet',
+    password => Sensitive('s3cret'),
+  },
+}
+```
+
 ##### Deploy a third-party module
 
 ```puppet
@@ -87,6 +99,7 @@ The following parameters are available in the `windowspowershell` class:
 * [`manage_profiles`](#-windowspowershell--manage_profiles)
 * [`manage_pwsh_profile`](#-windowspowershell--manage_pwsh_profile)
 * [`proxy`](#-windowspowershell--proxy)
+* [`proxy_credential`](#-windowspowershell--proxy_credential)
 
 ##### <a name="-windowspowershell--module_root"></a>`module_root`
 
@@ -127,8 +140,30 @@ Data type: `Optional[Stdlib::HTTPUrl]`
 
 Proxy passed to `Install-Module` when installing a third-party module from
 a repository. Left `undef`, no proxy is used and installs go out directly.
-Set it to an explicit proxy URL, including credentials when needed
-(e.g. 'http://user:pass@proxy.example.net:3128').
+Set it to an explicit proxy URL (e.g. 'http://proxy.example.net:3128').
+Credentials embedded in the URL (`http://user:pass@host`) are still
+accepted for now but deprecated: they end up in clear text in the Exec
+command, and .NET may not honor them. Use `proxy_credential` instead.
+
+Default value: `undef`
+
+##### <a name="-windowspowershell--proxy_credential"></a>`proxy_credential`
+
+Data type:
+
+```puppet
+Optional[Struct[{
+        username => String[1],
+        password => Sensitive[String[1]],
+  }]]
+```
+
+Credentials for an authenticating proxy, as a hash with `username` and a
+`Sensitive` `password`. Requires `proxy`, and is mutually exclusive with
+credentials embedded in the `proxy` URL. They are passed to
+`Install-Module` and `Install-PackageProvider` through `-ProxyCredential`;
+the secret travels in the Exec `environment` (redacted from reports and
+logs) and never appears in the Exec `command` or `unless` text.
 
 Default value: `undef`
 
