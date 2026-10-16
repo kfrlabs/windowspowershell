@@ -5,6 +5,7 @@
       String[1]           $company_name,
       String[1]           $author,
       String[1]           $guid,
+      Windowspowershell::Moduleversion $module_version,
 | -%>
 $ErrorActionPreference = 'Stop'
 
@@ -33,4 +34,5 @@ New-ModuleManifest -Path $manifestPath `
     -VariablesToExport '*' `
     -AliasesToExport '*' `
     -Author '<%= $author %>' `
-    -CompanyName '<%= $company_name %>'
+    -CompanyName '<%= $company_name %>' `
+    -ModuleVersion '<%= $module_version %>'

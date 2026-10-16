@@ -25,7 +25,11 @@
 # declaration, rather than being silently merged.
 #
 # @param version
-#   Version folder the module is installed under. Defaults to `1.0`.
+#   Version folder the module is installed under, and the ModuleVersion written
+#   into the generated manifest. Defaults to `1.0`. Requires at least two
+#   dot-separated components: a single number such as `1` is rejected at compile
+#   time because PowerShell's `[version]` type, which `-ModuleVersion` casts to,
+#   requires both a major and a minor version.
 # @param companyname
 #   CompanyName field written into the generated module manifest. Defaults to
 #   the neutral `Unknown`; override with the real company.
@@ -68,7 +72,7 @@
 #     source => 'puppet:///modules/profile/acme-scripts',
 #   }
 define windowspowershell::module (
-  Windowspowershell::Version $version = '1.0',
+  Windowspowershell::Moduleversion $version = '1.0',
   Windowspowershell::Psstring $companyname = 'Unknown',
   Windowspowershell::Psstring $author = 'Unknown',
   Boolean $import_in_profile = true,
@@ -151,14 +155,13 @@ define windowspowershell::module (
         'module_name'    => $modulename,
         'company_name'   => $companyname,
         'author'         => $author,
+        'module_version' => $version,
         'guid'           => $manifest_guid,
     })
 
-    # Self-heal: rebuild the manifest whenever it is missing, independent of
-    # any notification. `creates` makes it a no-op once the .psd1 exists, so a
-    # run where nothing changed stays no-op, while a manually deleted or
-    # corrupted manifest is recreated on the next run without any script
-    # having changed.
+    # Build the manifest once per version folder: `creates` only tests that the
+    # .psd1 exists, so a manifest that is present but stale or corrupt is left
+    # alone -- `update-manifest` below is what rebuilds it.
     exec { "windowspowershell create-manifest ${modulename}":
       command   => $manifest_command,
       provider  => powershell,

@@ -29,11 +29,12 @@ such as the PowerShell Gallery or by copying files from a Puppet source.
 ### Data types
 
 * [`Windowspowershell::Externalmoduleensure`](#Windowspowershell--Externalmoduleensure): Desired state of an external PowerShell module, mirroring the `package` type: a literal version pins that exact version, `present` accepts an
+* [`Windowspowershell::Moduleversion`](#Windowspowershell--Moduleversion): A PowerShell module version that New-ModuleManifest can actually write: two to four dot-separated numbers of at most nine digits each. That i
 * [`Windowspowershell::Name`](#Windowspowershell--Name): A single path component: a script, folder or module name.  Two properties are guaranteed, and the module relies on both:  * It names one comp
 * [`Windowspowershell::Psstring`](#Windowspowershell--Psstring): Free text that ends up inside a single-quoted PowerShell string, such as the author or company written into the module manifest.  Unlike Wind
 * [`Windowspowershell::Reponame`](#Windowspowershell--Reponame): Name of a PowerShell repository, as registered by `Register-PSRepository` and passed to `Install-Module -Repository`.  Deliberately narrower 
 * [`Windowspowershell::Rootpath`](#Windowspowershell--Rootpath): The machine-wide PowerShell module root, e.g. the parent of every in-house module folder this class lays out.  It composes two constraints th
-* [`Windowspowershell::Version`](#Windowspowershell--Version): A PowerShell module version: up to four dot-separated numbers, the shape `New-ModuleManifest` and `[version]` accept.  Being digits and dots 
+* [`Windowspowershell::Version`](#Windowspowershell--Version): A PowerShell module version: up to four dot-separated numbers.  Deliberately looser than Windowspowershell::Moduleversion, which requires at 
 
 ## Classes
 
@@ -341,9 +342,13 @@ The following parameters are available in the `windowspowershell::module` define
 
 ##### <a name="-windowspowershell--module--version"></a>`version`
 
-Data type: `Windowspowershell::Version`
+Data type: `Windowspowershell::Moduleversion`
 
-Version folder the module is installed under. Defaults to `1.0`.
+Version folder the module is installed under, and the ModuleVersion written
+into the generated manifest. Defaults to `1.0`. Requires at least two
+dot-separated components: a single number such as `1` is rejected at compile
+time because PowerShell's `[version]` type, which `-ModuleVersion` casts to,
+requires both a major and a minor version.
 
 Default value: `'1.0'`
 
@@ -500,6 +505,23 @@ depending on the day they last ran.
 
 Alias of `Variant[Enum['present', 'absent'], Windowspowershell::Version]`
 
+### <a name="Windowspowershell--Moduleversion"></a>`Windowspowershell::Moduleversion`
+
+A PowerShell module version that New-ModuleManifest can actually write: two to
+four dot-separated numbers of at most nine digits each. That is the shape
+PowerShell's `[version]` type and its `-ModuleVersion` parameter accept -- a
+major and a minor component at minimum, every component within Int32 -- so the
+cast it performs cannot fail at Exec runtime.
+
+A single number such as `1` consists only of digits, so it slips past
+Windowspowershell::Version, and casting it to `[version]` throws. This alias
+rules that out at compile time instead.
+
+Leading zeros are still allowed, so `01.02` passes here and PowerShell reports
+the module as `1.2` while the folder keeps its `01.02` name.
+
+Alias of `Pattern[/\A\d{1,9}(\.\d{1,9}){1,3}\z/]`
+
 ### <a name="Windowspowershell--Name"></a>`Windowspowershell::Name`
 
 A single path component: a script, folder or module name.
@@ -566,8 +588,19 @@ Alias of `Pattern[/\A(?:[A-Za-z]:[\\\/]|[\\\/][\\\/][^\\\/'\x00-\x1F]+[\\\/][^\\
 
 ### <a name="Windowspowershell--Version"></a>`Windowspowershell::Version`
 
-A PowerShell module version: up to four dot-separated numbers, the shape
-`New-ModuleManifest` and `[version]` accept.
+A PowerShell module version: up to four dot-separated numbers.
+
+Deliberately looser than Windowspowershell::Moduleversion, which requires at
+least two components. This type serves windowspowershell::external_module,
+whose version reaches PowerShellGet's Install-Module -RequiredVersion as a
+plain string and is accepted there as it stands.
+
+It is not, however, safe for every consumer: the profile fragment also passes
+it to Import-Module -RequiredVersion, which is typed [Version]. A
+single-component version such as `1` therefore compiles but fails there at
+runtime, silently, because that fragment runs under -ErrorAction
+SilentlyContinue. Tightening this type is deliberately left to a separate
+change, which would break external_module catalogues.
 
 Being digits and dots only, it is also safe to interpolate into a
 single-quoted PowerShell string and into a directory name.
