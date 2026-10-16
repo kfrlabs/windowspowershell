@@ -174,6 +174,12 @@ to be passed to `Install-Module` explicitly.
 
 The class does that from the `$proxy` parameter. Nodes without that parameter go out directly.
 
+> **Breaking change in 1.1.0** (issue #18): the module no longer reads the
+> site-provided `http_proxy` structured fact. Set the proxy explicitly in
+> Hiera (`windowspowershell::proxy: 'http://proxy.example.net:3128'`);
+> `undef` means direct. See the [Unreleased] breaking-change note in
+> [CHANGELOG.md](CHANGELOG.md).
+
 For a proxy that requires authentication, keep the endpoint in `proxy` and pass
 the credentials separately in `proxy_credential`, with a `Sensitive` password:
 

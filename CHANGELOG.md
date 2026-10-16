@@ -18,6 +18,18 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- Clarify 1.1.0 breaking change (issue #18): 1.1.0 removed the site-provided `http_proxy` structured fact
+  as a proxy source. The proxy now comes exclusively from the
+  `$proxy` class parameter: `undef` (the default) goes out directly, a set
+  URL is passed to `Install-Module`. A stray `http_proxy` fact on the node
+  is ignored.
+  - Migration: set the proxy explicitly where it was previously read from
+    the fact:
+    ```yaml
+    windowspowershell::proxy: 'http://proxy.example.net:3128'
+    ```
+    In 1.0.x the module read the fact; from 1.1.0 set it explicitly
+    (`undef` = direct, no proxy).
 - BREAKING: `windowspowershell::module`'s `version` parameter now requires at
   least two dot-separated components, and is typed with the new
   `Windowspowershell::Moduleversion` alias instead of `Windowspowershell::Version`.
