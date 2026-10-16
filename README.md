@@ -62,6 +62,11 @@ windowspowershell::module { 'Acme':
 }
 ```
 
+`version` requires at least two dot-separated components (e.g. `'1.2'`): a
+single number such as `'1'` is refused at compile time, because PowerShell
+casts `-ModuleVersion` to `[version]`. See the breaking-change note under
+[1.2.0] in [CHANGELOG.md](CHANGELOG.md).
+
 ### Scripts: `windowspowershell::script`
 
 A script becomes a function of the in-house module named in `modulename`,
@@ -177,7 +182,7 @@ The class does that from the `$proxy` parameter. Nodes without that parameter go
 > **Breaking change in 1.1.0** (issue #18): the module no longer reads the
 > site-provided `http_proxy` structured fact. Set the proxy explicitly in
 > Hiera (`windowspowershell::proxy: 'http://proxy.example.net:3128'`);
-> `undef` means direct. See the [1.2.0] breaking-change note in
+> `undef` means direct. See the 1.1.0 proxy note under [1.2.0] in
 > [CHANGELOG.md](CHANGELOG.md).
 
 For a proxy that requires authentication, keep the endpoint in `proxy` and pass
