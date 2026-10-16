@@ -20,6 +20,12 @@ describe 'windowspowershell::module' do
           with_command(%r{-CompanyName 'Unknown'})
       end
 
+      it 'writes the module version into the manifest' do
+        ['windowspowershell create-manifest Acme', 'windowspowershell update-manifest Acme'].each do |exec_name|
+          is_expected.to contain_exec(exec_name).with_command(%r{-ModuleVersion '1\.0'})
+        end
+      end
+
       it 'writes the root module and notifies the shared manifest exec' do
         is_expected.to contain_file("#{modules}\\Acme\\1.0\\Acme.psm1").
           with_ensure('file').
@@ -133,6 +139,19 @@ describe 'windowspowershell::module' do
             with_command(%r{-Author 'Platform Team'}).
             with_command(%r{-CompanyName 'Acme Corp'})
         end
+
+        it 'writes the custom version into the manifest' do
+          is_expected.to contain_exec('windowspowershell update-manifest Acme').
+            with_command(%r{-ModuleVersion '2\.3'})
+        end
+
+        # The folder and the manifest have to agree: the bug this covers was a
+        # module installed under ...\Acme\2.3\ declaring ModuleVersion 0.0.1.
+        it 'keeps the folder version and the manifest version in step' do
+          is_expected.to contain_file("#{modules}\\Acme\\2.3").with_ensure('directory')
+          is_expected.to contain_exec('windowspowershell update-manifest Acme').
+            with_command(%r{-ModuleVersion '2\.3'})
+        end
       end
 
       context 'with a title holding an apostrophe' do
@@ -151,6 +170,16 @@ describe 'windowspowershell::module' do
         let(:params) { { 'version' => "1.0'; calc.exe #" } }
 
         it { is_expected.to compile.and_raise_error(%r{parameter 'version'}) }
+      end
+
+      # A single number consists only of digits, so it slips past the loose
+      # Windowspowershell::Version type, but PowerShell's `[version]` type,
+      # which New-ModuleManifest -ModuleVersion casts to, requires a major and
+      # a minor version. Reject it at compile time rather than at Exec runtime.
+      context 'with a version that has only one component' do
+        let(:params) { { 'version' => '1' } }
+
+        it { is_expected.to compile.and_raise_error(%r{parameter 'version' expects a match for Windowspowershell::Moduleversion}) }
       end
 
       context 'with an author holding an apostrophe' do

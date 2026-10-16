@@ -16,6 +16,27 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   of the `Exec` (wrapped in `Sensitive`), so they no longer appear in the
   `command` or `unless` text, nor in Puppet reports and logs.
 
+### Changed
+
+- BREAKING: `windowspowershell::module`'s `version` parameter now requires at
+  least two dot-separated components, and is typed with the new
+  `Windowspowershell::Moduleversion` alias instead of `Windowspowershell::Version`.
+  A single number such as `version => '1'` used to compile and produce a module
+  reporting `0.0.1`; now that the value reaches `-ModuleVersion`, PowerShell
+  casts it to `[version]`, which requires a major and a minor component, so it
+  is refused at compile time rather than failing later at Exec runtime.
+  `Windowspowershell::Version` itself is unchanged and stays the (looser) type
+  for `windowspowershell::external_module`; tightening it is out of scope here,
+  as that would break external_module catalogues.
+  - Migration for existing nodes: this does not repair modules already
+    installed. One that was installed before this fix keeps its `0.0.1`
+    manifest until `create-manifest` or `update-manifest` actually runs, and
+    neither purges the old version folder, so remove
+    `C:\Program Files\WindowsPowerShell\Modules\<Module>\<old version>\` on the
+    node as the one-time step. Simply bumping `version` is not enough: it
+    creates the new folder but leaves the old one behind declaring `0.0.1`, and
+    `Get-Module -ListAvailable` then reports two versions of the module.
+
 ### Deprecated
 
 - Credentials embedded in the `proxy` URL (`http://user:pass@host`). They are
@@ -26,6 +47,16 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- The generated PowerShell manifest now carries the configured `version`
+  (issue #14). `windowspowershell::module` installed the module under a folder
+  named after `version` but wrote `ModuleVersion = '0.0.1'` into the `.psd1`,
+  because `New-ModuleManifest` was called without `-ModuleVersion`. A module in
+  `...\Modules\Acme\1.0\` therefore reported itself as `0.0.1`, so `Get-Module
+  Acme` showed the wrong version and `Import-Module Acme -RequiredVersion 1.0`
+  could fail to match. `-ModuleVersion` is now passed, matching the folder the
+  module is installed under. This fixes newly built manifests only: a module
+  already installed on a node keeps its `0.0.1` manifest until its version
+  folder is removed and rebuilt (see the migration note above).
 - Profile `Import-Module` lines no longer overwrite each other when several
   modules import into the profile (issue #12). `windowspowershell::config`
   now declares each managed profile as a `concat` target with a header
