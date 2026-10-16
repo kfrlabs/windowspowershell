@@ -21,7 +21,16 @@ $moduleName    = '<%= $module_name %>'
 # out of FunctionsToExport. Piping through ForEach-Object keeps an empty
 # Functions/ safe: it yields @() instead of calling a method on a $null
 # FullName, so New-ModuleManifest still gets valid (empty) arrays.
-$functions     = @(Get-ChildItem -Path $functionsPath -Recurse -Include *.ps1, *.psm1)
+# `-LiteralPath` keeps a `[` or `]` in $functionsPath literal instead of reading
+# it as a wildcard character class. The extension filter is applied in the
+# pipeline rather than with `-Include`, because `-Include` is silently ignored
+# when combined with `-LiteralPath` in Windows PowerShell (it is honoured only
+# from PowerShell Core 6.1 on) and the `powershell` Exec provider runs Windows
+# PowerShell, so `-Include` would let every file in the tree through. `-File`
+# keeps directories out, and the pipeline filter keeps the scan to
+# `.ps1`/`.psm1` at any depth (the sub-folder layout is preserved on purpose).
+$functions     = @(Get-ChildItem -LiteralPath $functionsPath -Recurse -File |
+    Where-Object { $_.Extension -in '.ps1', '.psm1' })
 $nestedModules = @($functions | ForEach-Object { $_.FullName.Replace("${modulePath}\", '') })
 $functionNames = @($functions | ForEach-Object { $_.BaseName })
 

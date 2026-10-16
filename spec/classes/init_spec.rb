@@ -77,6 +77,15 @@ describe 'windowspowershell' do
         it { is_expected.to contain_file('\\\\serveur\\partage\\Modules').with_ensure('directory') }
       end
 
+      # A bracket is legal in the type and Windows itself allows it; PowerShell
+      # only misreads it with -Path, not with the file resources here.
+      context 'with a module_root holding brackets' do
+        let(:params) { { 'module_root' => 'C:\\Modules[1]' } }
+
+        it { is_expected.to compile.with_all_deps }
+        it { is_expected.to contain_file('C:\\Modules[1]').with_ensure('directory') }
+      end
+
       context 'without PowerShell 7' do
         it { is_expected.not_to contain_concat('C:\Program Files\PowerShell\7\profile.ps1') }
       end
