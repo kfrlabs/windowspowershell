@@ -182,8 +182,11 @@ define windowspowershell::module (
     # Unblock the module tree at deploy time rather than on every import, and
     # at most once per transaction no matter how many files changed. `-File`
     # keeps directories out of the pipeline, which Unblock-File cannot act on.
+    # `-LiteralPath` is required because a module name or `module_root` may
+    # legally hold `[` and `]`, which `-Path` reads as a wildcard character
+    # class and so matches nothing, silently leaving the whole tree blocked.
     exec { "windowspowershell unblock-files ${modulename}":
-      command     => "Get-ChildItem -Path '${module_path}' -Recurse -File | Unblock-File",
+      command     => "Get-ChildItem -LiteralPath '${module_path}' -Recurse -File | Unblock-File",
       provider    => powershell,
       refreshonly => true,
       logoutput   => on_failure,

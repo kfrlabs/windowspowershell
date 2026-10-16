@@ -47,6 +47,17 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- `Get-ChildItem -Path` no longer treats `[` and `]` in a module name or in
+  `module_root` as a wildcard character class (issue #15). The unblock `Exec`
+  and the `Functions` scan now pass `-LiteralPath`, matching the `check_*`,
+  `purge` and `uninstall` templates that already did. The scan applies its
+  `.ps1` / `.psm1` extension filter in the pipeline rather than with `-Include`,
+  which Windows PowerShell silently ignores when combined with `-LiteralPath`
+  (it is honoured only from PowerShell Core 6.1 on). Only `.ps1` / `.psm1` files
+  are kept, at any depth, and `-File` keeps directories out; the sub-folder
+  layout is intentionally preserved in the manifest. A bracketed name previously
+  made `update-manifest` fail to enumerate the scripts, and could silently leave
+  the module tree blocked for the whole run.
 - The generated PowerShell manifest now carries the configured `version`
   (issue #14). `windowspowershell::module` installed the module under a folder
   named after `version` but wrote `ModuleVersion = '0.0.1'` into the `.psd1`,

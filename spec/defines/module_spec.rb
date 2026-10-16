@@ -47,7 +47,7 @@ describe 'windowspowershell::module' do
           'logoutput' => 'on_failure'
         )
         is_expected.to contain_exec('windowspowershell unblock-files Acme').
-          with_command(%r{Get-ChildItem -Path 'C:\\Program Files\\WindowsPowerShell\\Modules\\Acme\\1\.0' -Recurse -File \| Unblock-File})
+          with_command(%r{Get-ChildItem -LiteralPath 'C:\\Program Files\\WindowsPowerShell\\Modules\\Acme\\1\.0' -Recurse -File \| Unblock-File})
       end
 
       it 'declares a self-heal manifest exec gated on the manifest file' do
@@ -75,7 +75,7 @@ describe 'windowspowershell::module' do
       it 'scans only the Functions directory when building the manifest' do
         is_expected.to contain_exec('windowspowershell update-manifest Acme').
           with_command(%r{\$functionsPath\s*=\s*'C:\\Program Files\\WindowsPowerShell\\Modules\\Acme\\1\.0\\Functions'}).
-          with_command(%r{Get-ChildItem -Path \$functionsPath})
+          with_command(%r{Get-ChildItem -LiteralPath \$functionsPath -Recurse -File \|\s+Where-Object \{ \$_\.Extension -in '\.ps1', '\.psm1' \}})
       end
 
       it 'declares the root module only as -RootModule, not from the scan' do
@@ -166,6 +166,31 @@ describe 'windowspowershell::module' do
         it { is_expected.to compile.and_raise_error(%r{title expects a match}) }
       end
 
+      # A module name may legally hold `[` and `]` (issue #15). PowerShell's
+      # -Path reads those as a wildcard character class, so the unblock Exec
+      # and the Functions scan have to use -LiteralPath to reach the tree.
+      context 'with a title holding brackets' do
+        let(:title) { 'Acme[1]' }
+
+        it { is_expected.to compile.with_all_deps }
+
+        it 'unblocks the bracketed module tree with -LiteralPath' do
+          is_expected.to contain_exec('windowspowershell unblock-files Acme[1]').
+            with_command(%r{Get-ChildItem -LiteralPath 'C:\\Program Files\\WindowsPowerShell\\Modules\\Acme\[1\]\\1\.0' -Recurse -File \| Unblock-File})
+        end
+
+        it 'scans the bracketed Functions directory with -LiteralPath' do
+          is_expected.to contain_exec('windowspowershell update-manifest Acme[1]').
+            with_command(%r{\$functionsPath\s*=\s*'C:\\Program Files\\WindowsPowerShell\\Modules\\Acme\[1\]\\1\.0\\Functions'}).
+            with_command(%r{Get-ChildItem -LiteralPath \$functionsPath -Recurse -File \|\s+Where-Object \{ \$_\.Extension -in '\.ps1', '\.psm1' \}})
+        end
+
+        it 'still creates the bracketed manifest under the version folder' do
+          is_expected.to contain_exec('windowspowershell create-manifest Acme[1]').
+            with('creates' => 'C:\\Program Files\\WindowsPowerShell\\Modules\\Acme[1]\\1.0\\Acme[1].psd1')
+        end
+      end
+
       context 'with a version that is not a version' do
         let(:params) { { 'version' => "1.0'; calc.exe #" } }
 
@@ -228,6 +253,25 @@ describe 'windowspowershell::module' do
             with_target(profile).
             with_order('50').
             with_content(%r{OtherModule\.psd1})
+        end
+      end
+
+      # A bracketed module_root (issue #15) reaches both Execs, whose commands
+      # must keep the brackets literal for the paths to resolve.
+      context 'with a module_root holding brackets' do
+        let(:pre_condition) { "class { 'windowspowershell': module_root => 'C:\\Modules[1]' }" }
+
+        it { is_expected.to compile.with_all_deps }
+
+        it 'unblocks the bracketed module tree with -LiteralPath' do
+          is_expected.to contain_exec('windowspowershell unblock-files Acme').
+            with_command(%r{Get-ChildItem -LiteralPath 'C:\\Modules\[1\]\\Acme\\1\.0' -Recurse -File \| Unblock-File})
+        end
+
+        it 'scans the bracketed Functions directory with -LiteralPath' do
+          is_expected.to contain_exec('windowspowershell update-manifest Acme').
+            with_command(%r{\$functionsPath\s*=\s*'C:\\Modules\[1\]\\Acme\\1\.0\\Functions'}).
+            with_command(%r{Get-ChildItem -LiteralPath \$functionsPath -Recurse -File \|\s+Where-Object \{ \$_\.Extension -in '\.ps1', '\.psm1' \}})
         end
       end
 
