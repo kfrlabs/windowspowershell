@@ -47,6 +47,12 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- `Windowspowershell::Name` now rejects Windows reserved device names
+  (issue #16). `CON`, `PRN`, `AUX`, `NUL`, `COM1`-`COM9` and `LPT1`-`LPT9`
+  are refused case-insensitively, with or without an extension (spaces
+  between the stem and the extension do not save it, e.g. `CON .txt`),
+  at compile time instead of failing at apply time. Names that merely
+  start with one (`CONSOLE`, `Console-Tools`, `COM10`) still pass.
 - `Get-ChildItem -Path` no longer treats `[` and `]` in a module name or in
   `module_root` as a wildcard character class (issue #15). The unblock `Exec`
   and the `Functions` scan now pass `-LiteralPath`, matching the `check_*`,

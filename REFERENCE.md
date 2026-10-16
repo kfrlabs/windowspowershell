@@ -30,7 +30,7 @@ such as the PowerShell Gallery or by copying files from a Puppet source.
 
 * [`Windowspowershell::Externalmoduleensure`](#Windowspowershell--Externalmoduleensure): Desired state of an external PowerShell module, mirroring the `package` type: a literal version pins that exact version, `present` accepts an
 * [`Windowspowershell::Moduleversion`](#Windowspowershell--Moduleversion): A PowerShell module version that New-ModuleManifest can actually write: two to four dot-separated numbers of at most nine digits each. That i
-* [`Windowspowershell::Name`](#Windowspowershell--Name): A single path component: a script, folder or module name.  Two properties are guaranteed, and the module relies on both:  * It names one comp
+* [`Windowspowershell::Name`](#Windowspowershell--Name): A single path component: a script, folder or module name.  Three properties are guaranteed, and the module relies on all three:  * It names o
 * [`Windowspowershell::Psstring`](#Windowspowershell--Psstring): Free text that ends up inside a single-quoted PowerShell string, such as the author or company written into the module manifest.  Unlike Wind
 * [`Windowspowershell::Reponame`](#Windowspowershell--Reponame): Name of a PowerShell repository, as registered by `Register-PSRepository` and passed to `Install-Module -Repository`.  Deliberately narrower 
 * [`Windowspowershell::Rootpath`](#Windowspowershell--Rootpath): The machine-wide PowerShell module root, e.g. the parent of every in-house module folder this class lays out.  It composes two constraints th
@@ -526,7 +526,7 @@ Alias of `Pattern[/\A\d{1,9}(\.\d{1,9}){1,3}\z/]`
 
 A single path component: a script, folder or module name.
 
-Two properties are guaranteed, and the module relies on both:
+Three properties are guaranteed, and the module relies on all three:
 
 * It names one component and cannot escape its parent directory. The path
   separators are excluded, and a name made only of dots is refused along with
@@ -535,12 +535,15 @@ Two properties are guaranteed, and the module relies on both:
   apostrophe is the only character able to end such a string -- the backtick
   and `$` are literal inside it -- so excluding the apostrophe is what keeps
   the generated scripts free of injection.
+* It is not a Windows reserved device name. CON, PRN, AUX, NUL, COM1-9 and
+  LPT1-9 are refused case-insensitively, with or without an extension;
+  spaces between the stem and the extension do not save it either.
 
 The remaining exclusions are what Windows itself refuses in a file name: the
 reserved characters, control characters, a trailing dot or space, and more
 than 255 characters in a single path component.
 
-Alias of `Pattern[/\A[^\\\/:*?"<>|'\x00-\x1F]{0,254}[^\\\/:*?"<>|'\x00-\x1F. ]\z/]`
+Alias of `Pattern[/\A(?!(?i:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])[ ]*(?:\..*)?\z)[^\\\/:*?"<>|'\x00-\x1F]{0,254}[^\\\/:*?"<>|'\x00-\x1F. ]\z/]`
 
 ### <a name="Windowspowershell--Psstring"></a>`Windowspowershell::Psstring`
 

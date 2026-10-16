@@ -182,12 +182,130 @@ describe 'windowspowershell::script' do
         it { is_expected.to compile.and_raise_error(%r{parameter 'scriptname'}) }
       end
 
+      # Windows reserves CON, PRN, AUX, NUL, COM1-9 and LPT1-9 with or
+      # without an extension; each would fail at apply time instead.
+      context 'with the reserved scriptname CON' do
+        let(:params) { { 'modulename' => 'Acme', 'scriptname' => 'CON', 'content' => 'x' } }
+
+        it { is_expected.to compile.and_raise_error(%r{parameter 'scriptname'}) }
+      end
+
+      context 'with the reserved scriptname con' do
+        let(:params) { { 'modulename' => 'Acme', 'scriptname' => 'con', 'content' => 'x' } }
+
+        it { is_expected.to compile.and_raise_error(%r{parameter 'scriptname'}) }
+      end
+
+      context 'with the reserved scriptname NUL' do
+        let(:params) { { 'modulename' => 'Acme', 'scriptname' => 'NUL', 'content' => 'x' } }
+
+        it { is_expected.to compile.and_raise_error(%r{parameter 'scriptname'}) }
+      end
+
+      context 'with the reserved scriptname PRN' do
+        let(:params) { { 'modulename' => 'Acme', 'scriptname' => 'PRN', 'content' => 'x' } }
+
+        it { is_expected.to compile.and_raise_error(%r{parameter 'scriptname'}) }
+      end
+
+      context 'with the reserved scriptname AUX' do
+        let(:params) { { 'modulename' => 'Acme', 'scriptname' => 'AUX', 'content' => 'x' } }
+
+        it { is_expected.to compile.and_raise_error(%r{parameter 'scriptname'}) }
+      end
+
+      context 'with the reserved scriptname COM1' do
+        let(:params) { { 'modulename' => 'Acme', 'scriptname' => 'COM1', 'content' => 'x' } }
+
+        it { is_expected.to compile.and_raise_error(%r{parameter 'scriptname'}) }
+      end
+
+      context 'with the reserved scriptname COM9' do
+        let(:params) { { 'modulename' => 'Acme', 'scriptname' => 'COM9', 'content' => 'x' } }
+
+        it { is_expected.to compile.and_raise_error(%r{parameter 'scriptname'}) }
+      end
+
+      context 'with the reserved scriptname LPT1' do
+        let(:params) { { 'modulename' => 'Acme', 'scriptname' => 'LPT1', 'content' => 'x' } }
+
+        it { is_expected.to compile.and_raise_error(%r{parameter 'scriptname'}) }
+      end
+
+      context 'with the reserved scriptname LPT9' do
+        let(:params) { { 'modulename' => 'Acme', 'scriptname' => 'LPT9', 'content' => 'x' } }
+
+        it { is_expected.to compile.and_raise_error(%r{parameter 'scriptname'}) }
+      end
+
+      context 'with the reserved scriptname CON.v2' do
+        let(:params) { { 'modulename' => 'Acme', 'scriptname' => 'CON.v2', 'content' => 'x' } }
+
+        it { is_expected.to compile.and_raise_error(%r{parameter 'scriptname'}) }
+      end
+
+      context 'with the reserved scriptname COM1.txt' do
+        let(:params) { { 'modulename' => 'Acme', 'scriptname' => 'COM1.txt', 'content' => 'x' } }
+
+        it { is_expected.to compile.and_raise_error(%r{parameter 'scriptname'}) }
+      end
+
+      # Windows strips spaces before the extension, so `CON .txt` still
+      # names the CON device.
+      context 'with the reserved scriptname holding a space before the dot' do
+        let(:params) { { 'modulename' => 'Acme', 'scriptname' => 'CON .txt', 'content' => 'x' } }
+
+        it { is_expected.to compile.and_raise_error(%r{parameter 'scriptname'}) }
+      end
+
+      context 'with the reserved folder CON' do
+        let(:params) { { 'modulename' => 'Acme', 'folder' => 'CON', 'content' => 'x' } }
+
+        it { is_expected.to compile.and_raise_error(%r{parameter 'folder'}) }
+      end
+
+      context 'with the reserved modulename NUL' do
+        let(:params) { { 'modulename' => 'NUL', 'content' => 'x' } }
+
+        it { is_expected.to compile.and_raise_error(%r{parameter 'modulename'}) }
+      end
+
       # Dots elsewhere are legitimate and must keep working.
       context 'with a scriptname holding an inner dot' do
         let(:params) { { 'modulename' => 'Acme', 'scriptname' => 'Get-Example.v2', 'content' => 'x' } }
 
         it { is_expected.to compile.with_all_deps }
         it { is_expected.to contain_file("#{functions}\\Get-Example.v2.ps1") }
+      end
+
+      # Only whole components (with or without an extension) are reserved:
+      # longer names starting with one must keep working.
+      context 'with a scriptname starting with a reserved device name' do
+        let(:params) { { 'modulename' => 'Acme', 'scriptname' => 'CONSOLE', 'content' => 'x' } }
+
+        it { is_expected.to compile.with_all_deps }
+        it { is_expected.to contain_file("#{functions}\\CONSOLE.ps1") }
+      end
+
+      context 'with a scriptname extending a reserved device name with a dash' do
+        let(:params) { { 'modulename' => 'Acme', 'scriptname' => 'Console-Tools', 'content' => 'x' } }
+
+        it { is_expected.to compile.with_all_deps }
+        it { is_expected.to contain_file("#{functions}\\Console-Tools.ps1") }
+      end
+
+      context 'with a scriptname holding a longer device number' do
+        let(:params) { { 'modulename' => 'Acme', 'scriptname' => 'COM10', 'content' => 'x' } }
+
+        it { is_expected.to compile.with_all_deps }
+        it { is_expected.to contain_file("#{functions}\\COM10.ps1") }
+      end
+
+      context 'with a scriptname starting with a reserved device name plus an extension' do
+        let(:params) { { 'modulename' => 'Acme', 'scriptname' => 'CONSOLE.txt', 'content' => 'x' } }
+
+        it { is_expected.to compile.with_all_deps }
+        it { is_expected.to contain_file("#{functions}\\CONSOLE.txt.ps1") }
       end
 
       context 'with two scripts sharing a folder' do
