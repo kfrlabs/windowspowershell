@@ -70,8 +70,32 @@ describe 'windowspowershell::external_module', type: :define do
           end
         end
 
-        # An authenticated proxy URL must reach the bootstrap unchanged.
-        context 'with an authenticated proxy on the class' do
+        # The credentials travel in the Exec environment and are read by the
+        # script, so the bootstrap text never holds them.
+        context 'with proxy_credential on the class' do
+          let(:pre_condition) do
+            <<~PUPPET
+              class { 'windowspowershell':
+                proxy            => 'http://proxy.example.net:3128',
+                proxy_credential => {
+                  username => 'svc-puppet',
+                  password => Sensitive('s3cret-pw'),
+                },
+              }
+            PUPPET
+          end
+
+          it 'passes -ProxyCredential without writing the secret in the command' do
+            is_expected.to contain_exec('windowspowershell install nuget provider').
+              with_command(%r{-Proxy 'http://proxy\.example\.net:3128' -ProxyCredential \$proxyCredential}).
+              with_command(%r{\$env:WPS_PROXY_PASSWORD})
+            cmd = catalogue.resource('Exec', 'windowspowershell install nuget provider')[:command]
+            expect(cmd).not_to match(%r{s3cret-pw|svc-puppet})
+          end
+        end
+
+        # Deprecated: an authenticated proxy URL must still reach the bootstrap unchanged.
+        context 'with credentials embedded in the proxy URL on the class' do
           let(:pre_condition) { "class { 'windowspowershell': proxy => 'http://user:pass@proxy.example.net:3128' }" }
 
           it 'propagates the authenticated proxy URL to the bootstrap' do

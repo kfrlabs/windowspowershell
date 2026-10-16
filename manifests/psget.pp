@@ -17,12 +17,14 @@ class windowspowershell::psget {
   # Windows Server 2016 ships without it. Bootstrapping it is itself an
   # outbound call, hence the TLS 1.2 opt-in and the proxy.
   exec { 'windowspowershell install nuget provider':
-    command   => epp('windowspowershell/install_nuget.ps1.epp', {
-        'proxy' => $windowspowershell::proxy_url,
+    command     => epp('windowspowershell/install_nuget.ps1.epp', {
+        'proxy'                => $windowspowershell::proxy_url,
+        'use_proxy_credential' => $windowspowershell::proxy_use_credential,
     }),
-    unless    => epp('windowspowershell/check_nuget.ps1.epp'),
-    provider  => powershell,
-    timeout   => 300,
-    logoutput => on_failure,
+    unless      => epp('windowspowershell/check_nuget.ps1.epp'),
+    provider    => powershell,
+    environment => $windowspowershell::proxy_environment,
+    timeout     => 300,
+    logoutput   => on_failure,
   }
 }

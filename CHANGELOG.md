@@ -7,6 +7,23 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- `proxy_credential` class parameter (issue #17): `{ username, password =>
+  Sensitive }` for an authenticating proxy. The credentials are passed to
+  `Install-Module` and `Install-PackageProvider` through `-ProxyCredential`,
+  read from the `WPS_PROXY_USER` / `WPS_PROXY_PASSWORD` environment variables
+  of the `Exec` (wrapped in `Sensitive`), so they no longer appear in the
+  `command` or `unless` text, nor in Puppet reports and logs.
+
+### Deprecated
+
+- Credentials embedded in the `proxy` URL (`http://user:pass@host`). They are
+  still accepted for now but raise a warning, because they end up in clear text
+  in the `Exec` command and .NET may not honor them. Use `proxy_credential`;
+  the embedded form will be removed in a future major release. Setting both
+  `proxy_credential` and credentials in the URL fails the catalogue.
+
 ### Fixed
 
 - Profile `Import-Module` lines no longer overwrite each other when several

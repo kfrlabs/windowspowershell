@@ -109,20 +109,22 @@ define windowspowershell::external_module (
       include windowspowershell::psget
 
       exec { "windowspowershell install ${name}":
-        command   => epp('windowspowershell/install_psmodule.ps1.epp', {
-            'modulename' => $modulename,
-            'version'    => $module_version,
-            'repository' => $repository,
-            'proxy'      => $windowspowershell::proxy_url,
+        command     => epp('windowspowershell/install_psmodule.ps1.epp', {
+            'modulename'           => $modulename,
+            'version'              => $module_version,
+            'repository'           => $repository,
+            'proxy'                => $windowspowershell::proxy_url,
+            'use_proxy_credential' => $windowspowershell::proxy_use_credential,
         }),
-        unless    => epp('windowspowershell/check_psmodule.ps1.epp', {
+        unless      => epp('windowspowershell/check_psmodule.ps1.epp', {
             'module_dir' => $module_dir,
             'version'    => $module_version,
         }),
-        provider  => powershell,
-        timeout   => 900,
-        logoutput => on_failure,
-        require   => Exec['windowspowershell install nuget provider'],
+        provider    => powershell,
+        environment => $windowspowershell::proxy_environment,
+        timeout     => 900,
+        logoutput   => on_failure,
+        require     => Exec['windowspowershell install nuget provider'],
       }
       $installed_by = Exec["windowspowershell install ${name}"]
     } else {

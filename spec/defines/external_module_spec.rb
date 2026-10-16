@@ -73,6 +73,11 @@ describe 'windowspowershell::external_module' do
           expect(command_of('windowspowershell install ExampleModule')).not_to match(%r{-Proxy})
           expect(command_of('windowspowershell install nuget provider')).not_to match(%r{-Proxy})
         end
+
+        it 'sets no environment on the Execs' do
+          expect(catalogue.resource('Exec', 'windowspowershell install ExampleModule')[:environment]).to be_nil
+          expect(catalogue.resource('Exec', 'windowspowershell install nuget provider')[:environment]).to be_nil
+        end
       end
 
       context 'from a repository, with a proxy on the class' do
@@ -89,7 +94,7 @@ describe 'windowspowershell::external_module' do
         end
       end
 
-      context 'from a repository, with an authenticated proxy on the class' do
+      context 'from a repository, with credentials embedded in the proxy URL (deprecated)' do
         let(:params) { { 'ensure' => '2.1.0', 'repository' => 'PSGallery' } }
         let(:pre_condition) { "class { 'windowspowershell': proxy => 'http://user:pass@172.18.69.200:8080' }" }
 
@@ -101,6 +106,135 @@ describe 'windowspowershell::external_module' do
           is_expected.to contain_exec('windowspowershell install nuget provider').
             with_command(%r{-Proxy 'http://user:pass@172\.18\.69\.200:8080'})
         end
+      end
+
+      # The embedded form still works but must warn, and the warning must
+      # never echo the URL. A dedicated node name keeps rspec-puppet's
+      # catalogue cache from hiding the compile-time warning.
+      context 'from a repository, with credentials embedded in the proxy URL, on a warn probe node' do
+        let(:node) { 'warn-probe.example.com' }
+        let(:params) { { 'ensure' => '2.1.0', 'repository' => 'PSGallery' } }
+        let(:pre_condition) { "class { 'windowspowershell': proxy => 'http://user:pass@172.18.69.200:8080' }" }
+
+        it 'recommends proxy_credential without echoing the password' do
+          warnings = []
+          allow(Puppet::Util::Log).to receive(:create).and_wrap_original do |original, args|
+            warnings << args[:message] if args.is_a?(Hash) && args[:level] == :warning
+            original.call(args)
+          end
+          catalogue
+          deprecation = warnings.select { |message| message.include?('proxy_credential') }
+          expect(deprecation).not_to be_empty
+          expect(deprecation.join).not_to match(%r{pass@|user:pass})
+        end
+      end
+
+      context 'from a repository, with proxy_credential on the class' do
+        let(:params) { { 'ensure' => '2.1.0', 'repository' => 'PSGallery' } }
+        let(:pre_condition) do
+          <<~PUPPET
+            class { 'windowspowershell':
+              proxy            => 'http://proxy.example.net:3128',
+              proxy_credential => {
+                username => 'svc-puppet',
+                password => Sensitive('s3cret-pw'),
+              },
+            }
+          PUPPET
+        end
+
+        install_titles = ['windowspowershell install ExampleModule', 'windowspowershell install nuget provider']
+
+        def environment_of(title)
+          environment = catalogue.resource('Exec', title)[:environment]
+          environment.respond_to?(:unwrap) ? environment.unwrap : environment
+        end
+
+        it { is_expected.to compile.with_all_deps }
+
+        it 'passes -ProxyCredential next to -Proxy on Install-Module and on the NuGet bootstrap' do
+          is_expected.to contain_exec('windowspowershell install ExampleModule').
+            with_command(%r{-Proxy 'http://proxy\.example\.net:3128'}).
+            with_command(%r{-ProxyCredential \$proxyCredential})
+          is_expected.to contain_exec('windowspowershell install nuget provider').
+            with_command(%r{-Proxy 'http://proxy\.example\.net:3128'}).
+            with_command(%r{-ProxyCredential \$proxyCredential})
+        end
+
+        it 'reads the credentials from the environment, not from the script text' do
+          install_titles.each do |title|
+            expect(command_of(title)).to match(%r{\$env:WPS_PROXY_USER})
+            expect(command_of(title)).to match(%r{\$env:WPS_PROXY_PASSWORD})
+          end
+        end
+
+        it 'writes neither the password nor the username in any command or unless' do
+          install_titles.each do |title|
+            expect(command_of(title)).not_to match(%r{s3cret-pw|svc-puppet})
+            expect(unless_of(title)).not_to match(%r{s3cret-pw|svc-puppet})
+          end
+        end
+
+        it 'hands the credentials to both Execs through their environment' do
+          install_titles.each do |title|
+            expect(environment_of(title)).to contain_exactly('WPS_PROXY_USER=svc-puppet', 'WPS_PROXY_PASSWORD=s3cret-pw')
+          end
+        end
+
+        # Puppet unwraps the Sensitive value on the resource and flags the
+        # parameter instead, which is what redacts it from reports and logs.
+        it 'flags the environment as a sensitive parameter so that Puppet redacts it' do
+          install_titles.each do |title|
+            expect(catalogue.resource('Exec', title).sensitive_parameters).to include(:environment)
+          end
+        end
+
+        it 'does not flag the command as sensitive' do
+          install_titles.each do |title|
+            expect(catalogue.resource('Exec', title).sensitive_parameters).not_to include(:command)
+          end
+        end
+
+        it 'leaves the other Execs without credentials' do
+          expect(catalogue.resource('Exec', 'windowspowershell purge other versions of ExampleModule')[:environment]).to be_nil
+        end
+      end
+
+      context 'from a repository, with proxy_credential but no proxy' do
+        let(:params) { { 'ensure' => '2.1.0', 'repository' => 'PSGallery' } }
+        let(:pre_condition) do
+          "class { 'windowspowershell': proxy_credential => { username => 'u', password => Sensitive('p') } }"
+        end
+
+        it { is_expected.to compile.and_raise_error(%r{'proxy_credential' needs 'proxy'}) }
+      end
+
+      context 'from a repository, with proxy_credential and credentials embedded in the proxy URL' do
+        let(:params) { { 'ensure' => '2.1.0', 'repository' => 'PSGallery' } }
+        let(:pre_condition) do
+          <<~PUPPET
+            class { 'windowspowershell':
+              proxy            => 'http://user:pass@proxy.example.net:3128',
+              proxy_credential => { username => 'u', password => Sensitive('p') },
+            }
+          PUPPET
+        end
+
+        it { is_expected.to compile.and_raise_error(%r{embeds credentials}) }
+      end
+
+      context 'from a repository, with a plain-string password in proxy_credential' do
+        let(:params) { { 'ensure' => '2.1.0', 'repository' => 'PSGallery' } }
+        let(:pre_condition) do
+          <<~PUPPET
+            class { 'windowspowershell':
+              proxy            => 'http://proxy.example.net:3128',
+              proxy_credential => { username => 'u', password => 'plain' },
+            }
+          PUPPET
+        end
+
+        it { is_expected.to compile.and_raise_error(%r{parameter 'proxy_credential'}) }
       end
 
       context 'from a repository, with a stray http_proxy fact' do
