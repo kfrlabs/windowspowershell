@@ -1,17 +1,18 @@
-# A PowerShell module version: up to four dot-separated numbers.
+# A PowerShell module version: one to four dot-separated numbers of at most
+# nine digits each.
 #
 # Deliberately looser than Windowspowershell::Moduleversion, which requires at
 # least two components. This type serves windowspowershell::external_module,
 # whose version reaches PowerShellGet's Install-Module -RequiredVersion as a
-# plain string and is accepted there as it stands.
+# plain string and is accepted there as it stands. A single-component pin
+# such as `2` is therefore still accepted here; the profile fragment
+# normalises it to `2.0` because Import-Module -RequiredVersion is typed
+# [version], which needs at least major.minor.
 #
-# It is not, however, safe for every consumer: the profile fragment also passes
-# it to Import-Module -RequiredVersion, which is typed [Version]. A
-# single-component version such as `1` therefore compiles but fails there at
-# runtime, silently, because that fragment runs under -ErrorAction
-# SilentlyContinue. Tightening this type is deliberately left to a separate
-# change, which would break external_module catalogues.
+# Each component is still limited to nine digits, like Moduleversion: every
+# component is parsed as an Int32 by System.Version, so a tenth digit would
+# overflow at Exec runtime instead of failing the catalogue at compile time.
 #
 # Being digits and dots only, it is also safe to interpolate into a
 # single-quoted PowerShell string and into a directory name.
-type Windowspowershell::Version = Pattern[/\A\d+(\.\d+){0,3}\z/]
+type Windowspowershell::Version = Pattern[/\A\d{1,9}(\.\d{1,9}){0,3}\z/]

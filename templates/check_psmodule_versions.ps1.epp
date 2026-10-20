@@ -7,6 +7,8 @@ if (-not (Test-Path -LiteralPath $moduleDir)) { exit 0 }
 
 # Unparseable dir: kept (not extra); unparseable pin: only a literal folder match is kept, the rest counts as extra.
 # A single-component pin/dir (e.g. '2') is normalised to '2.0' before -as [version], which needs major.minor.
+# Keep in sync: this normalise-and-compare block is triplicated across
+# check_psmodule.ps1.epp, check_psmodule_versions.ps1.epp and purge_psmodule_versions.ps1.epp.
 $pinned = '<%= $version %>'
 $pinnedNorm = $pinned
 if ($pinnedNorm -match '^\d+$') { $pinnedNorm = $pinnedNorm + '.0' }

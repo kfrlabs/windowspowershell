@@ -59,6 +59,10 @@
 #   Co-managing one modulename from both `windowspowershell::module` and
 #   `windowspowershell::external_module` requires `purge_versions => false` on
 #   one side, or each purge removes the other side's version.
+#   The purge reuses the same numeric comparison as
+#   `windowspowershell::external_module`: missing segments count as zero, so
+#   pin `2.3` also keeps a `2.3.0` folder left behind by an earlier layout,
+#   and a folder that does not parse as `[version]` is kept, never purged.
 #
 # @example Declare a module with non-default identity, then deploy scripts into it
 #   windowspowershell::module { 'Acme':

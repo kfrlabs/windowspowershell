@@ -35,7 +35,7 @@ such as the PowerShell Gallery or by copying files from a Puppet source.
 * [`Windowspowershell::Psstring`](#Windowspowershell--Psstring): Free text that ends up inside a single-quoted PowerShell string, such as the author or company written into the module manifest.  Unlike Wind
 * [`Windowspowershell::Reponame`](#Windowspowershell--Reponame): Name of a PowerShell repository, as registered by `Register-PSRepository` and passed to `Install-Module -Repository`.  Deliberately narrower 
 * [`Windowspowershell::Rootpath`](#Windowspowershell--Rootpath): The machine-wide PowerShell module root, e.g. the parent of every in-house module folder this class lays out.  It composes two constraints th
-* [`Windowspowershell::Version`](#Windowspowershell--Version): A PowerShell module version: up to four dot-separated numbers.  Deliberately looser than Windowspowershell::Moduleversion, which requires at 
+* [`Windowspowershell::Version`](#Windowspowershell--Version): A PowerShell module version: one to four dot-separated numbers of at most nine digits each.  Deliberately looser than Windowspowershell::Modu
 
 ## Classes
 
@@ -230,7 +230,10 @@ accepts any version and installs the newest one if none is there, which
 requires `repository`. It is install-once: once any version is present it is
 never upgraded on later runs. To move a node to a newer version, pin that
 version in `ensure`.
-A version string pins that exact version.
+A version string pins that exact version. PowerShellGet may normalise a
+short pin into a longer folder name (e.g. pin `2.1` installs under
+`2.1.0`); that normalised folder counts as the pinned version, so the
+install check stays idempotent and the purge keeps it.
 
 Default value: `'present'`
 
@@ -269,6 +272,12 @@ Ignored unless `ensure` is a version. Co-managing one modulename from both
 `windowspowershell::external_module` and `windowspowershell::module`
 requires `purge_versions => false` on one side, or each purge removes the
 other side's version.
+Comparison is numeric with missing segments treated as zero, so pin `2.1`
+also matches folder `2.1.0`: if both spellings end up side by side, both
+count as the pinned version and neither is purged. The canonical folder
+is whatever the backend creates -- the normalised name PowerShellGet
+picks for `repository`, the literal pin for `source` -- so remove the
+other spelling once by hand if it ever appears.
 
 Default value: `true`
 
@@ -280,6 +289,9 @@ Whether to add an `Import-Module` line for this module to every profile
 file managed by `windowspowershell::config` (see `manage_profiles` /
 `manage_pwsh_profile` on the main class). Pins `-RequiredVersion` when
 `ensure` is a specific version. Ignored (no-op) when `ensure => absent`.
+A single-component pin such as `2` is normalised to `2.0` for the
+`-RequiredVersion` line, because `Import-Module -RequiredVersion` is
+typed `[version]` and needs at least major.minor.
 
 Default value: `false`
 
@@ -413,6 +425,10 @@ Whether to remove versions of the module other than the one in `version`.
 Co-managing one modulename from both `windowspowershell::module` and
 `windowspowershell::external_module` requires `purge_versions => false` on
 one side, or each purge removes the other side's version.
+The purge reuses the same numeric comparison as
+`windowspowershell::external_module`: missing segments count as zero, so
+pin `2.3` also keeps a `2.3.0` folder left behind by an earlier layout,
+and a folder that does not parse as `[version]` is kept, never purged.
 
 Default value: `true`
 
@@ -627,22 +643,23 @@ Alias of `Pattern[/\A(?:[A-Za-z]:[\\\/]|[\\\/][\\\/][^\\\/'\u2018-\u201B\x00-\x1
 
 ### <a name="Windowspowershell--Version"></a>`Windowspowershell::Version`
 
-A PowerShell module version: up to four dot-separated numbers.
+A PowerShell module version: one to four dot-separated numbers of at most
+nine digits each.
 
 Deliberately looser than Windowspowershell::Moduleversion, which requires at
 least two components. This type serves windowspowershell::external_module,
 whose version reaches PowerShellGet's Install-Module -RequiredVersion as a
-plain string and is accepted there as it stands.
+plain string and is accepted there as it stands. A single-component pin
+such as `2` is therefore still accepted here; the profile fragment
+normalises it to `2.0` because Import-Module -RequiredVersion is typed
+[version], which needs at least major.minor.
 
-It is not, however, safe for every consumer: the profile fragment also passes
-it to Import-Module -RequiredVersion, which is typed [Version]. A
-single-component version such as `1` therefore compiles but fails there at
-runtime, silently, because that fragment runs under -ErrorAction
-SilentlyContinue. Tightening this type is deliberately left to a separate
-change, which would break external_module catalogues.
+Each component is still limited to nine digits, like Moduleversion: every
+component is parsed as an Int32 by System.Version, so a tenth digit would
+overflow at Exec runtime instead of failing the catalogue at compile time.
 
 Being digits and dots only, it is also safe to interpolate into a
 single-quoted PowerShell string and into a directory name.
 
-Alias of `Pattern[/\A\d+(\.\d+){0,3}\z/]`
+Alias of `Pattern[/\A\d{1,9}(\.\d{1,9}){0,3}\z/]`
 

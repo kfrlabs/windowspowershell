@@ -34,11 +34,20 @@
 #   `windowspowershell::external_module` and `windowspowershell::module`
 #   requires `purge_versions => false` on one side, or each purge removes the
 #   other side's version.
+#   Comparison is numeric with missing segments treated as zero, so pin `2.1`
+#   also matches folder `2.1.0`: if both spellings end up side by side, both
+#   count as the pinned version and neither is purged. The canonical folder
+#   is whatever the backend creates -- the normalised name PowerShellGet
+#   picks for `repository`, the literal pin for `source` -- so remove the
+#   other spelling once by hand if it ever appears.
 # @param import_in_profile
 #   Whether to add an `Import-Module` line for this module to every profile
 #   file managed by `windowspowershell::config` (see `manage_profiles` /
 #   `manage_pwsh_profile` on the main class). Pins `-RequiredVersion` when
 #   `ensure` is a specific version. Ignored (no-op) when `ensure => absent`.
+#   A single-component pin such as `2` is normalised to `2.0` for the
+#   `-RequiredVersion` line, because `Import-Module -RequiredVersion` is
+#   typed `[version]` and needs at least major.minor.
 #
 # @example Pin a version from the PowerShell Gallery
 #   windowspowershell::external_module { 'PSWindowsUpdate':
@@ -170,9 +179,18 @@ define windowspowershell::external_module (
     }
 
     if $import_in_profile {
+      # Import-Module -RequiredVersion is typed [version], which needs at
+      # least major.minor, so a single-component pin such as `2` is
+      # normalised to `2.0` for the profile fragment. This is the same
+      # `^\d+$` -> `+.0` normalisation the version-check templates apply at
+      # runtime before their `[version]` cast.
+      $import_version = ($module_version =~ NotUndef and $module_version =~ /^\d+$/) ? {
+        true    => "${module_version}.0",
+        default => $module_version,
+      }
       $import_content = epp('windowspowershell/import_external_module.ps1.epp', {
           'modulename' => $modulename,
-          'version'    => $module_version,
+          'version'    => $import_version,
       })
 
       # One fragment per managed profile, like windowspowershell::module:
