@@ -265,7 +265,10 @@ Default value: `undef`
 Data type: `Boolean`
 
 Whether to remove versions of the module other than the one in `ensure`.
-Ignored unless `ensure` is a version.
+Ignored unless `ensure` is a version. Co-managing one modulename from both
+`windowspowershell::external_module` and `windowspowershell::module`
+requires `purge_versions => false` on one side, or each purge removes the
+other side's version.
 
 Default value: `true`
 
@@ -340,6 +343,7 @@ The following parameters are available in the `windowspowershell::module` define
 * [`author`](#-windowspowershell--module--author)
 * [`import_in_profile`](#-windowspowershell--module--import_in_profile)
 * [`source`](#-windowspowershell--module--source)
+* [`purge_versions`](#-windowspowershell--module--purge_versions)
 
 ##### <a name="-windowspowershell--module--version"></a>`version`
 
@@ -400,6 +404,17 @@ resources, which remains the right choice for dynamic content (e.g. a
 template).
 
 Default value: `undef`
+
+##### <a name="-windowspowershell--module--purge_versions"></a>`purge_versions`
+
+Data type: `Boolean`
+
+Whether to remove versions of the module other than the one in `version`.
+Co-managing one modulename from both `windowspowershell::module` and
+`windowspowershell::external_module` requires `purge_versions => false` on
+one side, or each purge removes the other side's version.
+
+Default value: `true`
 
 ### <a name="windowspowershell--script"></a>`windowspowershell::script`
 

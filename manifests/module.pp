@@ -54,6 +54,11 @@
 #   `Functions` is only ever populated by individual `windowspowershell::script`
 #   resources, which remains the right choice for dynamic content (e.g. a
 #   template).
+# @param purge_versions
+#   Whether to remove versions of the module other than the one in `version`.
+#   Co-managing one modulename from both `windowspowershell::module` and
+#   `windowspowershell::external_module` requires `purge_versions => false` on
+#   one side, or each purge removes the other side's version.
 #
 # @example Declare a module with non-default identity, then deploy scripts into it
 #   windowspowershell::module { 'Acme':
@@ -77,6 +82,7 @@ define windowspowershell::module (
   Windowspowershell::Psstring $author = 'Unknown',
   Boolean $import_in_profile = true,
   Optional[String[1]] $source = undef,
+  Boolean $purge_versions = true,
 ) {
   include windowspowershell
 
@@ -192,6 +198,29 @@ define windowspowershell::module (
       provider    => powershell,
       refreshonly => true,
       logoutput   => on_failure,
+    }
+
+    # Purging by directory rather than Uninstall-Module on purpose: it also
+    # catches versions deployed before the manifest carried the right
+    # ModuleVersion, which PowerShellGet has no record of.
+    if $purge_versions {
+      exec { "windowspowershell purge other in-house versions of ${modulename}":
+        command   => epp('windowspowershell/purge_psmodule_versions.ps1.epp', {
+            'module_dir' => $module_dir,
+            'version'    => $version,
+        }),
+        unless    => epp('windowspowershell/check_psmodule_versions.ps1.epp', {
+            'module_dir' => $module_dir,
+            'version'    => $version,
+        }),
+        provider  => powershell,
+        timeout   => 300,
+        logoutput => on_failure,
+        require   => [
+          Exec["windowspowershell update-manifest ${modulename}"],
+          Exec["windowspowershell unblock-files ${modulename}"],
+        ],
+      }
     }
 
     File[$module_dir]
