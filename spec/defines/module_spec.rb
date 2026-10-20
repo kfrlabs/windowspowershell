@@ -72,6 +72,14 @@ describe 'windowspowershell::module' do
         expect(create_cmd[uuid, 1]).to eq(update_cmd[uuid, 1])
       end
 
+      # The GUID is the module's identity: it is derived from the name alone
+      # (UUID v5 in the DNS namespace), so bumping `version` never changes it.
+      it 'derives the GUID from the module name alone' do
+        ['windowspowershell create-manifest Acme', 'windowspowershell update-manifest Acme'].each do |exec_name|
+          is_expected.to contain_exec(exec_name).with_command(%r{-Guid '9b21c097-413c-58e7-bf14-3b9b5b812749'})
+        end
+      end
+
       it 'scans only the Functions directory when building the manifest' do
         is_expected.to contain_exec('windowspowershell update-manifest Acme').
           with_command(%r{\$functionsPath\s*=\s*'C:\\Program Files\\WindowsPowerShell\\Modules\\Acme\\1\.0\\Functions'}).
@@ -138,6 +146,12 @@ describe 'windowspowershell::module' do
           is_expected.to contain_exec('windowspowershell update-manifest Acme').
             with_command(%r{-Author 'Platform Team'}).
             with_command(%r{-CompanyName 'Acme Corp'})
+        end
+
+        it 'keeps the same GUID as under the default version' do
+          ['windowspowershell create-manifest Acme', 'windowspowershell update-manifest Acme'].each do |exec_name|
+            is_expected.to contain_exec(exec_name).with_command(%r{-Guid '9b21c097-413c-58e7-bf14-3b9b5b812749'})
+          end
         end
 
         it 'writes the custom version into the manifest' do
@@ -238,6 +252,13 @@ describe 'windowspowershell::module' do
           is_expected.to contain_file("#{modules}\\OtherModule\\1.0")
           is_expected.to contain_exec('windowspowershell update-manifest Acme')
           is_expected.to contain_exec('windowspowershell update-manifest OtherModule')
+        end
+
+        it 'gives each module its own GUID' do
+          is_expected.to contain_exec('windowspowershell update-manifest OtherModule').
+            with_command(%r{-Guid 'e7588131-a72c-5d75-86e1-4aea75519daa'})
+          is_expected.to contain_exec('windowspowershell update-manifest Acme').
+            with_command(%r{-Guid '9b21c097-413c-58e7-bf14-3b9b5b812749'})
         end
 
         # Regression test for issue #12: the profile Import-Module lines used
