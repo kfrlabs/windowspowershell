@@ -104,6 +104,13 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- `windowspowershell::external_module` with `ensure => present` (any version
+  accepted) no longer treats any sub-folder of the module directory as an
+  installed version (issue #55). A stray folder under `Modules\<Name>` (a
+  backup, a temp folder) made the idempotency check succeed and blocked the
+  install although no version was present. Only folders that parse as a
+  `[version]` now count, with the same single-component normalisation
+  (`2` is read as `2.0`) as the pinned checks.
 - `proxy` is now typed with the new `Windowspowershell::Proxyurl` alias instead
   of `Stdlib::HTTPUrl` (issue #27). `Stdlib::HTTPUrl` accepts anything after the
   scheme, an apostrophe included, and the value is interpolated between single

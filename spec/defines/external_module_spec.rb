@@ -347,6 +347,14 @@ describe 'windowspowershell::external_module' do
           expect(unless_of('windowspowershell install ExampleModule')).to match(%r{Get-ChildItem -LiteralPath \$moduleDir -Directory})
         end
 
+        # Issue #55: a stray folder under the module directory is not a version
+        # and must not satisfy the check, or the install is blocked forever.
+        it 'only counts folders that parse as a [version]' do
+          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$dirName -as \[version\]})
+          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$null -ne \(\$dirName -as \[version\]\)})
+          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$dirName -match '\^\\d\+\$'})
+        end
+
         it 'purges nothing, since no version is targeted' do
           is_expected.not_to contain_exec('windowspowershell purge other versions of ExampleModule')
         end

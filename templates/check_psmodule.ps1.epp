@@ -35,6 +35,14 @@ $found = Get-ChildItem -LiteralPath $moduleDir -Directory -ErrorAction SilentlyC
         }
     }
 <% } else { -%>
-$found = Get-ChildItem -LiteralPath $moduleDir -Directory -ErrorAction SilentlyContinue
+# No pin: any installed version satisfies the check, but only a folder that parses as a [version]
+# is a version. A stray folder (backup, temp, etc.) must not make the module look installed.
+# A single-component dir (e.g. '2') is normalised to '2.0' before -as [version], which needs major.minor.
+$found = Get-ChildItem -LiteralPath $moduleDir -Directory -ErrorAction SilentlyContinue |
+    Where-Object {
+        $dirName = $_.Name
+        if ($dirName -match '^\d+$') { $dirName = $dirName + '.0' }
+        $null -ne ($dirName -as [version])
+    }
 <% } -%>
 if ($found) { exit 0 } else { exit 1 }
