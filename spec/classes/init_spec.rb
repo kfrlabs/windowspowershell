@@ -252,6 +252,12 @@ describe 'windowspowershell' do
         it { is_expected.not_to contain_concat_fragment('windowspowershell header C:\Program Files\PowerShell\7\profile.ps1') }
       end
 
+      context 'with manage_pwsh_profile => true and manage_profiles => false' do
+        let(:params) { { 'manage_profiles' => false, 'manage_pwsh_profile' => true } }
+
+        it { is_expected.to compile.and_raise_error(%r{'manage_pwsh_profile' is true but 'manage_profiles' is false}) }
+      end
+
       context 'with an in-house and an external module importing into the profile' do
         let(:pre_condition) do
           <<~PUPPET

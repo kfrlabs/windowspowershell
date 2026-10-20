@@ -16,6 +16,9 @@
 # @param scriptname
 #   Base name of the script, without the `.ps1` extension. Defaults to the
 #   resource title. This is also the name of the exported PowerShell function.
+#   A trailing `.ps1`/`.psm1` is refused: the module appends `.ps1` itself, so
+#   `Get-Foo.ps1` would deploy `Get-Foo.ps1.ps1` exporting a broken function
+#   name. Dots elsewhere stay legitimate (`Get-Example.v2`).
 # @param folder
 #   Optional sub-folder under `Functions`, to group scripts by domain.
 # @param content
@@ -53,6 +56,9 @@ define windowspowershell::script (
   }
   if $ensure == 'present' and $content =~ Undef and $source =~ Undef {
     fail("windowspowershell::script[${name}]: one of 'content' or 'source' is required when ensure => present.")
+  }
+  if $scriptname =~ /(?i)\.psm?1$/ {
+    fail("windowspowershell::script[${name}]: 'scriptname' must not end with '.ps1' or '.psm1': pass the name without the extension instead of '${scriptname}'. The module appends '.ps1' itself.")
   }
 
   # The target module gets every default when nothing declared it yet, the

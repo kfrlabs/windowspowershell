@@ -250,6 +250,13 @@ Default value: `'present'`
 Data type: `Windowspowershell::Name`
 
 Name of the PowerShell module. Defaults to the resource title.
+Declare one resource per `modulename`: two resources sharing a
+`modulename` under different titles each purge the other side's version
+(see `purge_versions`), so the node flaps between both versions and never
+converges. Sharing is only supported with `purge_versions => false` on all
+but one side, and only with the `repository` backend: with the `source`
+backend both titles declare the same versioned `File` directory, which
+fails the catalogue with a duplicate resource.
 
 Default value: `$name`
 
@@ -282,7 +289,10 @@ Whether to remove versions of the module other than the one in `ensure`.
 Ignored unless `ensure` is a version. Co-managing one modulename from both
 `windowspowershell::external_module` and `windowspowershell::module`
 requires `purge_versions => false` on one side, or each purge removes the
-other side's version.
+other side's version. The same holds for two `external_module` resources
+sharing a `modulename`: keep a single resource per module, or set
+`purge_versions => false` on all but one side when the sharing is
+deliberate.
 Comparison is numeric with missing segments treated as zero, so pin `2.1`
 also matches folder `2.1.0`: if both spellings end up side by side, both
 count as the pinned version and neither is purged. The canonical folder
@@ -511,6 +521,9 @@ Data type: `Windowspowershell::Name`
 
 Base name of the script, without the `.ps1` extension. Defaults to the
 resource title. This is also the name of the exported PowerShell function.
+A trailing `.ps1`/`.psm1` is refused: the module appends `.ps1` itself, so
+`Get-Foo.ps1` would deploy `Get-Foo.ps1.ps1` exporting a broken function
+name. Dots elsewhere stay legitimate (`Get-Example.v2`).
 
 Default value: `$name`
 
