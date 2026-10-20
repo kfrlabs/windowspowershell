@@ -9,6 +9,18 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ### Added
 
+- Co-management of the machine-wide profiles (issue #31): the README gains a
+  "Co-managing the profiles" section documenting that other Puppet code can
+  add its own `concat::fragment` to the profile targets
+  (`$windowspowershell::profile_paths`), with the ordering convention (`00`
+  header, `01`-`49` and `70`-`99` free, `50` in-house imports, `60` external
+  imports) and a `profile_paths`-based example. The `manage_profiles`
+  parameter documentation and the Limitations section now warn that content
+  not coming from a fragment (a GPO startup script, manual edits) is removed
+  on every run. No behaviour change. New specs check that extra fragments
+  coexist with the header and the `Import-Module` fragments, on every managed
+  profile, and that the documented pattern compiles on non-Windows nodes.
+
 - `windowspowershell::module` now removes version folders other than `version`
   (issue #29), through a new `purge_versions` parameter (default `true`) that
   reuses the same `-Directory` filter purge as

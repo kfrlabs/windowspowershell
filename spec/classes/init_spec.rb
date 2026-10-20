@@ -284,6 +284,105 @@ describe 'windowspowershell' do
         it_behaves_like 'mixed in-house and external profile imports'
       end
 
+      # Co-management (issue #31): another module, or a site profile class,
+      # can add its own concat::fragment to the same targets. Those fragments
+      # coexist with the header (00) and the Import-Module fragments (50, 60)
+      # instead of being removed on the next run.
+      context 'with an extra concat fragment from another module on the Windows PowerShell profile' do
+        let(:profile) { 'C:\Windows\System32\WindowsPowerShell\v1.0\profile.ps1' }
+        let(:pre_condition) do
+          <<~PUPPET
+            windowspowershell::module { 'Acme': }
+            concat::fragment { 'othermodule early alias':
+              target  => '#{profile}',
+              order   => '10',
+              content => "Set-Alias ll Get-ChildItem\\n",
+            }
+            concat::fragment { 'othermodule late setting':
+              target  => '#{profile}',
+              order   => '70',
+              content => "Set-PSReadLineOption -BellStyle None\\n",
+            }
+          PUPPET
+        end
+
+        it { is_expected.to compile.with_all_deps }
+
+        it 'keeps the extra fragments on the same concat target as the managed ones' do
+          is_expected.to contain_concat(profile).with_ensure('present')
+          is_expected.to contain_concat_fragment('othermodule early alias').
+            with_target(profile).
+            with_content(%r{Set-Alias ll Get-ChildItem})
+          is_expected.to contain_concat_fragment('othermodule late setting').
+            with_target(profile).
+            with_content(%r{Set-PSReadLineOption -BellStyle None})
+        end
+
+        it 'keeps the header and the Import-Module fragment alongside the extras' do
+          is_expected.to contain_concat_fragment("windowspowershell header #{profile}").
+            with_target(profile).
+            with_order('00')
+          is_expected.to contain_concat_fragment("windowspowershell import Acme in #{profile}").
+            with_target(profile).
+            with_order('50').
+            with_content(%r{Acme\.psd1})
+        end
+
+        it 'sorts the extras around the header and the imports by their order' do
+          fragments = catalogue.resources.select { |r| r.type == 'Concat::Fragment' && r[:target] == profile }
+          sorted = fragments.sort_by { |r| r[:order] }.map(&:title)
+          expected = [
+            "windowspowershell header #{profile}",
+            'othermodule early alias',
+            "windowspowershell import Acme in #{profile}",
+            'othermodule late setting',
+          ]
+          expect(sorted).to eq(expected)
+        end
+
+        it 'does not leak the extra fragments into the other profile' do
+          other = 'C:\Windows\SysWOW64\WindowsPowerShell\v1.0\profile.ps1'
+          targets = catalogue.resources.select { |r| r.type == 'Concat::Fragment' && r[:target] == other }.map(&:title)
+          expect(targets).not_to include('othermodule early alias', 'othermodule late setting')
+        end
+      end
+
+      # The documented pattern: extras follow `profile_paths`, so they land on
+      # the PowerShell 7 profile too when it is managed.
+      context 'with an extra fragment added on every managed profile through profile_paths' do
+        let(:facts) { os_facts.merge('powershell7' => { 'installed' => true, 'path' => 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' }) }
+        let(:pre_condition) do
+          <<~PUPPET
+            include windowspowershell
+
+            if $windowspowershell::supported {
+              $windowspowershell::profile_paths.each |$profile_path| {
+                concat::fragment { "othermodule extras in ${profile_path}":
+                  target  => $profile_path,
+                  order   => '70',
+                  content => "Set-Alias ll Get-ChildItem\\n",
+                }
+              }
+            }
+          PUPPET
+        end
+
+        it { is_expected.to compile.with_all_deps }
+
+        it 'adds the extra fragment next to the header on all three profiles' do
+          [
+            'C:\Windows\System32\WindowsPowerShell\v1.0\profile.ps1',
+            'C:\Windows\SysWOW64\WindowsPowerShell\v1.0\profile.ps1',
+            'C:\Program Files\PowerShell\7\profile.ps1',
+          ].each do |profile|
+            is_expected.to contain_concat_fragment("windowspowershell header #{profile}").with_target(profile)
+            is_expected.to contain_concat_fragment("othermodule extras in #{profile}").
+              with_target(profile).
+              with_order('70')
+          end
+        end
+      end
+
       context 'with PowerShell 7 installed and mixed imports into the pwsh profile' do
         let(:facts) { os_facts.merge('powershell7' => { 'installed' => true, 'path' => 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' }) }
         let(:pre_condition) do
@@ -344,6 +443,33 @@ describe 'windowspowershell' do
       is_expected.not_to contain_class('windowspowershell::install')
       is_expected.not_to contain_class('windowspowershell::config')
       expect(catalogue.resources.reject { |r| %w[Class Stage Node].include?(r.type) }).to be_empty
+    end
+
+    # The documented co-management pattern must stay safe to classify on any
+    # node: without the `supported` guard, the fragment would point at a concat
+    # target that is only declared on Windows.
+    context 'with the documented extra-fragment pattern, guarded by supported' do
+      let(:pre_condition) do
+        <<~PUPPET
+          include windowspowershell
+
+          if $windowspowershell::supported {
+            $windowspowershell::profile_paths.each |$profile_path| {
+              concat::fragment { "othermodule extras in ${profile_path}":
+                target  => $profile_path,
+                order   => '70',
+                content => "Set-Alias ll Get-ChildItem\\n",
+              }
+            }
+          }
+        PUPPET
+      end
+
+      it { is_expected.to compile.with_all_deps }
+
+      it 'declares no fragment' do
+        expect(catalogue.resources.select { |r| r.type == 'Concat::Fragment' }).to be_empty
+      end
     end
   end
 end
