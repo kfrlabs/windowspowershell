@@ -34,6 +34,18 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
     GUID, such as a `RequiredModules` entry with a `GUID` key, has to be
     updated.
 
+- CI and release hardening (issue #32):
+  - Every third-party action in `ci.yml` and `release.yml` is pinned to a full
+    commit SHA, with the tag in a trailing comment, and a Dependabot
+    configuration (`package-ecosystem: github-actions`) keeps them current.
+  - `release.yml` now runs the same Puppet 7 / Puppet 8 `rspec-puppet` matrix
+    as `ci.yml` before publishing. The tests run in separate jobs, so the
+    `forge` environment and its credentials are only exposed to the final
+    publish job.
+  - `puppetlabs_spec_helper` moved from the `release_prep` to the `test` gem
+    group: the `Rakefile` requires it unconditionally, so
+    `BUNDLE_WITHOUT=release_prep` no longer fails with a `LoadError`.
+
 ### Fixed
 
 - `proxy` is now typed with the new `Windowspowershell::Proxyurl` alias instead
