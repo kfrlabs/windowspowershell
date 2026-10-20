@@ -104,6 +104,19 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- The declaration-order contract between `windowspowershell::script` and an
+  explicit `windowspowershell::module` is now documented accurately and pinned
+  by specs (issue #46). The old wording ("must be declared before the first
+  script") was wrong in the common case: a define body is evaluated after the
+  scope that declared it, so an explicit module written after the scripts in
+  the same class resolves to its own version, with no ordering constraint.
+  Only a module declared from a scope evaluated after a script's body fails,
+  with Puppet's `Duplicate declaration: Windowspowershell::Module[<name>]`
+  (never a silent wrong version path). Puppet cannot resolve a resource
+  declared later, so an out-of-order resolution is not possible from the
+  module; the README, the `module` and `script` docs and the comment on the
+  `ensure_resource` line now say where to declare the module. No behaviour
+  change.
 - The `powershell7` fact documentation no longer claims to detect ZIP,
   Microsoft Store, winget and non-standard installs (issue #48). The fact has
   only ever tested `%ProgramFiles%\PowerShell\7\pwsh.exe`, which is the right

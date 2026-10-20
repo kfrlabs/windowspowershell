@@ -10,9 +10,14 @@
 # A `windowspowershell::script` that names a module which was never declared
 # explicitly gets one with every default, via `ensure_resource`. Declare this
 # resource explicitly only when a default (`version`, `companyname` or
-# `author`) needs overriding -- in which case it must be declared before the
-# first `windowspowershell::script` that names it, since `ensure_resource`
-# only fills in the gap when nothing has claimed the title yet.
+# `author`) needs overriding. Order only matters across scopes: a define body is
+# evaluated after the scope that declared it, so declaring this resource before
+# or after the scripts **in the same class** is fine. Declared from a scope that
+# is evaluated after a script's body (a define nested deeper), it fails with
+# Puppet's `Duplicate declaration: Windowspowershell::Module[<name>]`, because
+# `ensure_resource` had already claimed the title with every default. Declare it
+# from a class evaluated first (for example the profile class that `include`s
+# the one declaring the scripts) to avoid that.
 #
 # The resource title is the in-house module name: this is the value every
 # `windowspowershell::script` must pass as its own `modulename` to land its

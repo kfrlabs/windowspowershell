@@ -10,7 +10,9 @@
 #   resource) this script is deployed into. Mandatory: there is no default
 #   module any more, so every script has to say where it is going. A module
 #   named here that was never declared explicitly is created with every
-#   default (see `windowspowershell::module`).
+#   default (see `windowspowershell::module`). To override a default, declare
+#   that module explicitly from a class evaluated before the one declaring the
+#   scripts, or from the same class (see the README).
 # @param ensure
 #   Whether the script should be present or absent.
 # @param scriptname
@@ -64,14 +66,24 @@ define windowspowershell::script (
   # The target module gets every default when nothing declared it yet, the
   # same way windowspowershell::external_module shares a module directory it did not
   # create. getparam then reads back the version this particular module
-  # identity resolved to -- either the default above, or whatever an explicit
-  # windowspowershell::module { $modulename: ... } declared earlier --
-  # since this define does not own that resource and must not guess its path
-  # independently.
+  # identity resolved to, since this define does not own that resource and
+  # must not guess its path independently.
+  #
+  # Declaration order: Puppet evaluates a define's body lazily, after the
+  # scope that declared it, so an explicit windowspowershell::module written
+  # before OR after this script in the same class/manifest is already in the
+  # catalogue by now. Only an explicit module declared from a scope that is
+  # evaluated after this body (a define nested one level deeper, say) loses the
+  # race: it then fails with Puppet's "Duplicate declaration:
+  # Windowspowershell::Module[<name>] is already declared at ... script.pp"
+  # raised by the line below. Puppet cannot see a resource declared later, so
+  # there is nothing to resolve out of order; the fix is to declare the module
+  # from a class that is evaluated first (see the README).
   ensure_resource('windowspowershell::module', $modulename)
   # getparam only sees explicitly set parameters, never the define defaults,
   # so an implicitly built module (no version given) reads as undef here.
-  # Fall back to the $version default declared on the define itself.
+  # Fall back to the $version default declared on windowspowershell::module,
+  # which has to stay equal to this literal (a spec guards it).
   $module_version = pick(getparam(Windowspowershell::Module[$modulename], 'version'), '1.0')
   $functions_path = "${windowspowershell::module_root}\\${modulename}\\${module_version}\\Functions"
 

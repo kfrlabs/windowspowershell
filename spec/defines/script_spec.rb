@@ -42,6 +42,52 @@ describe 'windowspowershell::script' do
         end
       end
 
+      # Issue #46: a define body is evaluated after the scope that declared it,
+      # so an explicit module written AFTER a script in the same scope is
+      # already in the catalogue when the script resolves its version.
+      context 'with an explicit module declared after another script in the same scope' do
+        let(:pre_condition) do
+          <<~PUPPET
+            windowspowershell::script { 'Get-Early': modulename => 'Acme', content => 'x' }
+            windowspowershell::module { 'Acme': version => '2.0' }
+          PUPPET
+        end
+
+        it { is_expected.to compile.with_all_deps }
+
+        it 'resolves both scripts to the explicit version' do
+          is_expected.to contain_file('C:\Program Files\WindowsPowerShell\Modules\Acme\2.0\Functions\Get-Early.ps1')
+          is_expected.to contain_file('C:\Program Files\WindowsPowerShell\Modules\Acme\2.0\Functions\Get-Example.ps1')
+          is_expected.not_to contain_file("#{functions}\\Get-Early.ps1")
+        end
+      end
+
+      # The one losing order: the explicit module sits in a define nested one
+      # level deeper, so it is declared after the script's body has already built
+      # the implicit module. Puppet fails loudly; it never picks a wrong version.
+      context 'with an explicit module declared from a scope evaluated after the script body' do
+        let(:pre_condition) do
+          <<~PUPPET
+            define probe::inner { windowspowershell::module { 'Acme': version => '2.0' } }
+            define probe::outer { probe::inner { 'x': } }
+            probe::outer { 'y': }
+          PUPPET
+        end
+
+        it { is_expected.to compile.and_raise_error(%r{Duplicate declaration: Windowspowershell::Module\[Acme\] is already declared}) }
+      end
+
+      # The version literal in script.pp has to equal the default of
+      # windowspowershell::module, or an implicit module and its scripts would
+      # disagree on the path.
+      context 'with an implicit module' do
+        it 'agrees with the module define on the default version folder' do
+          is_expected.to contain_windowspowershell__module('Acme')
+          is_expected.to contain_file(functions).with_ensure('directory')
+          is_expected.to contain_file("#{functions}\\Get-Example.ps1").that_requires("File[#{functions}]")
+        end
+      end
+
       context 'with two scripts for two different in-house modules' do
         let(:pre_condition) do
           "windowspowershell::script { 'Get-Other': modulename => 'OtherModule', content => 'x' }"

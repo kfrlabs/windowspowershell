@@ -119,6 +119,19 @@ A module named by a script that was never declared explicitly is built with
 every default -- the same `ensure_resource` pattern `windowspowershell::external_module`
 uses for the shared machine-wide module directory.
 
+To override a default (`version`, `companyname`, `author`), declare the
+`windowspowershell::module` explicitly. Declaration order does not matter
+within one class or manifest: Puppet evaluates the body of a script after the
+scope that declared it, so the module can be written before or after the
+scripts. It matters across scopes. If the explicit module is declared from a
+scope evaluated *after* a script's body (for instance from a define nested
+deeper than the script), the script has already built the module with its
+defaults, and compilation fails with Puppet's
+`Duplicate declaration: Windowspowershell::Module[<name>] is already declared
+at ... script.pp`. Puppet cannot see a resource declared later, so the version
+is never silently guessed wrong, and the fix is to declare the module from a
+class evaluated before the one declaring the scripts.
+
 ### Building a module dynamically from a whole directory
 
 For a whole tree of scripts instead of one resource per script, pass a Puppet
