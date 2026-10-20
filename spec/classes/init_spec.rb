@@ -121,7 +121,7 @@ describe 'windowspowershell' do
       context 'with the pwsh profile forced on but PowerShell 7 absent' do
         let(:params) { { 'manage_pwsh_profile' => true } }
 
-        it { is_expected.to compile.and_raise_error(%r{manage_pwsh_profile is true but PowerShell 7 was not detected}) }
+        it { is_expected.to compile.and_raise_error(%r{manage_pwsh_profile is true but PowerShell 7 was not detected at its default location}) }
       end
 
       # Forced on and pwsh present: the profile is managed as expected.

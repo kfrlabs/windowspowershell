@@ -23,7 +23,7 @@ class windowspowershell::config {
     # an opaque error. Fail early with a clear, actionable message instead.
     if $windowspowershell::manage_pwsh {
       unless $windowspowershell::pwsh7_installed {
-        fail('windowspowershell: manage_pwsh_profile is true but PowerShell 7 was not detected (no pwsh.exe). Install PowerShell 7, or leave manage_pwsh_profile unset to manage the profile only where PowerShell 7 is present.')
+        fail('windowspowershell: manage_pwsh_profile is true but PowerShell 7 was not detected at its default location (no pwsh.exe under C:\Program Files\PowerShell\7). Only that install is supported, since its machine-wide profile is the one this module manages: a ZIP, Microsoft Store or 32-bit install elsewhere is not detected. Install PowerShell 7 at the default location (MSI), or leave manage_pwsh_profile unset to manage the profile only where it is present.')
       }
     }
 

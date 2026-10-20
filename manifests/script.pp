@@ -8,9 +8,10 @@
 # @param modulename
 #   Name of the in-house module (a `windowspowershell::module`
 #   resource) this script is deployed into. Mandatory: there is no default
-#   module any more, so every script has to say where it is going. A module
-#   named here that was never declared explicitly is created with every
-#   default (see `windowspowershell::module`).
+#   module any more, so every script has to say where it is going. The module
+#   named here must be declared with `windowspowershell::module`: this define
+#   does not create it, and fails to compile when it is missing (see the
+#   README for the declaration order).
 # @param ensure
 #   Whether the script should be present or absent.
 # @param scriptname
@@ -27,6 +28,8 @@
 #   Puppet file source for the script. Mutually exclusive with `content`.
 #
 # @example
+#   windowspowershell::module { 'Acme': }
+#
 #   windowspowershell::script { 'Get-WUParams':
 #     modulename => 'Acme',
 #     folder     => 'Windowsupdate',
@@ -34,6 +37,8 @@
 #   }
 #
 # @example Retire a script that is no longer shipped
+#   windowspowershell::module { 'Acme': }
+#
 #   windowspowershell::script { 'Get-OldThing':
 #     modulename => 'Acme',
 #     ensure     => absent,
@@ -61,17 +66,27 @@ define windowspowershell::script (
     fail("windowspowershell::script[${name}]: 'scriptname' must not end with '.ps1' or '.psm1': pass the name without the extension instead of '${scriptname}'. The module appends '.ps1' itself.")
   }
 
-  # The target module gets every default when nothing declared it yet, the
-  # same way windowspowershell::external_module shares a module directory it did not
-  # create. getparam then reads back the version this particular module
-  # identity resolved to -- either the default above, or whatever an explicit
-  # windowspowershell::module { $modulename: ... } declared earlier --
-  # since this define does not own that resource and must not guess its path
-  # independently.
-  ensure_resource('windowspowershell::module', $modulename)
-  # getparam only sees explicitly set parameters, never the define defaults,
-  # so an implicitly built module (no version given) reads as undef here.
-  # Fall back to the $version default declared on the define itself.
+  # This define does not create the module it names. An implicit module made
+  # the version depend on declaration order: an explicit module declared after
+  # it died with a bare Puppet "Duplicate declaration" (issue #46). The module
+  # has to be declared explicitly, and a missing one fails here with a message
+  # that says so.
+  #
+  # Declaration order: Puppet evaluates a define's body lazily, after the
+  # scope that declared it, so a windowspowershell::module written before OR
+  # after this script in the same class/manifest is already in the catalogue by
+  # now. One declared from a scope evaluated after this body (a define nested
+  # one level deeper, say) is not visible yet and fails the same way.
+  if !defined(Windowspowershell::Module[$modulename]) {
+    fail("windowspowershell::script[${name}]: module '${modulename}' is not declared. Declare windowspowershell::module { '${modulename}': } (add version, companyname or author there to override a default), in the same class as this script or in a class evaluated before it: the script reads the module's version when its body is evaluated, so the module has to be in the catalogue by then.")
+  }
+
+  # getparam reads back the version this particular module identity resolved
+  # to, since this define does not own that resource and must not guess its
+  # path independently. It only sees explicitly set parameters, never the
+  # define defaults, so a module left at its defaults reads as undef here.
+  # Fall back to the $version default declared on windowspowershell::module,
+  # which has to stay equal to this literal (a spec guards it).
   $module_version = pick(getparam(Windowspowershell::Module[$modulename], 'version'), '1.0')
   $functions_path = "${windowspowershell::module_root}\\${modulename}\\${module_version}\\Functions"
 

@@ -51,8 +51,19 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
     witness) to force a rebuild.
   - New specs cover an `author`-only and a `companyname`-only change.
 
-### Changed
-
+- **Breaking:** `windowspowershell::script` no longer builds the module it
+  names with `ensure_resource` (issue #46). That implicit module made the
+  version depend on declaration order: an explicit `windowspowershell::module`
+  declared from a scope evaluated after the script's body died with Puppet's
+  bare `Duplicate declaration`. The module now has to be declared explicitly
+  (`windowspowershell::module { 'Acme': }` is enough for the defaults), and a
+  script naming an undeclared module fails to compile with a message that
+  names the module and says where to declare it. Declaring the module before
+  or after the scripts in the same class stays fine, because a define body is
+  evaluated after the scope that declared it.
+  - Migration: add a `windowspowershell::module` for every `modulename` that
+    was only ever created implicitly. Nothing changes on the node: same
+    module name, same defaults, same paths.
 - The generated manifest's GUID is now derived from the module name alone
   instead of name and version (issue #28). PowerShell identifies a module by
   name plus GUID and expects the GUID to stay the same from one version of a
@@ -104,6 +115,24 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- The `powershell7` fact documentation no longer claims to detect ZIP,
+  Microsoft Store, winget and non-standard installs (issue #48). The fact has
+  only ever tested `%ProgramFiles%\PowerShell\7\pwsh.exe`, which is the right
+  scope: the module manages the profile at
+  `C:\Program Files\PowerShell\7\profile.ps1`, and PowerShell only loads a
+  machine-wide profile from its own install directory, so detecting a pwsh
+  elsewhere would manage a profile it never reads. The fact comment, the
+  README (Facts and Limitations), the `manage_pwsh_profile` documentation and
+  the `fail()` raised when `manage_pwsh_profile => true` finds no PowerShell 7
+  now all say "default location only" instead of the misleading "not detected
+  (no pwsh.exe)". No behaviour change.
+- `windowspowershell::external_module` with `ensure => present` (any version
+  accepted) no longer treats any sub-folder of the module directory as an
+  installed version (issue #55). A stray folder under `Modules\<Name>` (a
+  backup, a temp folder) made the idempotency check succeed and blocked the
+  install although no version was present. Only folders that parse as a
+  `[version]` now count, with the same single-component normalisation
+  (`2` is read as `2.0`) as the pinned checks.
 - `proxy` is now typed with the new `Windowspowershell::Proxyurl` alias instead
   of `Stdlib::HTTPUrl` (issue #27). `Stdlib::HTTPUrl` accepts anything after the
   scheme, an apostrophe included, and the value is interpolated between single

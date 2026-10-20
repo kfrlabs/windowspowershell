@@ -9,11 +9,12 @@ describe 'windowspowershell::script' do
   on_supported_os.each do |os, os_facts|
     context "on #{os}" do
       let(:facts) { os_facts }
+      let(:pre_condition) { "windowspowershell::module { 'Acme': }" }
 
       context 'with content and no folder' do
         it { is_expected.to compile.with_all_deps }
 
-        it 'implicitly builds the named in-house module with every default' do
+        it 'deploys under the default version folder of the declared module' do
           is_expected.to contain_windowspowershell__module('Acme')
           is_expected.to contain_file("#{functions}\\Get-Example.ps1").
             with_ensure('file').
@@ -42,9 +43,68 @@ describe 'windowspowershell::script' do
         end
       end
 
+      # Issue #46: a define body is evaluated after the scope that declared it,
+      # so an explicit module written AFTER a script in the same scope is
+      # already in the catalogue when the script resolves its version.
+      context 'with an explicit module declared after another script in the same scope' do
+        let(:pre_condition) do
+          <<~PUPPET
+            windowspowershell::script { 'Get-Early': modulename => 'Acme', content => 'x' }
+            windowspowershell::module { 'Acme': version => '2.0' }
+          PUPPET
+        end
+
+        it { is_expected.to compile.with_all_deps }
+
+        it 'resolves both scripts to the explicit version' do
+          is_expected.to contain_file('C:\Program Files\WindowsPowerShell\Modules\Acme\2.0\Functions\Get-Early.ps1')
+          is_expected.to contain_file('C:\Program Files\WindowsPowerShell\Modules\Acme\2.0\Functions\Get-Example.ps1')
+          is_expected.not_to contain_file("#{functions}\\Get-Early.ps1")
+        end
+      end
+
+      # The one losing order: the explicit module sits in a define nested one
+      # level deeper, so the script body runs before the module is declared and
+      # cannot see it. The script fails with its own message instead of building
+      # a wrong version path.
+      context 'with an explicit module declared from a scope evaluated after the script body' do
+        let(:pre_condition) do
+          <<~PUPPET
+            define probe::inner { windowspowershell::module { 'Acme': version => '2.0' } }
+            define probe::outer { probe::inner { 'x': } }
+            probe::outer { 'y': }
+          PUPPET
+        end
+
+        it { is_expected.to compile.and_raise_error(%r{module 'Acme' is not declared}) }
+      end
+
+      context 'with no module declared at all' do
+        let(:pre_condition) { '' }
+
+        it 'fails with a message naming the module and where to declare it' do
+          is_expected.to compile.and_raise_error(%r{windowspowershell::script\[Get-Example\]: module 'Acme' is not declared.*windowspowershell::module \{ 'Acme'})
+        end
+      end
+
+      # The version literal in script.pp has to equal the default of
+      # windowspowershell::module, or a module left at its defaults and its
+      # scripts would disagree on the path.
+      context 'with a module left at its defaults' do
+        it 'agrees with the module define on the default version folder' do
+          is_expected.to contain_windowspowershell__module('Acme')
+          is_expected.to contain_file(functions).with_ensure('directory')
+          is_expected.to contain_file("#{functions}\\Get-Example.ps1").that_requires("File[#{functions}]")
+        end
+      end
+
       context 'with two scripts for two different in-house modules' do
         let(:pre_condition) do
-          "windowspowershell::script { 'Get-Other': modulename => 'OtherModule', content => 'x' }"
+          <<~PUPPET
+            windowspowershell::module { 'Acme': }
+            windowspowershell::module { 'OtherModule': }
+            windowspowershell::script { 'Get-Other': modulename => 'OtherModule', content => 'x' }
+          PUPPET
         end
 
         it { is_expected.to compile.with_all_deps }
@@ -336,6 +396,7 @@ describe 'windowspowershell::script' do
         let(:params) { { 'modulename' => 'Acme', 'folder' => 'Windowsupdate', 'content' => 'x' } }
         let(:pre_condition) do
           <<~PUPPET
+            windowspowershell::module { 'Acme': }
             windowspowershell::script { 'Get-Sibling':
               modulename => 'Acme',
               folder     => 'Windowsupdate',
@@ -352,6 +413,7 @@ describe 'windowspowershell::script' do
   context 'on a non-Windows node' do
     let(:facts) { { 'os' => { 'family' => 'RedHat', 'name' => 'RedHat' } } }
     let(:params) { { 'modulename' => 'Acme', 'folder' => 'Windowsupdate', 'content' => 'x' } }
+    let(:pre_condition) { "windowspowershell::module { 'Acme': }" }
 
     it { is_expected.to compile.with_all_deps }
 

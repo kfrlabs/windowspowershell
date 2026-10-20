@@ -33,7 +33,9 @@
 #   preserved. See "Co-managing the profiles" in the README.
 # @param manage_pwsh_profile
 #   Whether to manage the PowerShell 7 profile. Left `undef`, it is managed
-#   only on nodes where PowerShell 7 is installed. Set it in Hiera to opt a
+#   only on nodes where PowerShell 7 is installed at its default location
+#   (`C:\Program Files\PowerShell\7\pwsh.exe`); a ZIP, Microsoft Store or
+#   32-bit install elsewhere is not detected. Set it in Hiera to opt a
 #   whole agent environment in or out.
 # @param proxy
 #   Proxy passed to `Install-Module` when installing a third-party module from
@@ -145,9 +147,10 @@ class windowspowershell (
   }
 
   # The `powershell7` fact is shipped by this module (lib/facter/powershell7.rb)
-  # and reports whether pwsh.exe is actually on disk. That is more robust than
-  # reading the `packages_version` inventory, which only sees the x64 MSI
-  # install and misses ZIP/Store/winget/32-bit.
+  # and reports whether pwsh.exe is on disk at its default location, the one
+  # whose machine-wide profile this module manages. Installs elsewhere (ZIP,
+  # Microsoft Store, 32-bit) are not detected, on purpose: they would not load
+  # that profile.
   $pwsh7_installed = $facts.dig('powershell7', 'installed')
   $manage_pwsh = $manage_pwsh_profile ? {
     undef   => $pwsh7_installed,

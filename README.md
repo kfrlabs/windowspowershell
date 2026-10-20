@@ -49,10 +49,11 @@ include windowspowershell
 
 ### In-house modules: `windowspowershell::module`
 
-One resource is one module identity. Declaring it explicitly is only needed to
-override a default (`version`, `companyname`, `author`); otherwise, naming the
-module from a `windowspowershell::script` is enough and it is built with every
-default.
+One resource is one module identity. Every module has to be declared: a
+`windowspowershell::script` does not create the module it names, it fails to
+compile when that module is missing. `windowspowershell::module { 'Acme': }`
+is enough to get every default; add `version`, `companyname` or `author` only
+to override one.
 
 ```puppet
 windowspowershell::module { 'Acme':
@@ -94,6 +95,9 @@ which is mandatory: there is no default module to fall back to. The resource
 title is the function name.
 
 ```puppet
+# The module the scripts go into has to be declared (see below)
+windowspowershell::module { 'Acme': }
+
 windowspowershell::script { 'Get-DiskUsage':
   modulename => 'Acme',
   content    => file('profile/powershell/Get-DiskUsage.ps1'),
@@ -115,9 +119,19 @@ windowspowershell::script { 'Get-OldThing':
 
 Exactly one of `content` or `source` is required when `ensure => present`.
 
-A module named by a script that was never declared explicitly is built with
-every default -- the same `ensure_resource` pattern `windowspowershell::external_module`
-uses for the shared machine-wide module directory.
+The module named by `modulename` has to be declared with
+`windowspowershell::module`; a script does not create it. A script naming an
+undeclared module fails to compile with a message that names the module and
+says where to declare it. Add `version`, `companyname` or `author` to the
+module only to override a default.
+
+Declaration order does not matter within one class or manifest: Puppet
+evaluates the body of a script after the scope that declared it, so the module
+can be written before or after the scripts. It matters across scopes. If the
+module is declared from a scope evaluated *after* a script's body (for
+instance from a define nested deeper than the script), the script cannot see
+it yet and fails with the same message. Declare the module from a class
+evaluated before the one declaring the scripts.
 
 ### Building a module dynamically from a whole directory
 
@@ -392,13 +406,16 @@ The module ships one custom fact:
 
 - **`powershell7`** (shipped by this module, `lib/facter/powershell7.rb`) -- a
   structured fact `{ installed => Boolean, path => String }`. It detects
-  PowerShell 7 by the presence of `pwsh.exe` on disk
-  (`%ProgramFiles%\PowerShell\7\pwsh.exe`), which is what the managed profile
-  actually needs -- unlike the package inventory, this also catches ZIP,
-  Microsoft Store, winget and non-standard installs. `manage_pwsh_profile` left
-  `undef` follows this fact. Forcing it `true` on a node without PowerShell 7
-  fails the catalogue with an explicit message rather than writing a profile
-  into a directory that does not exist.
+  PowerShell 7 by the presence of `pwsh.exe` at its **default location only**
+  (`%ProgramFiles%\PowerShell\7\pwsh.exe`, where the MSI package installs it). That is deliberate: the managed profile is
+  `C:\Program Files\PowerShell\7\profile.ps1`, and PowerShell only loads a
+  machine-wide profile from its own install directory. A ZIP install elsewhere,
+  a Microsoft Store install (read-only `WindowsApps`) or a 32-bit install is
+  therefore **not detected** (`installed => false`), and the module does not
+  manage a profile for it. `manage_pwsh_profile` left `undef` follows this
+  fact. Forcing it `true` on a node without PowerShell 7 at the default
+  location fails the catalogue with an explicit message rather than writing a
+  profile into a directory that does not exist.
 - **`proxy`** (class parameter -- **not** a fact) --
   Proxy passed to `Install-Module` via the `$proxy` class parameter.
   Set it in Hiera or node definition; if `undef`, installations go out directly.
@@ -431,7 +448,10 @@ See [REFERENCE.md](REFERENCE.md), generated with
   7's own module directory, or the 32-bit `Program Files (x86)` tree are neither
   checked for idempotency nor purged.
 - Relies on one fact (see [Facts](#facts)): the module-shipped `powershell7`
-  custom fact, which `manage_pwsh_profile` follows when left `undef`.
+  custom fact, which `manage_pwsh_profile` follows when left `undef`. It only
+  sees PowerShell 7 at its default location
+  (`C:\Program Files\PowerShell\7`); ZIP, Microsoft Store and 32-bit installs
+  elsewhere get no managed pwsh profile.
 - The machine-wide profiles are replaced wholesale on each run: only content
   coming from a `concat::fragment` survives. Puppet code can add its own
   fragments (see [Co-managing the profiles](#co-managing-the-profiles)), but
