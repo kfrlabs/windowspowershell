@@ -54,6 +54,28 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   name or `module_root` is interpolated into. They were rejected only for
   the proxy URL until now. A value containing one of them, which is unlikely
   but possible in a company name, now fails the catalogue at compile time.
+- A pinned `windowspowershell::external_module` version with fewer segments
+  than the folder PowerShellGet creates no longer reinstalls on every run
+  (issue #30). The install check, the purge check and the purge itself now
+  accept a folder whose name parses as `[version]` and is numerically equal
+  to the pinned version with missing segments treated as zero (e.g. pin
+  `2.1` matches folder `2.1.0`, pin `2` matches folder `2.0` after
+  normalising the single component to two before the `[version]` cast,
+  which needs major.minor), as well as the literal folder the file
+  `source` backend creates. Folders that do not parse as `[version]` are
+  kept, never purged, so an unexpected directory is not deleted. A
+  single-component pin is also normalised for the profile
+  `Import-Module -RequiredVersion` line (`2` becomes `2.0`), which is typed
+  `[version]` and needs at least major.minor. If both the short and the
+  normalised folder spellings end up side by side (e.g. `2.1` and `2.1.0`),
+  both count as the pinned version and neither is purged: the canonical
+  folder is whatever the backend creates (the normalised name for
+  `repository`, the literal pin for `source`), so remove the other spelling
+  once by hand. Each version component is now limited to nine digits at
+  compile time, like `Windowspowershell::Moduleversion`, because
+  `System.Version` parses every component as an Int32 and a tenth digit
+  would overflow at Exec runtime instead; single-component pins such as `2`
+  are still accepted.
 
 ## [1.2.0] - 2026-10-16
 

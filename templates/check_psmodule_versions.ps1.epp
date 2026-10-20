@@ -5,7 +5,33 @@ $moduleDir = '<%= $module_dir %>'
 
 if (-not (Test-Path -LiteralPath $moduleDir)) { exit 0 }
 
+# Unparseable dir: kept (not extra); unparseable pin: only a literal folder match is kept, the rest counts as extra.
+# A single-component pin/dir (e.g. '2') is normalised to '2.0' before -as [version], which needs major.minor.
+# Keep in sync: this normalise-and-compare block is triplicated across
+# check_psmodule.ps1.epp, check_psmodule_versions.ps1.epp and purge_psmodule_versions.ps1.epp.
+$pinned = '<%= $version %>'
+$pinnedNorm = $pinned
+if ($pinnedNorm -match '^\d+$') { $pinnedNorm = $pinnedNorm + '.0' }
+$pinnedAs = $pinnedNorm -as [version]
+if ($null -ne $pinnedAs) {
+    if ($pinnedAs.Build -eq -1) { $pinnedBuild = 0 } else { $pinnedBuild = $pinnedAs.Build }
+    if ($pinnedAs.Revision -eq -1) { $pinnedRevision = 0 } else { $pinnedRevision = $pinnedAs.Revision }
+}
 $extra = Get-ChildItem -LiteralPath $moduleDir -Directory |
-    Where-Object { $_.Name -ne '<%= $version %>' }
+    Where-Object {
+        if ($_.Name -eq $pinned) { $false }
+        else {
+            $dirName = $_.Name
+            if ($dirName -match '^\d+$') { $dirName = $dirName + '.0' }
+            $dirAs = $dirName -as [version]
+            if ($null -eq $dirAs) { $false }
+            elseif ($null -eq $pinnedAs) { $true }
+            else {
+                if ($dirAs.Build -eq -1) { $dirBuild = 0 } else { $dirBuild = $dirAs.Build }
+                if ($dirAs.Revision -eq -1) { $dirRevision = 0 } else { $dirRevision = $dirAs.Revision }
+                -not (($dirAs.Major -eq $pinnedAs.Major) -and ($dirAs.Minor -eq $pinnedAs.Minor) -and ($dirBuild -eq $pinnedBuild) -and ($dirRevision -eq $pinnedRevision))
+            }
+        }
+    }
 
 if ($extra) { exit 1 } else { exit 0 }

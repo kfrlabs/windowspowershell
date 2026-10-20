@@ -51,14 +51,96 @@ describe 'windowspowershell::external_module' do
           is_expected.to contain_exec('windowspowershell install ExampleModule').
             with_unless(%r{\$moduleDir = '#{Regexp.escape("#{modules}\\ExampleModule")}'}).
             with_unless(%r{Get-ChildItem -LiteralPath \$moduleDir -Directory}).
-            with_unless(%r{\$_\.Name -eq '2\.1\.0'})
+            with_unless(%r{\$pinned = '2\.1\.0'}).
+            with_unless(%r{\$_\.Name -eq \$pinned}).
+            with_unless(%r{-as \[version\]})
           expect(unless_of('windowspowershell install ExampleModule')).not_to match(%r{Get-Module -ListAvailable})
+        end
+
+        it 'treats a normalised folder as the pinned version' do
+          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$dirAs = \$dirName -as \[version\]})
+          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$dirAs\.Major -eq \$pinnedAs\.Major})
+          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$dirBuild -eq \$pinnedBuild})
+          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$dirRevision -eq \$pinnedRevision})
+          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{if \(\$_\.Name -eq \$pinned\) \{ \$true \}})
         end
 
         it 'purges the other versions after installing' do
           is_expected.to contain_exec('windowspowershell purge other versions of ExampleModule').
-            with_command(%r{Where-Object \{ \$_\.Name -ne '2\.1\.0' \}}).
+            with_command(%r{\$pinned = '2\.1\.0'}).
+            with_command(%r{-as \[version\]}).
             that_requires('Exec[windowspowershell install ExampleModule]')
+        end
+
+        context 'with a short pinned version' do
+          let(:params) { { 'ensure' => '2.1', 'repository' => 'PSGallery' } }
+
+          it { is_expected.to compile.with_all_deps }
+
+          it 'keeps the normalised folder instead of reinstalling' do
+            expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$pinned = '2\.1'})
+            expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$_\.Name -eq \$pinned})
+            expect(unless_of('windowspowershell install ExampleModule')).to match(%r{-as \[version\]})
+          end
+
+          it 'keeps the normalised folder instead of purging it' do
+            expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$pinned = '2\.1'})
+            expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{-as \[version\]})
+          end
+        end
+
+        context 'with a single-component pinned version' do
+          let(:params) { { 'ensure' => '2', 'repository' => 'PSGallery' } }
+
+          it { is_expected.to compile.with_all_deps }
+
+          it 'normalises the pin before casting so folder 2.0 counts as installed' do
+            expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$pinned = '2'})
+            expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$pinnedNorm = \$pinned})
+            expect(unless_of('windowspowershell install ExampleModule')).to match(%r{-match '\^\\d\+\$'})
+            expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\+ '\.0'})
+            expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$pinnedAs = \$pinnedNorm -as \[version\]})
+          end
+
+          it 'normalises the pin before casting so folder 2.0 is kept by the purge' do
+            expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$pinnedNorm = \$pinned})
+            expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$pinnedAs = \$pinnedNorm -as \[version\]})
+            expect(unless_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$pinnedAs = \$pinnedNorm -as \[version\]})
+          end
+        end
+
+        # Behaviour table, negative row: pin 2.2 against folder 2.2.1.5. All
+        # four [version] components are compared with missing segments
+        # treated as zero, so a folder that differs in build or revision
+        # still counts as a different version: the install check misses it
+        # and the purge removes it.
+        context 'with a pinned version that differs in build from the installed folder' do
+          let(:params) { { 'ensure' => '2.2', 'repository' => 'PSGallery' } }
+
+          it { is_expected.to compile.with_all_deps }
+
+          it 'compares build and revision numerically, so 2.2.1.5 counts as different from 2.2' do
+            expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$pinned = '2\.2'})
+            expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$dirBuild -eq \$pinnedBuild})
+            expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$dirRevision -eq \$pinnedRevision})
+            expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$pinned = '2\.2'})
+            expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$dirBuild -eq \$pinnedBuild})
+            expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$dirRevision -eq \$pinnedRevision})
+            expect(unless_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$dirBuild -eq \$pinnedBuild})
+            expect(unless_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$dirRevision -eq \$pinnedRevision})
+          end
+        end
+
+        it 'keeps a non-version directory instead of purging it' do
+          expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{if \(\$null -eq \$dirAs\) \{ \$false \}})
+        end
+
+        it 'keeps a non-version directory in the install check' do
+          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{if \(\$null -eq \$dirAs\) \{ \$false \}})
+        end
+
+        it 'keeps a non-version directory in the purge check' do
+          expect(unless_of('windowspowershell purge other versions of ExampleModule')).to match(%r{if \(\$null -eq \$dirAs\) \{ \$false \}})
         end
 
         it 'declares no file resource for a repository-backed module' do
@@ -301,6 +383,18 @@ describe 'windowspowershell::external_module' do
           is_expected.to contain_exec('windowspowershell purge other versions of ExampleModule').
             that_requires("File[#{modules}\\ExampleModule\\2.2.1.5]")
         end
+
+        it 'keeps the literal 4-segment folder and compares versions numerically' do
+          expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$pinned = '2\.2\.1\.5'})
+          expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$_\.Name -eq \$pinned})
+          expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{-as \[version\]})
+          expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$dirBuild -eq \$pinnedBuild})
+          expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$dirRevision -eq \$pinnedRevision})
+          expect(unless_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$pinned = '2\.2\.1\.5'})
+          expect(unless_of('windowspowershell purge other versions of ExampleModule')).to match(%r{-as \[version\]})
+          expect(unless_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$dirBuild -eq \$pinnedBuild})
+          expect(unless_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$dirRevision -eq \$pinnedRevision})
+        end
       end
 
       context 'with the default file source' do
@@ -370,6 +464,14 @@ describe 'windowspowershell::external_module' do
 
       context 'with ensure => latest' do
         let(:params) { { 'ensure' => 'latest', 'repository' => 'PSGallery' } }
+
+        it { is_expected.to compile.and_raise_error(%r{parameter 'ensure'}) }
+      end
+
+      # Each component is parsed as an Int32 by System.Version, so ten digits
+      # would overflow at Exec runtime: refused at compile time instead.
+      context 'with a version component that overflows Int32' do
+        let(:params) { { 'ensure' => '9999999999.0', 'repository' => 'PSGallery' } }
 
         it { is_expected.to compile.and_raise_error(%r{parameter 'ensure'}) }
       end
@@ -483,6 +585,20 @@ describe 'windowspowershell::external_module' do
             with_order('60').
             with_content(%r{Import-Module 'ExampleModule'})
           expect(catalogue.resource('Concat::Fragment', "windowspowershell import external ExampleModule in #{profile}")[:content]).not_to match(%r{-RequiredVersion})
+        end
+      end
+
+      context 'with a single-component pinned version and import_in_profile => true' do
+        let(:params) { { 'ensure' => '2', 'repository' => 'PSGallery', 'import_in_profile' => true } }
+
+        it { is_expected.to compile.with_all_deps }
+
+        # Import-Module -RequiredVersion is typed [version], which needs at
+        # least major.minor: the fragment normalises the pin to 2.0.
+        it 'normalises the pin so the Import-Module line carries a valid [version]' do
+          profile = 'C:\Windows\System32\WindowsPowerShell\v1.0\profile.ps1'
+          is_expected.to contain_concat_fragment("windowspowershell import external ExampleModule in #{profile}").
+            with_content(%r{Import-Module 'ExampleModule' -RequiredVersion '2\.0'})
         end
       end
 
