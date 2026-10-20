@@ -260,10 +260,10 @@ class { 'windowspowershell':
 }
 ```
 
-> **Deprecated:** credentials embedded in the URL (`http://user:pass@host`) are
-> still accepted, with a warning, but they end up in clear text in the `Exec`
-> command and .NET may not honor them. Move them to `proxy_credential`. Setting
-> both at once fails the catalogue.
+> **Breaking change in 2.0.0** (issue #57): credentials embedded in the
+> proxy URL (`http://user:pass@host`) are refused at compile time. They ended
+> up in clear text in the `Exec` command and .NET may not honor them. Move
+> them to `proxy_credential`.
 
 #### Bootstrap
 
@@ -420,7 +420,7 @@ The module ships one custom fact:
   Proxy passed to `Install-Module` via the `$proxy` class parameter.
   Set it in Hiera or node definition; if `undef`, installations go out directly.
   Credentials embedded in the URL (e.g. 'http://user:pass@proxy.example.net:3128')
-  are deprecated: use `proxy_credential`.
+  are refused: use `proxy_credential`.
 - **`proxy_credential`** (class parameter) --
   Credentials for an authenticating proxy, as `{ username => String, password =>
   Sensitive[String] }`. Requires `proxy`. See [Proxy](#proxy).

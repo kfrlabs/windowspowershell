@@ -1,0 +1,38 @@
+<%- | Optional[String[1]] $version = undef | -%>
+# Version normalise-and-compare helpers shared by the pinned-version checks.
+# Rendered via epp() from check_psmodule.ps1.epp, check_psmodule_versions.ps1.epp
+# and purge_psmodule_versions.ps1.epp so the three scripts cannot drift apart
+# (issue #52). $version is digits and dots only (Windowspowershell::Version),
+# so interpolating it into a single-quoted string is safe.
+function Get-NormalizedVersion {
+    param([string]$Name)
+    $norm = $Name
+    if ($norm -match '^\d+$') { $norm = $norm + '.0' }
+    return ($norm -as [version])
+}
+<% if $version =~ NotUndef { -%>
+$pinned = '<%= $version %>'
+$pinnedAs = Get-NormalizedVersion $pinned
+if ($null -ne $pinnedAs) {
+    if ($pinnedAs.Build -eq -1) { $pinnedBuild = 0 } else { $pinnedBuild = $pinnedAs.Build }
+    if ($pinnedAs.Revision -eq -1) { $pinnedRevision = 0 } else { $pinnedRevision = $pinnedAs.Revision }
+}
+function Test-PinnedVersionMatch {
+    param([string]$DirName)
+    if ($DirName -eq $pinned) { return $true }
+    if ($null -eq $pinnedAs) { return $false }
+    $dirAs = Get-NormalizedVersion $DirName
+    if ($null -eq $dirAs) { return $false }
+    if ($dirAs.Build -eq -1) { $dirBuild = 0 } else { $dirBuild = $dirAs.Build }
+    if ($dirAs.Revision -eq -1) { $dirRevision = 0 } else { $dirRevision = $dirAs.Revision }
+    return (($dirAs.Major -eq $pinnedAs.Major) -and ($dirAs.Minor -eq $pinnedAs.Minor) -and ($dirBuild -eq $pinnedBuild) -and ($dirRevision -eq $pinnedRevision))
+}
+function Test-IsExtraVersion {
+    param([string]$DirName)
+    if ($DirName -eq $pinned) { return $false }
+    $dirAs = Get-NormalizedVersion $DirName
+    if ($null -eq $dirAs) { return $false }
+    if ($null -eq $pinnedAs) { return $true }
+    return (-not (Test-PinnedVersionMatch $DirName))
+}
+<% } -%>

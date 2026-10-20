@@ -35,6 +35,7 @@ such as the PowerShell Gallery or by copying files from a Puppet source.
 * [`Windowspowershell::Psstring`](#Windowspowershell--Psstring): Free text that ends up inside a single-quoted PowerShell string, such as the author or company written into the module manifest.  Unlike Wind
 * [`Windowspowershell::Reponame`](#Windowspowershell--Reponame): Name of a PowerShell repository, as registered by `Register-PSRepository` and passed to `Install-Module -Repository`.  Deliberately narrower 
 * [`Windowspowershell::Rootpath`](#Windowspowershell--Rootpath): The machine-wide PowerShell module root, e.g. the parent of every in-house module folder this class lays out.  It composes two constraints th
+* [`Windowspowershell::Scriptname`](#Windowspowershell--Scriptname): A script base name, without the `.ps1` extension.  Same guarantees as Windowspowershell::Name (single path component, safe to interpolate int
 * [`Windowspowershell::Version`](#Windowspowershell--Version): A PowerShell module version: one to four dot-separated numbers of at most nine digits each.  Deliberately looser than Windowspowershell::Modu
 
 ## Classes
@@ -153,9 +154,9 @@ Data type: `Optional[Windowspowershell::Proxyurl]`
 Proxy passed to `Install-Module` when installing a third-party module from
 a repository. Left `undef`, no proxy is used and installs go out directly.
 Set it to an explicit proxy URL (e.g. 'http://proxy.example.net:3128').
-Credentials embedded in the URL (`http://user:pass@host`) are still
-accepted for now but deprecated: they end up in clear text in the Exec
-command, and .NET may not honor them. Use `proxy_credential` instead.
+Credentials embedded in the URL (`http://user:pass@host`) are refused: they
+ended up in clear text in the Exec command, and .NET may not honor them.
+Pass them via `proxy_credential` instead.
 
 Default value: `undef`
 
@@ -171,8 +172,7 @@ Optional[Struct[{
 ```
 
 Credentials for an authenticating proxy, as a hash with `username` and a
-`Sensitive` `password`. Requires `proxy`, and is mutually exclusive with
-credentials embedded in the `proxy` URL. They are passed to
+`Sensitive` `password`. Requires `proxy`. They are passed to
 `Install-Module` and `Install-PackageProvider` through `-ProxyCredential`;
 the secret travels in the Exec `environment` (redacted from reports and
 logs) and never appears in the Exec `command` or `unless` text.
@@ -529,7 +529,7 @@ Default value: `'present'`
 
 ##### <a name="-windowspowershell--script--scriptname"></a>`scriptname`
 
-Data type: `Windowspowershell::Name`
+Data type: `Windowspowershell::Scriptname`
 
 Base name of the script, without the `.ps1` extension. Defaults to the
 resource title. This is also the name of the exported PowerShell function.
@@ -630,10 +630,11 @@ scheme requirement and refuses whatever could end the quoted string: the ASCII
 apostrophe, the typographic single quotes that PowerShell also treats as
 quote characters (U+2018 to U+201B), control characters and whitespace.
 
-Credentials embedded in the URL (`http://user:pass@host`) still match. That
-form is deprecated in favour of `proxy_credential`, but it is not refused here.
+Credentials embedded in the URL (`http://user:pass@host`) are refused
+(issue #57): they ended up in clear text in the Exec command, and .NET may
+not honor them. Pass them via `proxy_credential` instead.
 
-Alias of `Pattern[/\A(?i:https?):\/\/[^'\u2018-\u201B\x00-\x1F\s]+\z/]`
+Alias of `Pattern[/\A(?i:https?):\/\/(?![^\/]*@)[^'\u2018-\u201B\x00-\x1F\s]+\z/]`
 
 ### <a name="Windowspowershell--Psstring"></a>`Windowspowershell::Psstring`
 
@@ -681,6 +682,19 @@ PowerShell string, such as the proxy URL, are constrained by their own type
 (see Windowspowershell::Proxyurl).
 
 Alias of `Pattern[/\A(?:[A-Za-z]:[\\\/]|[\\\/][\\\/][^\\\/'\u2018-\u201B\x00-\x1F]+[\\\/][^\\\/'\u2018-\u201B\x00-\x1F]+|[\\\/][\\\/]\?[\\\/][^\\\/'\u2018-\u201B\x00-\x1F]+)[^'\u2018-\u201B\x00-\x1F]*\z/]`
+
+### <a name="Windowspowershell--Scriptname"></a>`Windowspowershell::Scriptname`
+
+A script base name, without the `.ps1` extension.
+
+Same guarantees as Windowspowershell::Name (single path component, safe to
+interpolate into a single-quoted PowerShell string, not a Windows reserved
+device name), plus one: a trailing `.ps1`/`.psm1` (any case) is refused
+(issue #56). The module appends `.ps1` itself, so `Get-Foo.ps1` would deploy
+`Get-Foo.ps1.ps1` exporting a broken function name. Dots elsewhere stay
+legitimate (`Get-Example.v2`).
+
+Alias of `Pattern[/\A(?!(?i:.*\.psm?1)\z)(?!(?i:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])[ ]*(?:\..*)?\z)[^\\\/:*?"<>|'\u2018-\u201B\x00-\x1F]{0,254}[^\\\/:*?"<>|'\u2018-\u201B\x00-\x1F. ]\z/]`
 
 ### <a name="Windowspowershell--Version"></a>`Windowspowershell::Version`
 

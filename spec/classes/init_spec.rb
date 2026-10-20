@@ -164,15 +164,16 @@ describe 'windowspowershell' do
           end
         end
 
-        context 'with an authenticated proxy' do
+        context 'with credentials embedded in the proxy URL' do
           let(:params) { { 'proxy' => 'http://user:pass@proxy.example.net:3128' } }
 
-          it { is_expected.to compile.with_all_deps }
+          it { is_expected.to compile.and_raise_error(%r{parameter 'proxy'}) }
+        end
 
-          it 'passes the authenticated proxy URL to the nuget bootstrap' do
-            is_expected.to contain_exec('windowspowershell install nuget provider').
-              with_command(%r{-Proxy 'http://user:pass@proxy\.example\.net:3128'})
-          end
+        context 'with only a username embedded in the proxy URL' do
+          let(:params) { { 'proxy' => 'http://user@proxy.example.net:3128' } }
+
+          it { is_expected.to compile.and_raise_error(%r{parameter 'proxy'}) }
         end
 
         context 'with an invalid proxy' do

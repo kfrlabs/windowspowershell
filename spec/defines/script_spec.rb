@@ -347,19 +347,19 @@ describe 'windowspowershell::script' do
       context 'with a scriptname ending in .ps1' do
         let(:params) { { 'modulename' => 'Acme', 'scriptname' => 'Get-Foo.ps1', 'content' => 'x' } }
 
-        it { is_expected.to compile.and_raise_error(%r{must not end with '.ps1' or '.psm1'}) }
+        it { is_expected.to compile.and_raise_error(%r{parameter 'scriptname'}) }
       end
 
       context 'with a scriptname ending in .psm1' do
         let(:params) { { 'modulename' => 'Acme', 'scriptname' => 'Get-Foo.psm1', 'content' => 'x' } }
 
-        it { is_expected.to compile.and_raise_error(%r{must not end with '.ps1' or '.psm1'}) }
+        it { is_expected.to compile.and_raise_error(%r{parameter 'scriptname'}) }
       end
 
       context 'with a scriptname ending in .PS1 (upper case)' do
         let(:params) { { 'modulename' => 'Acme', 'scriptname' => 'Get-Foo.PS1', 'content' => 'x' } }
 
-        it { is_expected.to compile.and_raise_error(%r{must not end with '.ps1' or '.psm1'}) }
+        it { is_expected.to compile.and_raise_error(%r{parameter 'scriptname'}) }
       end
 
       # Only whole components (with or without an extension) are reserved:

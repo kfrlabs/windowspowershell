@@ -52,23 +52,24 @@ describe 'windowspowershell::external_module' do
             with_unless(%r{\$moduleDir = '#{Regexp.escape("#{modules}\\ExampleModule")}'}).
             with_unless(%r{Get-ChildItem -LiteralPath \$moduleDir -Directory}).
             with_unless(%r{\$pinned = '2\.1\.0'}).
-            with_unless(%r{\$_\.Name -eq \$pinned}).
-            with_unless(%r{-as \[version\]})
+            with_unless(%r{Test-PinnedVersionMatch}).
+            with_unless(%r{Get-NormalizedVersion})
           expect(unless_of('windowspowershell install ExampleModule')).not_to match(%r{Get-Module -ListAvailable})
         end
 
         it 'treats a normalised folder as the pinned version' do
-          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$dirAs = \$dirName -as \[version\]})
+          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{function Test-PinnedVersionMatch})
+          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$dirAs = Get-NormalizedVersion \$DirName})
           expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$dirAs\.Major -eq \$pinnedAs\.Major})
           expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$dirBuild -eq \$pinnedBuild})
           expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$dirRevision -eq \$pinnedRevision})
-          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{if \(\$_\.Name -eq \$pinned\) \{ \$true \}})
+          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{Where-Object \{ Test-PinnedVersionMatch})
         end
 
         it 'purges the other versions after installing' do
           is_expected.to contain_exec('windowspowershell purge other versions of ExampleModule').
             with_command(%r{\$pinned = '2\.1\.0'}).
-            with_command(%r{-as \[version\]}).
+            with_command(%r{Test-IsExtraVersion}).
             that_requires('Exec[windowspowershell install ExampleModule]')
         end
 
@@ -79,13 +80,13 @@ describe 'windowspowershell::external_module' do
 
           it 'keeps the normalised folder instead of reinstalling' do
             expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$pinned = '2\.1'})
-            expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$_\.Name -eq \$pinned})
-            expect(unless_of('windowspowershell install ExampleModule')).to match(%r{-as \[version\]})
+            expect(unless_of('windowspowershell install ExampleModule')).to match(%r{Test-PinnedVersionMatch})
+            expect(unless_of('windowspowershell install ExampleModule')).to match(%r{Get-NormalizedVersion})
           end
 
           it 'keeps the normalised folder instead of purging it' do
             expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$pinned = '2\.1'})
-            expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{-as \[version\]})
+            expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{Test-IsExtraVersion})
           end
         end
 
@@ -96,16 +97,16 @@ describe 'windowspowershell::external_module' do
 
           it 'normalises the pin before casting so folder 2.0 counts as installed' do
             expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$pinned = '2'})
-            expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$pinnedNorm = \$pinned})
+            expect(unless_of('windowspowershell install ExampleModule')).to match(%r{function Get-NormalizedVersion})
             expect(unless_of('windowspowershell install ExampleModule')).to match(%r{-match '\^\\d\+\$'})
             expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\+ '\.0'})
-            expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$pinnedAs = \$pinnedNorm -as \[version\]})
+            expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$pinnedAs = Get-NormalizedVersion \$pinned})
           end
 
           it 'normalises the pin before casting so folder 2.0 is kept by the purge' do
-            expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$pinnedNorm = \$pinned})
-            expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$pinnedAs = \$pinnedNorm -as \[version\]})
-            expect(unless_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$pinnedAs = \$pinnedNorm -as \[version\]})
+            expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{function Get-NormalizedVersion})
+            expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$pinnedAs = Get-NormalizedVersion \$pinned})
+            expect(unless_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$pinnedAs = Get-NormalizedVersion \$pinned})
           end
         end
 
@@ -121,26 +122,32 @@ describe 'windowspowershell::external_module' do
 
           it 'compares build and revision numerically, so 2.2.1.5 counts as different from 2.2' do
             expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$pinned = '2\.2'})
+            expect(unless_of('windowspowershell install ExampleModule')).to match(%r{Test-PinnedVersionMatch})
             expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$dirBuild -eq \$pinnedBuild})
             expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$dirRevision -eq \$pinnedRevision})
             expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$pinned = '2\.2'})
+            expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{Test-IsExtraVersion})
             expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$dirBuild -eq \$pinnedBuild})
             expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$dirRevision -eq \$pinnedRevision})
+            expect(unless_of('windowspowershell purge other versions of ExampleModule')).to match(%r{Test-IsExtraVersion})
             expect(unless_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$dirBuild -eq \$pinnedBuild})
             expect(unless_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$dirRevision -eq \$pinnedRevision})
           end
         end
 
         it 'keeps a non-version directory instead of purging it' do
-          expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{if \(\$null -eq \$dirAs\) \{ \$false \}})
+          expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{function Test-IsExtraVersion})
+          expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{if \(\$null -eq \$dirAs\) \{ return \$false \}})
         end
 
         it 'keeps a non-version directory in the install check' do
-          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{if \(\$null -eq \$dirAs\) \{ \$false \}})
+          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{function Test-PinnedVersionMatch})
+          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{if \(\$null -eq \$dirAs\) \{ return \$false \}})
         end
 
         it 'keeps a non-version directory in the purge check' do
-          expect(unless_of('windowspowershell purge other versions of ExampleModule')).to match(%r{if \(\$null -eq \$dirAs\) \{ \$false \}})
+          expect(unless_of('windowspowershell purge other versions of ExampleModule')).to match(%r{function Test-IsExtraVersion})
+          expect(unless_of('windowspowershell purge other versions of ExampleModule')).to match(%r{if \(\$null -eq \$dirAs\) \{ return \$false \}})
         end
 
         it 'declares no file resource for a repository-backed module' do
@@ -176,39 +183,11 @@ describe 'windowspowershell::external_module' do
         end
       end
 
-      context 'from a repository, with credentials embedded in the proxy URL (deprecated)' do
+      context 'from a repository, with credentials embedded in the proxy URL (removed in v2.0)' do
         let(:params) { { 'ensure' => '2.1.0', 'repository' => 'PSGallery' } }
         let(:pre_condition) { "class { 'windowspowershell': proxy => 'http://user:pass@172.18.69.200:8080' }" }
 
-        it { is_expected.to compile.with_all_deps }
-
-        it 'passes the authenticated proxy to Install-Module and to the NuGet bootstrap' do
-          is_expected.to contain_exec('windowspowershell install ExampleModule').
-            with_command(%r{-Proxy 'http://user:pass@172\.18\.69\.200:8080'})
-          is_expected.to contain_exec('windowspowershell install nuget provider').
-            with_command(%r{-Proxy 'http://user:pass@172\.18\.69\.200:8080'})
-        end
-      end
-
-      # The embedded form still works but must warn, and the warning must
-      # never echo the URL. A dedicated node name keeps rspec-puppet's
-      # catalogue cache from hiding the compile-time warning.
-      context 'from a repository, with credentials embedded in the proxy URL, on a warn probe node' do
-        let(:node) { 'warn-probe.example.com' }
-        let(:params) { { 'ensure' => '2.1.0', 'repository' => 'PSGallery' } }
-        let(:pre_condition) { "class { 'windowspowershell': proxy => 'http://user:pass@172.18.69.200:8080' }" }
-
-        it 'recommends proxy_credential without echoing the password' do
-          warnings = []
-          allow(Puppet::Util::Log).to receive(:create).and_wrap_original do |original, args|
-            warnings << args[:message] if args.is_a?(Hash) && args[:level] == :warning
-            original.call(args)
-          end
-          catalogue
-          deprecation = warnings.select { |message| message.include?('proxy_credential') }
-          expect(deprecation).not_to be_empty
-          expect(deprecation.join).not_to match(%r{pass@|user:pass})
-        end
+        it { is_expected.to compile.and_raise_error(%r{parameter 'proxy'}) }
       end
 
       context 'from a repository, with proxy_credential on the class' do
@@ -302,7 +281,7 @@ describe 'windowspowershell::external_module' do
           PUPPET
         end
 
-        it { is_expected.to compile.and_raise_error(%r{embeds credentials}) }
+        it { is_expected.to compile.and_raise_error(%r{parameter 'proxy'}) }
       end
 
       context 'from a repository, with a plain-string password in proxy_credential' do
@@ -349,10 +328,11 @@ describe 'windowspowershell::external_module' do
 
         # Issue #55: a stray folder under the module directory is not a version
         # and must not satisfy the check, or the install is blocked forever.
+        # Shared helper (issue #52): the present-branch renders the partial
+        # without a pin, so only Get-NormalizedVersion is defined.
         it 'only counts folders that parse as a [version]' do
-          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$dirName -as \[version\]})
-          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$null -ne \(\$dirName -as \[version\]\)})
-          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$dirName -match '\^\\d\+\$'})
+          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{function Get-NormalizedVersion})
+          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$null -ne \(Get-NormalizedVersion})
         end
 
         it 'purges nothing, since no version is targeted' do
@@ -394,12 +374,12 @@ describe 'windowspowershell::external_module' do
 
         it 'keeps the literal 4-segment folder and compares versions numerically' do
           expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$pinned = '2\.2\.1\.5'})
-          expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$_\.Name -eq \$pinned})
-          expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{-as \[version\]})
+          expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{Test-IsExtraVersion})
+          expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{Get-NormalizedVersion})
           expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$dirBuild -eq \$pinnedBuild})
           expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$dirRevision -eq \$pinnedRevision})
           expect(unless_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$pinned = '2\.2\.1\.5'})
-          expect(unless_of('windowspowershell purge other versions of ExampleModule')).to match(%r{-as \[version\]})
+          expect(unless_of('windowspowershell purge other versions of ExampleModule')).to match(%r{Test-IsExtraVersion})
           expect(unless_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$dirBuild -eq \$pinnedBuild})
           expect(unless_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$dirRevision -eq \$pinnedRevision})
         end
