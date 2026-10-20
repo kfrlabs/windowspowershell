@@ -287,6 +287,16 @@ module in one run rebuilds its manifest once, not ten times. Two in-house
 modules are entirely independent: changing a script in one never touches the
 other's manifest.
 
+Changing a manifest parameter on its own (`author`, `companyname`, `version`)
+regenerates the manifest too: a refresh-only `Exec` does not run when its own
+`command` changes, so `windowspowershell::module` also manages a witness file,
+`<version folder>\.manifest-params`, holding the SHA-256 of the manifest build
+command. When that hash changes, the file changes and notifies the same
+`Exec`. Do not edit or remove the witness by hand; if you do, Puppet rewrites
+it and rebuilds the manifest on the next run. A `.psd1` that is corrupt or
+edited by hand while the witness is intact is not detected: delete the `.psd1`
+to have it rebuilt.
+
 ### File unblocking
 
 Files are unblocked at **deploy time**, not on every import. One refresh-only
