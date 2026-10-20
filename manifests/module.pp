@@ -99,9 +99,11 @@ define windowspowershell::module (
 
   # Deterministic manifest GUID. New-ModuleManifest invents a random GUID when
   # none is passed, so the .psd1 would get a new module identity on every
-  # regeneration. Deriving it from name+version keeps the identity stable
-  # across runs without asking the user for anything.
-  $manifest_guid = fqdn_uuid("${modulename}-${version}")
+  # regeneration. Deriving it from the module name alone keeps the identity
+  # stable across runs, and across versions: PowerShell identifies a module by
+  # name plus GUID and expects the GUID to stay the same from one version of a
+  # module to the next, so it must not change when `version` is bumped.
+  $manifest_guid = fqdn_uuid($modulename)
 
   if $windowspowershell::supported {
     file { $module_dir:

@@ -7,6 +7,20 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Changed
+
+- The generated manifest's GUID is now derived from the module name alone
+  instead of name and version (issue #28). PowerShell identifies a module by
+  name plus GUID and expects the GUID to stay the same from one version of a
+  module to the next; with the old derivation, bumping `version` gave the new
+  folder a different GUID, so two version folders of the same module declared
+  two different module identities.
+  - Migration: existing nodes keep the old GUID until the manifest is next
+    regenerated (a script change, or a missing `.psd1`), at which point it
+    changes once to the new name-derived value. Anything that pinned the old
+    GUID, such as a `RequiredModules` entry with a `GUID` key, has to be
+    updated.
+
 ### Fixed
 
 - `proxy` is now typed with the new `Windowspowershell::Proxyurl` alias instead
