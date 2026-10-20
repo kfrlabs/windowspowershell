@@ -33,6 +33,14 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   (U+2018 to U+201B), control characters and whitespace, at compile time.
   A URL that was valid before and contains none of those still compiles,
   including the deprecated `user:pass@host` form.
+- `Windowspowershell::Name`, `Windowspowershell::Psstring` and
+  `Windowspowershell::Rootpath` now also refuse the typographic single quotes
+  U+2018, U+2019, U+201A and U+201B (issue #36). PowerShell treats them as
+  single-quote characters, so, like the ASCII apostrophe, they can end the
+  single-quoted string a module, script or folder name, an author, a company
+  name or `module_root` is interpolated into. They were rejected only for
+  the proxy URL until now. A value containing one of them, which is unlikely
+  but possible in a company name, now fails the catalogue at compile time.
 
 ## [1.2.0] - 2026-10-16
 

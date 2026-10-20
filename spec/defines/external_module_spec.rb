@@ -389,6 +389,12 @@ describe 'windowspowershell::external_module' do
         it { is_expected.to compile.and_raise_error(%r{parameter 'repository'}) }
       end
 
+      context 'with a modulename holding a typographic single quote' do
+        let(:params) { { 'ensure' => '2.1.0', 'repository' => 'PSGallery', 'modulename' => "Evil\u2019; calc.exe #" } }
+
+        it { is_expected.to compile.and_raise_error(%r{parameter 'modulename'}) }
+      end
+
       context 'with a modulename holding an apostrophe' do
         let(:params) { { 'ensure' => '2.1.0', 'repository' => 'PSGallery', 'modulename' => "Evil'; calc.exe #" } }
 

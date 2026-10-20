@@ -8,11 +8,12 @@
 #   anchors it at the start: a drive letter, a UNC share, or a `\\?\` prefix.
 # * Safety inside a single-quoted PowerShell string. `$module_root` feeds
 #   `$module_path`, which is interpolated between single quotes in the manifest
-#   template, so the apostrophe -- the only character able to end such a string
-#   -- and the control characters are refused, here and inside the UNC server
-#   and share segments too.
+#   template, so the apostrophe and the typographic single quotes PowerShell
+#   also treats as quote characters (U+2018 to U+201B) -- the only characters
+#   able to end such a string -- and the control characters are refused, here
+#   and inside the UNC server and share segments too.
 #
 # The paths derived from it are safe by construction. Other values that reach a
 # PowerShell string, such as the proxy URL, are constrained by their own type
 # (see Windowspowershell::Proxyurl).
-type Windowspowershell::Rootpath = Pattern[/\A(?:[A-Za-z]:[\\\/]|[\\\/][\\\/][^\\\/'\x00-\x1F]+[\\\/][^\\\/'\x00-\x1F]+|[\\\/][\\\/]\?[\\\/][^\\\/'\x00-\x1F]+)[^'\x00-\x1F]*\z/]
+type Windowspowershell::Rootpath = Pattern[/\A(?:[A-Za-z]:[\\\/]|[\\\/][\\\/][^\\\/'\u2018-\u201B\x00-\x1F]+[\\\/][^\\\/'\u2018-\u201B\x00-\x1F]+|[\\\/][\\\/]\?[\\\/][^\\\/'\u2018-\u201B\x00-\x1F]+)[^'\u2018-\u201B\x00-\x1F]*\z/]
