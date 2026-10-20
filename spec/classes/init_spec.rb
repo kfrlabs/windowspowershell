@@ -175,6 +175,52 @@ describe 'windowspowershell' do
           it { is_expected.to compile.and_raise_error(%r{parameter 'proxy'}) }
         end
 
+        # The proxy is interpolated between single quotes in scripts the agent
+        # runs as SYSTEM, so anything able to end that string is refused at
+        # compile time. Stdlib::HTTPUrl alone accepts all of these.
+        context 'with a proxy holding an apostrophe' do
+          let(:params) { { 'proxy' => "http://proxy.example.net:3128'; calc.exe #" } }
+
+          it { is_expected.to compile.and_raise_error(%r{parameter 'proxy'}) }
+        end
+
+        # PowerShell treats U+2018 to U+201B as single-quote characters too.
+        context 'with a proxy holding a typographic single quote' do
+          let(:params) { { 'proxy' => "http://proxy.example.net:3128\u2019; calc.exe #" } }
+
+          it { is_expected.to compile.and_raise_error(%r{parameter 'proxy'}) }
+        end
+
+        context 'with a proxy holding whitespace' do
+          let(:params) { { 'proxy' => 'http://proxy.example.net:3128 -Foo' } }
+
+          it { is_expected.to compile.and_raise_error(%r{parameter 'proxy'}) }
+        end
+
+        context 'with a proxy holding a line break' do
+          let(:params) { { 'proxy' => "http://proxy.example.net:3128\nCalc" } }
+
+          it { is_expected.to compile.and_raise_error(%r{parameter 'proxy'}) }
+        end
+
+        context 'with a proxy URL carrying a trailing slash' do
+          let(:params) { { 'proxy' => 'http://proxy.example.net:3128/' } }
+
+          it { is_expected.to compile.with_all_deps }
+
+          it 'passes the URL to the nuget bootstrap unchanged' do
+            is_expected.to contain_exec('windowspowershell install nuget provider').
+              with_command(%r{-Proxy 'http://proxy\.example\.net:3128/'})
+          end
+        end
+
+        # Stdlib::HTTPUrl is case-insensitive on the scheme; keep it that way.
+        context 'with an upper-case scheme' do
+          let(:params) { { 'proxy' => 'HTTPS://proxy.example.net:3128' } }
+
+          it { is_expected.to compile.with_all_deps }
+        end
+
         # No site-provided fact feeds the proxy any more: a stray http_proxy
         # fact must not leak a -Proxy onto the command.
         context 'with a stray http_proxy fact and no proxy parameter' do

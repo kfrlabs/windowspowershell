@@ -5,6 +5,21 @@ All notable changes to this module are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- `proxy` is now typed with the new `Windowspowershell::Proxyurl` alias instead
+  of `Stdlib::HTTPUrl` (issue #27). `Stdlib::HTTPUrl` accepts anything after the
+  scheme, an apostrophe included, and the value is interpolated between single
+  quotes in the scripts the agent runs as SYSTEM, so a crafted `proxy` could end
+  the quoted string and run arbitrary PowerShell. The alias keeps the
+  `http://` / `https://` requirement and refuses the apostrophe, the
+  typographic single quotes PowerShell also treats as quote characters
+  (U+2018 to U+201B), control characters and whitespace, at compile time.
+  A URL that was valid before and contains none of those still compiles,
+  including the deprecated `user:pass@host` form.
+
 ## [1.2.0] - 2026-10-16
 
 ### Added
