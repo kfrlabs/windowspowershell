@@ -154,6 +154,11 @@ class windowspowershell (
   # Every profile file windowspowershell::config manages, exposed here so that
   # windowspowershell::module and windowspowershell::external_module can target
   # the same set when asked to add an Import-Module line for a module.
+  #
+  # 32-bit Windows PowerShell reads its own profile from SysWOW64, not
+  # System32. Without the SysWOW64 entry a module imported in the profile would
+  # be missing from any 32-bit PowerShell session. SysWOW64\WindowsPowerShell\v1.0
+  # exists on every 64-bit Windows, so the file can be written unconditionally.
   $profile_paths = $manage_profiles ? {
     false   => [],
     default => [

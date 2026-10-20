@@ -58,6 +58,30 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
     group: the `Rakefile` requires it unconditionally, so
     `BUNDLE_WITHOUT=release_prep` no longer fails with a `LoadError`.
 
+- Profile imports no longer fail silently (issue #33). The `Import-Module`
+  line that `windowspowershell::module` and
+  `windowspowershell::external_module` add to the profiles used
+  `-ErrorAction SilentlyContinue`, so a broken module left no trace in the
+  session. It is now `-ErrorAction Stop` inside a `try`/`catch` that prints a
+  `Write-Warning` naming the module and the reason, and the session still
+  starts normally. Nodes see this on the next run that rewrites the profiles.
+
+- Documentation hardening (issue #33):
+  - The README and the `import_in_profile` parameter documentation of
+    `windowspowershell::module` explain when the profile import is actually
+    needed (aliases or variables at startup) and that otherwise module
+    auto-loading already covers it, at a lower startup cost. The default is
+    unchanged; it may become `false` in the next major release.
+  - New "Repository trust" section in the README, and a note on the
+    `repository` parameter of `windowspowershell::external_module`: the
+    repository named is trusted to execute code as `SYSTEM` because
+    `Install-Module -Force` suppresses the untrusted-repository prompt, and an
+    internal mirror is recommended for production.
+  - Stale comments fixed: `files/rootmodule.psm1` now names the per-module
+    `unblock-files` Exec, and the SysWOW64 comment moved from
+    `windowspowershell::config` to `profile_paths` in `init.pp`, which it
+    describes. No behaviour change.
+
 ### Fixed
 
 - `proxy` is now typed with the new `Windowspowershell::Proxyurl` alias instead

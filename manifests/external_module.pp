@@ -24,7 +24,10 @@
 #   Name of the PowerShell module. Defaults to the resource title.
 # @param repository
 #   Repository to install from, e.g. `PSGallery`. Mutually exclusive with
-#   `source`.
+#   `source`. The install runs with `-Force -AllowClobber` as `SYSTEM`, which
+#   suppresses the untrusted-repository prompt: the repository named here is
+#   trusted to execute code as `SYSTEM`, so prefer an internal mirror in
+#   production.
 # @param source
 #   Puppet file source holding the module files, for nodes that cannot reach a
 #   repository. Mutually exclusive with `repository`.

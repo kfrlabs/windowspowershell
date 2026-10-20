@@ -556,6 +556,14 @@ describe 'windowspowershell::external_module' do
               with_content(%r{Import-Module 'ExampleModule' -RequiredVersion '2\.1\.0'})
           end
         end
+
+        it 'warns when the profile import fails instead of failing silently' do
+          profile = 'C:\Windows\System32\WindowsPowerShell\v1.0\profile.ps1'
+          fragment = catalogue.resource('Concat::Fragment', "windowspowershell import external ExampleModule in #{profile}")
+          expect(fragment[:content]).to match(%r{-ErrorAction Stop})
+          expect(fragment[:content]).to match(%r{catch \{\s*Write-Warning })
+          expect(fragment[:content]).not_to match(%r{SilentlyContinue})
+        end
       end
 
       context 'with PowerShell 7 installed and import_in_profile => true' do
