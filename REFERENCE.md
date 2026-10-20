@@ -123,6 +123,14 @@ module with `import_in_profile => true` (the default) adds its own
 `Import-Module` line to these profiles; `windowspowershell::external_module` does
 the same for a third-party module when `import_in_profile => true` is
 passed to it.
+The profile files are owned by Puppet: on every run, anything in them that
+does not come from a `concat::fragment` targeting them is removed. Other
+Puppet code can add its own content by declaring a `concat::fragment` with
+`target` set to a path in `$windowspowershell::profile_paths` and an
+`order` between `01` and `49` (before the module imports) or `70` and `99`
+(after them); `00` is the header, `50` the in-house imports and `60` the
+external imports. Lines added by a GPO startup script or by hand are not
+preserved. See "Co-managing the profiles" in the README.
 
 Default value: `true`
 

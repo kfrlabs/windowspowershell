@@ -7,6 +7,12 @@
 # `import_in_profile => true` is passed) attaches its own `concat::fragment`
 # to the paths listed in `$windowspowershell::profile_paths`.
 #
+# The targets are standard `concat` resources, so any other Puppet code can add
+# its own `concat::fragment` to them too. The ordering convention is: `00` the
+# header (declared here), `01`-`49` free, `50` in-house module imports, `60`
+# external module imports, `70`-`99` free. Content that does not come from a
+# fragment is removed on the next run.
+#
 # @api private
 class windowspowershell::config {
   assert_private()

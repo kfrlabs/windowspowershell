@@ -256,6 +256,65 @@ does no per-session unblocking: unblocking is a deployment concern, and doing
 it on every import walked the whole tree on each PowerShell session that
 loaded the module.
 
+### Co-managing the profiles
+
+The machine-wide profiles (`System32`, `SysWOW64` and, when managed, PowerShell
+7) are `concat` resources owned by this module: on every run the file is
+rebuilt from its fragments, so **anything in it that does not come from a
+`concat::fragment` is removed**. That includes lines added by hand, by a GPO
+startup script or by a tool outside Puppet. Puppet code, however, can add its
+own content: declare a `concat::fragment` whose `target` is one of the paths in
+`$windowspowershell::profile_paths`, and it is assembled with the rest.
+
+| Order       | Owner                                                          |
+|-------------|----------------------------------------------------------------|
+| `00`        | Header, declared by this module                                |
+| `01`-`49`   | Free: your content, before the module imports                  |
+| `50`        | `Import-Module` lines of in-house modules (`windowspowershell::module`) |
+| `60`        | `Import-Module` lines of external modules (`windowspowershell::external_module`) |
+| `70`-`99`   | Free: your content, after the module imports                   |
+
+The target names are the profile paths themselves:
+
+- `C:\Windows\System32\WindowsPowerShell\v1.0\profile.ps1`
+- `C:\Windows\SysWOW64\WindowsPowerShell\v1.0\profile.ps1`
+- `C:\Program Files\PowerShell\7\profile.ps1` (only when the PowerShell 7
+  profile is managed, see `manage_pwsh_profile`)
+
+`$windowspowershell::profile_paths` is the exact list of managed paths for the
+node (empty when `manage_profiles => false`), so iterating over it keeps your
+fragment in step with the class parameters:
+
+```puppet
+include windowspowershell
+
+# Declared only where the class declares the concat targets: on any other
+# operating system the targets do not exist and the fragment would fail to
+# compile.
+if $windowspowershell::supported {
+  $windowspowershell::profile_paths.each |$profile_path| {
+    concat::fragment { "acme profile extras in ${profile_path}":
+      target  => $profile_path,
+      order   => '70',
+      content => "Set-Alias ll Get-ChildItem\n",
+    }
+  }
+}
+```
+
+Keep these points in mind:
+
+- Fragment titles must be unique across the catalogue; include the profile
+  path in the title when you declare one fragment per profile, as above.
+- Each fragment's `content` should end with a newline: `concat` joins
+  fragments as they are.
+- To manage the profiles entirely from your own code instead, set
+  `manage_profiles => false`. The class then declares no profile at all and
+  `profile_paths` is empty.
+- Content that Puppet does not manage (a GPO startup script writing to the
+  profile, an administrator editing it) is **not** preserved. Move it into a
+  fragment, or keep it out of these files.
+
 ### Configuration
 
 `data/common.yaml` ships no override: every parameter already has a working,
@@ -320,3 +379,8 @@ See [REFERENCE.md](REFERENCE.md), generated with
   checked for idempotency nor purged.
 - Relies on one fact (see [Facts](#facts)): the module-shipped `powershell7`
   custom fact, which `manage_pwsh_profile` follows when left `undef`.
+- The machine-wide profiles are replaced wholesale on each run: only content
+  coming from a `concat::fragment` survives. Puppet code can add its own
+  fragments (see [Co-managing the profiles](#co-managing-the-profiles)), but
+  lines written by a GPO startup script, another tool or an administrator are
+  removed. Managing only a delimited block of the file is not supported.
