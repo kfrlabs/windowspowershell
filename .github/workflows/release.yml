@@ -9,21 +9,23 @@ on:
 permissions:
   contents: read
 
+env:
+  BUNDLE_WITHOUT: development
+
 jobs:
-  release:
-    name: Publish to the Forge
+  verify:
+    name: 'Tag, syntax, lint & metadata'
     runs-on: ubuntu-latest
-    environment: forge
+    env:
+      PUPPET_GEM_VERSION: '~> 8.0'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
+        uses: ruby/setup-ruby@824c0e29fdfc7d689c191c27acc969d2d04b7dd8 # v1.331.0
         with:
           ruby-version: '3.2'
           bundler-cache: true
-        env:
-          PUPPET_GEM_VERSION: '~> 8.0'
 
       - name: Tag must match metadata.json's version
         run: |
@@ -34,19 +36,63 @@ jobs:
             exit 1
           fi
 
-      - name: Full test suite (syntax, lint, metadata, rspec)
+      - name: Syntax, lint, metadata and rubocop
         run: |
           bundle exec rake syntax
           bundle exec rake lint
           bundle exec rake metadata_lint
           bundle exec rake rubocop
-          bundle exec rake parallel_spec
-        env:
-          PUPPET_GEM_VERSION: '~> 8.0'
+
+  # Same Puppet/Ruby matrix as ci.yml, so a tag is never published without
+  # having been tested on every Puppet version that metadata.json declares.
+  # Kept out of the `release` job on purpose: that job is the only one that
+  # runs in the `forge` environment and sees the Forge credentials.
+  spec:
+    name: 'rspec-puppet (Puppet ${{ matrix.puppet_version }}, Ruby ${{ matrix.ruby }})'
+    needs: verify
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - puppet_version: '~> 7.0'
+            ruby: '2.7'
+          - puppet_version: '~> 8.0'
+            ruby: '3.2'
+    env:
+      PUPPET_GEM_VERSION: ${{ matrix.puppet_version }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@824c0e29fdfc7d689c191c27acc969d2d04b7dd8 # v1.331.0
+        with:
+          ruby-version: ${{ matrix.ruby }}
+          bundler-cache: true
+
+      - name: rspec-puppet
+        run: bundle exec rake parallel_spec
+
+  release:
+    name: Publish to the Forge
+    needs:
+      - verify
+      - spec
+    runs-on: ubuntu-latest
+    environment: forge
+    env:
+      PUPPET_GEM_VERSION: '~> 8.0'
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@824c0e29fdfc7d689c191c27acc969d2d04b7dd8 # v1.331.0
+        with:
+          ruby-version: '3.2'
+          bundler-cache: true
 
       - name: Build and push to the Puppet Forge
         env:
           BLACKSMITH_FORGE_USERNAME: ${{ secrets.FORGE_USERNAME }}
           BLACKSMITH_FORGE_API_KEY: ${{ secrets.FORGE_API_KEY }}
-          PUPPET_GEM_VERSION: '~> 8.0'
         run: bundle exec rake module:push

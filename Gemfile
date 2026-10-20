@@ -6,6 +6,9 @@ group :test do
   # facterdb 2.1.x pulls jgrep 1.5.x, which fails with "Invalid JSON given"
   # against json >= 2.10 and makes on_supported_os return nothing.
   gem 'json', '~> 2.9.0', require: false
+  # Required unconditionally by the Rakefile, so it must be installed in every
+  # context that runs `rake`, including BUNDLE_WITHOUT=release_prep.
+  gem 'puppetlabs_spec_helper', '>= 2.12', require: false
 end
 
 group :development do
@@ -15,7 +18,6 @@ end
 group :release_prep do
   gem 'puppet-blacksmith', '~> 8.0', require: false
   gem 'puppet-strings', '>= 2.2', require: false
-  gem 'puppetlabs_spec_helper', '>= 2.12', require: false
 end
 
 puppetversion = ENV['PUPPET_GEM_VERSION']
