@@ -170,6 +170,12 @@ describe 'windowspowershell::script' do
         it { is_expected.to compile.and_raise_error(%r{parameter 'scriptname'}) }
       end
 
+      context 'with a scriptname holding a typographic single quote' do
+        let(:params) { { 'modulename' => 'Acme', 'scriptname' => "Get-Evil\u2019; calc.exe #", 'content' => 'x' } }
+
+        it { is_expected.to compile.and_raise_error(%r{parameter 'scriptname'}) }
+      end
+
       context 'with a folder holding an apostrophe' do
         let(:params) { { 'modulename' => 'Acme', 'folder' => "Evil'; calc.exe #", 'content' => 'x' } }
 

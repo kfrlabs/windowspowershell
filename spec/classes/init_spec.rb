@@ -63,6 +63,12 @@ describe 'windowspowershell' do
         it { is_expected.to compile.and_raise_error(%r{parameter 'module_root'}) }
       end
 
+      context 'with a module_root holding a typographic single quote' do
+        let(:params) { { 'module_root' => "C:\\x\u2019; calc.exe #" } }
+
+        it { is_expected.to compile.and_raise_error(%r{parameter 'module_root'}) }
+      end
+
       context 'with a module_root holding spaces' do
         let(:params) { { 'module_root' => 'C:\\Program Files\\Custom\\Modules' } }
 

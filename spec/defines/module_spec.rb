@@ -233,6 +233,26 @@ describe 'windowspowershell::module' do
         it { is_expected.to compile.and_raise_error(%r{parameter 'companyname'}) }
       end
 
+      # PowerShell treats U+2018 to U+201B as single-quote characters too, so a
+      # typographic quote ends the generated string just like an apostrophe.
+      context 'with an author holding a typographic single quote' do
+        let(:params) { { 'author' => "Platform Team\u2019; calc.exe #" } }
+
+        it { is_expected.to compile.and_raise_error(%r{parameter 'author'}) }
+      end
+
+      context 'with a companyname holding a typographic single quote' do
+        let(:params) { { 'companyname' => "Evil\u2018; calc.exe #" } }
+
+        it { is_expected.to compile.and_raise_error(%r{parameter 'companyname'}) }
+      end
+
+      context 'with a title holding a typographic single quote' do
+        let(:title) { "Evil\u2019; calc.exe #" }
+
+        it { is_expected.to compile.and_raise_error(%r{title expects a match}) }
+      end
+
       # A company name is free text, not a path component: spaces and dots
       # have to keep working.
       context 'with a company name holding spaces and a dot' do
