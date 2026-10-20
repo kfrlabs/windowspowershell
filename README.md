@@ -49,10 +49,11 @@ include windowspowershell
 
 ### In-house modules: `windowspowershell::module`
 
-One resource is one module identity. Declaring it explicitly is only needed to
-override a default (`version`, `companyname`, `author`); otherwise, naming the
-module from a `windowspowershell::script` is enough and it is built with every
-default.
+One resource is one module identity. Every module has to be declared: a
+`windowspowershell::script` does not create the module it names, it fails to
+compile when that module is missing. `windowspowershell::module { 'Acme': }`
+is enough to get every default; add `version`, `companyname` or `author` only
+to override one.
 
 ```puppet
 windowspowershell::module { 'Acme':
@@ -94,6 +95,9 @@ which is mandatory: there is no default module to fall back to. The resource
 title is the function name.
 
 ```puppet
+# The module the scripts go into has to be declared (see below)
+windowspowershell::module { 'Acme': }
+
 windowspowershell::script { 'Get-DiskUsage':
   modulename => 'Acme',
   content    => file('profile/powershell/Get-DiskUsage.ps1'),
@@ -115,22 +119,19 @@ windowspowershell::script { 'Get-OldThing':
 
 Exactly one of `content` or `source` is required when `ensure => present`.
 
-A module named by a script that was never declared explicitly is built with
-every default -- the same `ensure_resource` pattern `windowspowershell::external_module`
-uses for the shared machine-wide module directory.
+The module named by `modulename` has to be declared with
+`windowspowershell::module`; a script does not create it. A script naming an
+undeclared module fails to compile with a message that names the module and
+says where to declare it. Add `version`, `companyname` or `author` to the
+module only to override a default.
 
-To override a default (`version`, `companyname`, `author`), declare the
-`windowspowershell::module` explicitly. Declaration order does not matter
-within one class or manifest: Puppet evaluates the body of a script after the
-scope that declared it, so the module can be written before or after the
-scripts. It matters across scopes. If the explicit module is declared from a
-scope evaluated *after* a script's body (for instance from a define nested
-deeper than the script), the script has already built the module with its
-defaults, and compilation fails with Puppet's
-`Duplicate declaration: Windowspowershell::Module[<name>] is already declared
-at ... script.pp`. Puppet cannot see a resource declared later, so the version
-is never silently guessed wrong, and the fix is to declare the module from a
-class evaluated before the one declaring the scripts.
+Declaration order does not matter within one class or manifest: Puppet
+evaluates the body of a script after the scope that declared it, so the module
+can be written before or after the scripts. It matters across scopes. If the
+module is declared from a scope evaluated *after* a script's body (for
+instance from a define nested deeper than the script), the script cannot see
+it yet and fails with the same message. Declare the module from a class
+evaluated before the one declaring the scripts.
 
 ### Building a module dynamically from a whole directory
 

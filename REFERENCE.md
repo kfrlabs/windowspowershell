@@ -327,17 +327,17 @@ notifies. A site that needs several in-house modules declares one
 `windowspowershell::module` per module name; nothing here is a
 module-wide singleton any more.
 
-A `windowspowershell::script` that names a module which was never declared
-explicitly gets one with every default, via `ensure_resource`. Declare this
-resource explicitly only when a default (`version`, `companyname` or
-`author`) needs overriding. Order only matters across scopes: a define body is
+A `windowspowershell::script` does not create its module: the module has to
+be declared with this resource (`windowspowershell::module { 'Acme': }` is
+enough to get every default), or the script fails to compile with a message
+naming the missing module. Add `version`, `companyname` or `author` only to
+override a default. Order only matters across scopes: a define body is
 evaluated after the scope that declared it, so declaring this resource before
 or after the scripts **in the same class** is fine. Declared from a scope that
-is evaluated after a script's body (a define nested deeper), it fails with
-Puppet's `Duplicate declaration: Windowspowershell::Module[<name>]`, because
-`ensure_resource` had already claimed the title with every default. Declare it
-from a class evaluated first (for example the profile class that `include`s
-the one declaring the scripts) to avoid that.
+is evaluated after a script's body (a define nested deeper), it is not visible
+to that script yet and the script fails. Declare it from a class evaluated
+first (for example the profile class that `include`s the one declaring the
+scripts) to avoid that.
 
 The resource title is the in-house module name: this is the value every
 `windowspowershell::script` must pass as its own `modulename` to land its
@@ -477,6 +477,8 @@ on the next PowerShell session. Removing it is the same resource with
 ##### 
 
 ```puppet
+windowspowershell::module { 'Acme': }
+
 windowspowershell::script { 'Get-WUParams':
   modulename => 'Acme',
   folder     => 'Windowsupdate',
@@ -487,6 +489,8 @@ windowspowershell::script { 'Get-WUParams':
 ##### Retire a script that is no longer shipped
 
 ```puppet
+windowspowershell::module { 'Acme': }
+
 windowspowershell::script { 'Get-OldThing':
   modulename => 'Acme',
   ensure     => absent,
@@ -510,9 +514,10 @@ Data type: `Windowspowershell::Name`
 
 Name of the in-house module (a `windowspowershell::module`
 resource) this script is deployed into. Mandatory: there is no default
-module any more, so every script has to say where it is going. A module
-named here that was never declared explicitly is created with every
-default (see `windowspowershell::module`).
+module any more, so every script has to say where it is going. The module
+named here must be declared with `windowspowershell::module`: this define
+does not create it, and fails to compile when it is missing (see the
+README for the declaration order).
 
 ##### <a name="-windowspowershell--script--ensure"></a>`ensure`
 
