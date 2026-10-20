@@ -27,7 +27,10 @@
 #   repository. Mutually exclusive with `repository`.
 # @param purge_versions
 #   Whether to remove versions of the module other than the one in `ensure`.
-#   Ignored unless `ensure` is a version.
+#   Ignored unless `ensure` is a version. Co-managing one modulename from both
+#   `windowspowershell::external_module` and `windowspowershell::module`
+#   requires `purge_versions => false` on one side, or each purge removes the
+#   other side's version.
 # @param import_in_profile
 #   Whether to add an `Import-Module` line for this module to every profile
 #   file managed by `windowspowershell::config` (see `manage_profiles` /

@@ -40,6 +40,56 @@ describe 'windowspowershell::module' do
         )
       end
 
+      it 'purges the other versions after unblocking' do
+        is_expected.to contain_exec('windowspowershell purge other in-house versions of Acme').
+          with_command(%r{Where-Object \{ \$_\.Name -ne '1\.0' \}}).
+          with_unless(%r{Where-Object \{ \$_\.Name -ne '1\.0' \}}).
+          with_provider('powershell').
+          with_timeout(300).
+          with_logoutput('on_failure').
+          that_requires('Exec[windowspowershell unblock-files Acme]')
+      end
+
+      it 'runs the purge after the manifest refresh' do
+        is_expected.to contain_exec('windowspowershell purge other in-house versions of Acme').
+          that_requires('Exec[windowspowershell update-manifest Acme]')
+      end
+
+      context 'with an external_module sharing the module identity' do
+        let(:pre_condition) do
+          <<~PUPPET
+            windowspowershell::external_module { 'Acme':
+              ensure     => '1.0',
+              repository => 'PSGallery',
+            }
+          PUPPET
+        end
+
+        it { is_expected.to compile.with_all_deps }
+
+        it 'keeps the in-house and external purge Execs under distinct titles' do
+          is_expected.to contain_exec('windowspowershell purge other in-house versions of Acme')
+          is_expected.to contain_exec('windowspowershell purge other versions of Acme')
+        end
+      end
+
+      context 'with purge_versions => false' do
+        let(:params) { { 'purge_versions' => false } }
+
+        it { is_expected.to compile.with_all_deps }
+        it { is_expected.not_to contain_exec('windowspowershell purge other in-house versions of Acme') }
+      end
+
+      context 'with a non-default version' do
+        let(:params) { { 'version' => '2.3' } }
+
+        it 'purges every version folder except the configured one' do
+          is_expected.to contain_exec('windowspowershell purge other in-house versions of Acme').
+            with_command(%r{Where-Object \{ \$_\.Name -ne '2\.3' \}}).
+            with_unless(%r{Where-Object \{ \$_\.Name -ne '2\.3' \}})
+        end
+      end
+
       it 'declares the refresh-only unblock-files exec over the module tree' do
         is_expected.to contain_exec('windowspowershell unblock-files Acme').with(
           'refreshonly' => true,
@@ -203,6 +253,14 @@ describe 'windowspowershell::module' do
           is_expected.to contain_exec('windowspowershell create-manifest Acme[1]').
             with('creates' => 'C:\\Program Files\\WindowsPowerShell\\Modules\\Acme[1]\\1.0\\Acme[1].psd1')
         end
+
+        it 'purges the bracketed tree by literal directory path, keeping the version' do
+          is_expected.to contain_exec('windowspowershell purge other in-house versions of Acme[1]').
+            with_command(%r{Get-ChildItem -LiteralPath \$moduleDir -Directory}).
+            with_command(%r{Where-Object \{ \$_\.Name -ne '1\.0' \}}).
+            with_unless(%r{Get-ChildItem -LiteralPath \$moduleDir -Directory}).
+            with_unless(%r{Where-Object \{ \$_\.Name -ne '1\.0' \}})
+        end
       end
 
       context 'with a version that is not a version' do
@@ -351,6 +409,7 @@ describe 'windowspowershell::module' do
 
     it 'declares nothing at all' do
       expect(catalogue.resources.select { |r| %w[File Exec Concat Concat::Fragment].include?(r.type) }).to be_empty
+      is_expected.not_to contain_exec('windowspowershell purge other in-house versions of Acme')
     end
   end
 end

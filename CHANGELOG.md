@@ -7,6 +7,19 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- `windowspowershell::module` now removes version folders other than `version`
+  (issue #29), through a new `purge_versions` parameter (default `true`) that
+  reuses the same `-Directory` filter purge as
+  `windowspowershell::external_module`. Bumping `version` no longer leaves the
+  old folder behind declaring a stale manifest, so the one-time manual cleanup
+  step from the 1.2.0 migration note is no longer needed on nodes that run
+  this version. Set `purge_versions => false` to keep old versions side by
+  side. Modules created implicitly by `windowspowershell::script` also purge
+  by default; declare the module explicitly with `purge_versions => false`
+  first to opt out.
+
 ### Changed
 
 - The generated manifest's GUID is now derived from the module name alone
