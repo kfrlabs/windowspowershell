@@ -27,11 +27,6 @@ class windowspowershell::config {
       }
     }
 
-    # 32-bit Windows PowerShell reads its own profile from SysWOW64, not
-    # System32. Without this a module imported in the profile would be
-    # missing from any 32-bit PowerShell session. SysWOW64\WindowsPowerShell\v1.0
-    # exists on every 64-bit Windows, so the file can be written
-    # unconditionally.
     $pwsh_profile = 'C:\Program Files\PowerShell\7\profile.ps1'
 
     $windowspowershell::profile_paths.each |$profile_path| {

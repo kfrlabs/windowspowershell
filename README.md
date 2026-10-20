@@ -67,6 +67,26 @@ single number such as `'1'` is refused at compile time, because PowerShell
 casts `-ModuleVersion` to `[version]`. See the breaking-change note under
 [1.2.0] in [CHANGELOG.md](CHANGELOG.md).
 
+#### Importing the module from the profile
+
+By default (`import_in_profile => true`) the module is also imported by the
+machine-wide profiles, so every new PowerShell session pays the cost of loading
+it at startup. That is often unnecessary: the module lives under the
+machine-wide module directory, which is part of `PSModulePath`, and its
+manifest exports each function by name, so PowerShell discovers and loads it on
+first use of one of its functions.
+
+Keep the profile import when the session needs something module auto-loading
+does not provide up front, typically the aliases or variables the module
+defines (the manifest exports them with a wildcard, which auto-loading does not
+use to discover them), or when a function must already be loaded at startup.
+Otherwise set `import_in_profile => false`. The default stays `true` for now to
+avoid changing existing nodes; it may become `false` in the next major release.
+
+If the import fails (a broken module, a missing file), the profile prints a
+warning with the reason at the start of the session instead of failing
+silently. The session itself keeps starting normally.
+
 ### Scripts: `windowspowershell::script`
 
 A script becomes a function of the in-house module named in `modulename`,
@@ -232,6 +252,21 @@ only on nodes that actually declare a repository-backed module.
 The repository's `InstallationPolicy` is deliberately left alone:
 `Install-Module -Force` suppresses the untrusted-repository prompt without
 mutating machine-wide PowerShellGet configuration.
+
+#### Repository trust
+
+`Install-Module` runs with `-Force -AllowClobber` as `SYSTEM` (the account of
+the Puppet agent). A PowerShell module can run arbitrary code, both when it is
+installed and when it is imported, and `-Force` removes the usual untrusted
+repository prompt. Whichever repository you name in `repository` is therefore
+**trusted to execute code as `SYSTEM` on every node that declares the
+resource**, with a pinned version only guaranteeing you get the release you
+asked for from that source, not that the source is trustworthy.
+
+For production, point `repository` at an internal mirror or feed that you
+control and that only carries reviewed modules, rather than at the public
+PowerShell Gallery. For nodes that cannot, or should not, reach any repository,
+use the `source` backend and ship the module files from your Puppet code.
 
 ### Manifest regeneration
 

@@ -175,6 +175,17 @@ describe 'windowspowershell::module' do
         end
       end
 
+      # A broken module must leave a trace in the session instead of being
+      # swallowed: the import is a terminating error caught to a warning, and
+      # the session keeps starting.
+      it 'warns when the profile import fails instead of failing silently' do
+        profile = 'C:\Windows\System32\WindowsPowerShell\v1.0\profile.ps1'
+        fragment = catalogue.resource('Concat::Fragment', "windowspowershell import Acme in #{profile}")
+        expect(fragment[:content]).to match(%r{-ErrorAction Stop})
+        expect(fragment[:content]).to match(%r{catch \{\s*Write-Warning })
+        expect(fragment[:content]).not_to match(%r{SilentlyContinue})
+      end
+
       context 'with PowerShell 7 installed' do
         let(:facts) { os_facts.merge('powershell7' => { 'installed' => true, 'path' => 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' }) }
 

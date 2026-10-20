@@ -258,7 +258,10 @@ Default value: `$name`
 Data type: `Optional[Windowspowershell::Reponame]`
 
 Repository to install from, e.g. `PSGallery`. Mutually exclusive with
-`source`.
+`source`. The install runs with `-Force -AllowClobber` as `SYSTEM`, which
+suppresses the untrusted-repository prompt: the repository named here is
+trusted to execute code as `SYSTEM`, so prefer an internal mirror in
+production.
 
 Default value: `undef`
 
@@ -402,7 +405,12 @@ Data type: `Boolean`
 
 Whether to add an `Import-Module` line for this module to every profile
 file managed by `windowspowershell::config` (see `manage_profiles` /
-`manage_pwsh_profile` on the main class).
+`manage_pwsh_profile` on the main class). Defaults to `true`, but the
+import is often unnecessary: the module is under the machine-wide module
+directory and exports its functions by name, so PowerShell auto-loads it on
+first use, while the profile import adds to the startup time of every
+session. Keep it when the aliases or variables the module defines are
+needed from the start of the session. A failed import prints a warning.
 
 Default value: `true`
 
