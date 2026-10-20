@@ -22,6 +22,13 @@
 #   install check stays idempotent and the purge keeps it.
 # @param modulename
 #   Name of the PowerShell module. Defaults to the resource title.
+#   Declare one resource per `modulename`: two resources sharing a
+#   `modulename` under different titles each purge the other side's version
+#   (see `purge_versions`), so the node flaps between both versions and never
+#   converges. Sharing is only supported with `purge_versions => false` on all
+#   but one side, and only with the `repository` backend: with the `source`
+#   backend both titles declare the same versioned `File` directory, which
+#   fails the catalogue with a duplicate resource.
 # @param repository
 #   Repository to install from, e.g. `PSGallery`. Mutually exclusive with
 #   `source`. The install runs with `-Force -AllowClobber` as `SYSTEM`, which
@@ -36,7 +43,10 @@
 #   Ignored unless `ensure` is a version. Co-managing one modulename from both
 #   `windowspowershell::external_module` and `windowspowershell::module`
 #   requires `purge_versions => false` on one side, or each purge removes the
-#   other side's version.
+#   other side's version. The same holds for two `external_module` resources
+#   sharing a `modulename`: keep a single resource per module, or set
+#   `purge_versions => false` on all but one side when the sharing is
+#   deliberate.
 #   Comparison is numeric with missing segments treated as zero, so pin `2.1`
 #   also matches folder `2.1.0`: if both spellings end up side by side, both
 #   count as the pinned version and neither is purged. The canonical folder
@@ -88,6 +98,9 @@ define windowspowershell::external_module (
   }
   if $ensure == 'present' and $repository =~ Undef {
     fail("windowspowershell::external_module[${name}]: ensure => present needs a 'repository' to install from. Pin a version and pass a 'source' to deploy files instead.")
+  }
+  if $ensure != 'present' and $ensure != 'absent' and $repository =~ Undef and $source =~ Undef {
+    fail("windowspowershell::external_module[${name}]: ensure => '${ensure}' needs a 'repository' or a 'source' to install from. Pin a version with 'repository' to install from a repository, or pass a 'source' holding the module files.")
   }
 
   $module_dir     = "${windowspowershell::module_root}\\${modulename}"

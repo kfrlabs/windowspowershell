@@ -2,11 +2,17 @@
 $isInteractiveShell = [Environment]::UserInteractive -and !([Environment]::GetCommandLineArgs() | Where-Object { $_ -ilike '-NonI*' })
 $isCompatibleOS = [System.Environment]::OSVersion.Version.Major -ge 10
 if ($isInteractiveShell -and $isCompatibleOS) {
-    Import-Module PSReadLine
-    Set-PSReadLineOption -EditMode Windows
-    Set-PSReadLineOption -PredictionViewStyle ListView
-    Set-PSReadLineOption -PredictionSource History -HistoryNoDuplicates
-    Set-PSReadLineOption -HistorySearchCursorMovesToEnd:$true
-    Set-PSReadLineKeyHandler -Key UpArrow -Function HistorySearchBackward
-    Set-PSReadLineKeyHandler -Key DownArrow -Function HistorySearchForward
+    if (Get-Module -ListAvailable -Name PSReadLine) {
+        try {
+            Import-Module PSReadLine -ErrorAction Stop
+            Set-PSReadLineOption -EditMode Windows -ErrorAction Stop
+            Set-PSReadLineOption -PredictionViewStyle ListView -ErrorAction Stop
+            Set-PSReadLineOption -PredictionSource History -HistoryNoDuplicates -ErrorAction Stop
+            Set-PSReadLineOption -HistorySearchCursorMovesToEnd:$true -ErrorAction Stop
+            Set-PSReadLineKeyHandler -Key UpArrow -Function HistorySearchBackward -ErrorAction Stop
+            Set-PSReadLineKeyHandler -Key DownArrow -Function HistorySearchForward -ErrorAction Stop
+        } catch {
+            Write-Warning ('windowspowershell: could not configure PSReadLine: {0}' -f $_.Exception.Message)
+        }
+    }
 }

@@ -120,6 +120,9 @@ class windowspowershell (
   if $proxy_credential =~ NotUndef and $proxy_has_userinfo {
     fail("windowspowershell: 'proxy' embeds credentials (user:pass@host) and 'proxy_credential' is set as well. Drop the credentials from 'proxy'.")
   }
+  if !$manage_profiles and $manage_pwsh_profile == true {
+    fail("windowspowershell: 'manage_pwsh_profile' is true but 'manage_profiles' is false: no profile is managed, so the PowerShell 7 profile would be a silent no-op. Set 'manage_profiles' to true, or leave 'manage_pwsh_profile' unset/false.")
+  }
 
   # The message must never echo the URL: it would leak the very password it
   # warns about.

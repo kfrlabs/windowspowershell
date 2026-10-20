@@ -397,10 +397,10 @@ describe 'windowspowershell::external_module' do
         end
       end
 
-      context 'with the default file source' do
+      context 'with a version but neither repository nor source' do
         let(:params) { { 'ensure' => '2.1.0' } }
 
-        it { is_expected.to contain_file("#{modules}\\ExampleModule\\2.1.0").with_source('puppet:///modules/windowspowershell/modules/ExampleModule/2.1.0/') }
+        it { is_expected.to compile.and_raise_error(%r{needs a 'repository' or a 'source'}) }
       end
 
       context 'with ensure => absent' do

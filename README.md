@@ -182,6 +182,14 @@ they last ran. Pin the version and bump it in the manifest.
 Set `purge_versions => false` for the modules that genuinely need several
 versions installed at once.
 
+Declare one `external_module` resource per module name. Two resources sharing
+a `modulename` under different titles each purge the other side's version, so
+with different versions the node reinstalls on every run and never converges.
+Sharing is only supported with `purge_versions => false` on all but one side,
+and only with the `repository` backend: with the `source` backend both titles
+declare the same versioned directory, which fails the catalogue with a
+duplicate resource.
+
 The module only manages the **AllUsers** scope
 (`C:\Program Files\WindowsPowerShell\Modules`): install, idempotency check and
 purge all act on that directory alone. It has no opinion on copies of the same
