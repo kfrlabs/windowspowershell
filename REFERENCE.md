@@ -31,6 +31,7 @@ such as the PowerShell Gallery or by copying files from a Puppet source.
 * [`Windowspowershell::Externalmoduleensure`](#Windowspowershell--Externalmoduleensure): Desired state of an external PowerShell module, mirroring the `package` type: a literal version pins that exact version, `present` accepts an
 * [`Windowspowershell::Moduleversion`](#Windowspowershell--Moduleversion): A PowerShell module version that New-ModuleManifest can actually write: two to four dot-separated numbers of at most nine digits each. That i
 * [`Windowspowershell::Name`](#Windowspowershell--Name): A single path component: a script, folder or module name.  Three properties are guaranteed, and the module relies on all three:  * It names o
+* [`Windowspowershell::Proxyurl`](#Windowspowershell--Proxyurl): A proxy URL that is safe to embed in a single-quoted PowerShell string.  Stdlib::HTTPUrl accepts anything after the scheme, an apostrophe inc
 * [`Windowspowershell::Psstring`](#Windowspowershell--Psstring): Free text that ends up inside a single-quoted PowerShell string, such as the author or company written into the module manifest.  Unlike Wind
 * [`Windowspowershell::Reponame`](#Windowspowershell--Reponame): Name of a PowerShell repository, as registered by `Register-PSRepository` and passed to `Install-Module -Repository`.  Deliberately narrower 
 * [`Windowspowershell::Rootpath`](#Windowspowershell--Rootpath): The machine-wide PowerShell module root, e.g. the parent of every in-house module folder this class lays out.  It composes two constraints th
@@ -137,7 +138,7 @@ Default value: `undef`
 
 ##### <a name="-windowspowershell--proxy"></a>`proxy`
 
-Data type: `Optional[Stdlib::HTTPUrl]`
+Data type: `Optional[Windowspowershell::Proxyurl]`
 
 Proxy passed to `Install-Module` when installing a third-party module from
 a repository. Left `undef`, no proxy is used and installs go out directly.
@@ -545,6 +546,22 @@ than 255 characters in a single path component.
 
 Alias of `Pattern[/\A(?!(?i:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])[ ]*(?:\..*)?\z)[^\\\/:*?"<>|'\x00-\x1F]{0,254}[^\\\/:*?"<>|'\x00-\x1F. ]\z/]`
 
+### <a name="Windowspowershell--Proxyurl"></a>`Windowspowershell::Proxyurl`
+
+A proxy URL that is safe to embed in a single-quoted PowerShell string.
+
+Stdlib::HTTPUrl accepts anything after the scheme, an apostrophe included. The
+proxy is interpolated between single quotes in the generated scripts, which
+the agent runs as SYSTEM, so this alias keeps the `http://` or `https://`
+scheme requirement and refuses whatever could end the quoted string: the ASCII
+apostrophe, the typographic single quotes that PowerShell also treats as
+quote characters (U+2018 to U+201B), control characters and whitespace.
+
+Credentials embedded in the URL (`http://user:pass@host`) still match. That
+form is deprecated in favour of `proxy_credential`, but it is not refused here.
+
+Alias of `Pattern[/\A(?i:https?):\/\/[^'\u2018-\u201B\x00-\x1F\s]+\z/]`
+
 ### <a name="Windowspowershell--Psstring"></a>`Windowspowershell::Psstring`
 
 Free text that ends up inside a single-quoted PowerShell string, such as the
@@ -584,8 +601,9 @@ express separately:
   -- and the control characters are refused, here and inside the UNC server
   and share segments too.
 
-This is the last place in the module where an unconstrained value could reach
-a PowerShell string; the paths derived from it are safe by construction.
+The paths derived from it are safe by construction. Other values that reach a
+PowerShell string, such as the proxy URL, are constrained by their own type
+(see Windowspowershell::Proxyurl).
 
 Alias of `Pattern[/\A(?:[A-Za-z]:[\\\/]|[\\\/][\\\/][^\\\/'\x00-\x1F]+[\\\/][^\\\/'\x00-\x1F]+|[\\\/][\\\/]\?[\\\/][^\\\/'\x00-\x1F]+)[^'\x00-\x1F]*\z/]`
 

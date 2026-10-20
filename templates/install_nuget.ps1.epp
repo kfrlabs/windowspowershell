@@ -1,5 +1,5 @@
-<%- | Optional[Stdlib::HTTPUrl] $proxy,
-      Boolean                   $use_proxy_credential = false,
+<%- | Optional[Windowspowershell::Proxyurl] $proxy,
+      Boolean                               $use_proxy_credential = false,
 | -%>
 $ErrorActionPreference = 'Stop'
 [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12

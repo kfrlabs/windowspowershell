@@ -74,7 +74,7 @@ class windowspowershell (
   Windowspowershell::Rootpath $module_root = 'C:\Program Files\WindowsPowerShell\Modules',
   Boolean $manage_profiles = true,
   Optional[Boolean] $manage_pwsh_profile = undef,
-  Optional[Stdlib::HTTPUrl] $proxy = undef,
+  Optional[Windowspowershell::Proxyurl] $proxy = undef,
   Optional[Struct[{
         username => String[1],
         password => Sensitive[String[1]],
@@ -94,8 +94,9 @@ class windowspowershell (
   # Install-Module explicitly rather than inherited from the system.
   #
   # Proxy comes exclusively from the `$proxy` parameter: `undef` means a direct
-  # install, a set value is passed through as-is. The `Stdlib::HTTPUrl` type
-  # validates it at compile time.
+  # install, a set value is passed through as-is. The
+  # `Windowspowershell::Proxyurl` type validates it at compile time and keeps
+  # it from ending the single-quoted PowerShell string it is embedded in.
   $proxy_url = $proxy
 
   if $proxy =~ NotUndef {

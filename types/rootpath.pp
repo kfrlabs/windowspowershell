@@ -12,6 +12,7 @@
 #   -- and the control characters are refused, here and inside the UNC server
 #   and share segments too.
 #
-# This is the last place in the module where an unconstrained value could reach
-# a PowerShell string; the paths derived from it are safe by construction.
+# The paths derived from it are safe by construction. Other values that reach a
+# PowerShell string, such as the proxy URL, are constrained by their own type
+# (see Windowspowershell::Proxyurl).
 type Windowspowershell::Rootpath = Pattern[/\A(?:[A-Za-z]:[\\\/]|[\\\/][\\\/][^\\\/'\x00-\x1F]+[\\\/][^\\\/'\x00-\x1F]+|[\\\/][\\\/]\?[\\\/][^\\\/'\x00-\x1F]+)[^'\x00-\x1F]*\z/]
