@@ -1,4 +1,5 @@
 require 'spec_helper'
+require 'digest'
 
 describe 'windowspowershell::module' do
   let(:title) { 'Acme' }
@@ -128,6 +129,63 @@ describe 'windowspowershell::module' do
           'provider' => 'powershell'
         )
         is_expected.not_to contain_exec('windowspowershell create-manifest Acme').with_refreshonly(true)
+      end
+
+      # A refresh-only Exec never runs on a change of its own `command`, so the
+      # manifest parameters are mirrored in a managed witness file that does
+      # notify it (issue #45).
+      describe 'manifest parameters witness' do
+        let(:witness) { "#{modules}\\Acme\\1.0\\.manifest-params" }
+
+        it 'is a managed file inside the version folder' do
+          is_expected.to contain_file(witness).with_ensure('file').that_requires("File[#{modules}\\Acme\\1.0]")
+        end
+
+        it 'notifies the manifest refresh and the unblock' do
+          is_expected.to contain_file(witness).
+            that_notifies('Exec[windowspowershell update-manifest Acme]').
+            that_notifies('Exec[windowspowershell unblock-files Acme]')
+        end
+
+        it 'is deployed after the root module and before the manifest build' do
+          is_expected.to contain_file(witness).
+            that_requires("File[#{modules}\\Acme\\1.0\\Acme.psm1]").
+            that_comes_before('Exec[windowspowershell create-manifest Acme]')
+        end
+
+        it 'holds the hash of the command that builds the manifest' do
+          command = catalogue.resource('Exec', 'windowspowershell update-manifest Acme')[:command]
+          expect(catalogue.resource('File', witness)[:content]).to include(Digest::SHA256.hexdigest(command))
+        end
+
+        context 'with only the author changed' do
+          let(:params) { { 'author' => 'Platform Team' } }
+
+          it 'changes the witness content, so the manifest is regenerated' do
+            command = catalogue.resource('Exec', 'windowspowershell update-manifest Acme')[:command]
+            default_command = command.sub("-Author 'Platform Team'", "-Author 'Unknown'")
+            content = catalogue.resource('File', witness)[:content]
+
+            expect(default_command).not_to eq(command)
+            expect(content).to include(Digest::SHA256.hexdigest(command))
+            expect(content).not_to include(Digest::SHA256.hexdigest(default_command))
+            is_expected.to contain_file(witness).that_notifies('Exec[windowspowershell update-manifest Acme]')
+          end
+        end
+
+        context 'with only the companyname changed' do
+          let(:params) { { 'companyname' => 'Acme Corp' } }
+
+          it 'changes the witness content, so the manifest is regenerated' do
+            command = catalogue.resource('Exec', 'windowspowershell update-manifest Acme')[:command]
+            default_command = command.sub("-CompanyName 'Acme Corp'", "-CompanyName 'Unknown'")
+            content = catalogue.resource('File', witness)[:content]
+
+            expect(default_command).not_to eq(command)
+            expect(content).to include(Digest::SHA256.hexdigest(command))
+            expect(content).not_to include(Digest::SHA256.hexdigest(default_command))
+          end
+        end
       end
 
       it 'orders the self-heal exec before the refresh-only exec' do

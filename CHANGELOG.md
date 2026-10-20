@@ -32,6 +32,25 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   by default; declare the module explicitly with `purge_versions => false`
   first to opt out.
 
+### Fixed
+
+- The manifest (`.psd1`) now converges when only `author`, `companyname`,
+  `version` or the GUID change (issue #45). `Exec["windowspowershell
+  update-manifest ..."]` is refresh-only and the create exec is only gated on
+  `creates`, so a change of those parameters touched no resource and the
+  `.psd1` stayed stale indefinitely. `windowspowershell::module` now manages a
+  witness file, `<version folder>\.manifest-params`, whose content is the
+  SHA-256 of the manifest build command (a pure function of the parameters, so
+  any future manifest flag is covered too). It notifies the manifest refresh
+  and the unblock, and a missing or edited witness is rewritten the same way.
+  - Migration: the witness is created on the first run after the upgrade, which
+    regenerates every in-house manifest once. This is also the point where the
+    name-derived GUID from issue #28 lands on nodes that had no other reason to
+    regenerate. A `.psd1` that is itself corrupt or edited by hand while the
+    witness is intact is still not repaired; delete the `.psd1` (or the
+    witness) to force a rebuild.
+  - New specs cover an `author`-only and a `companyname`-only change.
+
 ### Changed
 
 - The generated manifest's GUID is now derived from the module name alone
@@ -41,8 +60,9 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   folder a different GUID, so two version folders of the same module declared
   two different module identities.
   - Migration: existing nodes keep the old GUID until the manifest is next
-    regenerated (a script change, or a missing `.psd1`), at which point it
-    changes once to the new name-derived value. Anything that pinned the old
+    regenerated (the first run after the issue #45 witness file lands, a script
+    change, or a missing `.psd1`), at which point it changes once to the new
+    name-derived value. Anything that pinned the old
     GUID, such as a `RequiredModules` entry with a `GUID` key, has to be
     updated.
 

@@ -106,11 +106,12 @@ define windowspowershell::module (
 
   # Every path this module's identity needs, derived here once, the same way
   # the main class used to derive them for the single module it owned.
-  $module_dir      = "${windowspowershell::module_root}\\${modulename}"
-  $module_path     = "${module_dir}\\${version}"
-  $functions_path  = "${module_path}\\Functions"
-  $rootmodule_path = "${module_path}\\${modulename}.psm1"
-  $manifest_path   = "${module_path}\\${modulename}.psd1"
+  $module_dir             = "${windowspowershell::module_root}\\${modulename}"
+  $module_path            = "${module_dir}\\${version}"
+  $functions_path         = "${module_path}\\Functions"
+  $rootmodule_path        = "${module_path}\\${modulename}.psm1"
+  $manifest_path          = "${module_path}\\${modulename}.psd1"
+  $manifest_witness_path  = "${module_path}\\.manifest-params"
 
   # Deterministic manifest GUID. New-ModuleManifest invents a random GUID when
   # none is passed, so the .psd1 would get a new module identity on every
@@ -176,9 +177,33 @@ define windowspowershell::module (
         'guid'           => $manifest_guid,
     })
 
+    # Witness of the manifest parameters. Its content is a pure function of
+    # $manifest_command (author, companyname, version, guid, paths and any
+    # flag a future release adds), so a change in any of them changes the file
+    # and fires the refresh below. A refresh-only Exec never runs on a change
+    # of its own `command`, and no other resource changes when only `author`
+    # or `companyname` does, so without this file the .psd1 would stay stale
+    # indefinitely. A missing or hand-edited witness is rewritten the same way,
+    # which re-runs the manifest build.
+    $manifest_witness = join([
+        "# Managed by Puppet (windowspowershell::module ${modulename}). Do not edit.",
+        '# SHA-256 of the manifest build command; a change regenerates the .psd1.',
+        sha256($manifest_command),
+        '',
+    ], "\n")
+
+    file { $manifest_witness_path:
+      ensure  => file,
+      content => $manifest_witness,
+      notify  => [
+        Exec["windowspowershell update-manifest ${modulename}"],
+        Exec["windowspowershell unblock-files ${modulename}"],
+      ],
+    }
+
     # Build the manifest once per version folder: `creates` only tests that the
     # .psd1 exists, so a manifest that is present but stale or corrupt is left
-    # alone -- `update-manifest` below is what rebuilds it.
+    # alone -- the witness above and `update-manifest` below are what rebuild it.
     exec { "windowspowershell create-manifest ${modulename}":
       command   => $manifest_command,
       provider  => powershell,
@@ -236,6 +261,7 @@ define windowspowershell::module (
     -> File[$module_path]
     -> File[$functions_path]
     -> File[$rootmodule_path]
+    -> File[$manifest_witness_path]
     -> Exec["windowspowershell create-manifest ${modulename}"]
     -> Exec["windowspowershell update-manifest ${modulename}"]
     -> Exec["windowspowershell unblock-files ${modulename}"]
