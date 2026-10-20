@@ -6,8 +6,32 @@ $moduleDir = '<%= $module_dir %>'
 if (-not (Test-Path -LiteralPath $moduleDir)) { exit 1 }
 
 <% if $version =~ NotUndef { -%>
+# Unparseable pin: only a literal folder match counts, otherwise the module counts as absent.
+# A single-component pin/dir (e.g. '2') is normalised to '2.0' before -as [version], which needs major.minor.
+$pinned = '<%= $version %>'
+$pinnedNorm = $pinned
+if ($pinnedNorm -match '^\d+$') { $pinnedNorm = $pinnedNorm + '.0' }
+$pinnedAs = $pinnedNorm -as [version]
+if ($null -ne $pinnedAs) {
+    if ($pinnedAs.Build -eq -1) { $pinnedBuild = 0 } else { $pinnedBuild = $pinnedAs.Build }
+    if ($pinnedAs.Revision -eq -1) { $pinnedRevision = 0 } else { $pinnedRevision = $pinnedAs.Revision }
+}
 $found = Get-ChildItem -LiteralPath $moduleDir -Directory -ErrorAction SilentlyContinue |
-    Where-Object { $_.Name -eq '<%= $version %>' }
+    Where-Object {
+        if ($_.Name -eq $pinned) { $true }
+        elseif ($null -eq $pinnedAs) { $false }
+        else {
+            $dirName = $_.Name
+            if ($dirName -match '^\d+$') { $dirName = $dirName + '.0' }
+            $dirAs = $dirName -as [version]
+            if ($null -eq $dirAs) { $false }
+            else {
+                if ($dirAs.Build -eq -1) { $dirBuild = 0 } else { $dirBuild = $dirAs.Build }
+                if ($dirAs.Revision -eq -1) { $dirRevision = 0 } else { $dirRevision = $dirAs.Revision }
+                ($dirAs.Major -eq $pinnedAs.Major) -and ($dirAs.Minor -eq $pinnedAs.Minor) -and ($dirBuild -eq $pinnedBuild) -and ($dirRevision -eq $pinnedRevision)
+            }
+        }
+    }
 <% } else { -%>
 $found = Get-ChildItem -LiteralPath $moduleDir -Directory -ErrorAction SilentlyContinue
 <% } -%>

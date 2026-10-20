@@ -16,7 +16,10 @@
 #   requires `repository`. It is install-once: once any version is present it is
 #   never upgraded on later runs. To move a node to a newer version, pin that
 #   version in `ensure`.
-#   A version string pins that exact version.
+#   A version string pins that exact version. PowerShellGet may normalise a
+#   short pin into a longer folder name (e.g. pin `2.1` installs under
+#   `2.1.0`); that normalised folder counts as the pinned version, so the
+#   install check stays idempotent and the purge keeps it.
 # @param modulename
 #   Name of the PowerShell module. Defaults to the resource title.
 # @param repository

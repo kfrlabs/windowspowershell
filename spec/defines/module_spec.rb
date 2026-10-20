@@ -42,8 +42,10 @@ describe 'windowspowershell::module' do
 
       it 'purges the other versions after unblocking' do
         is_expected.to contain_exec('windowspowershell purge other in-house versions of Acme').
-          with_command(%r{Where-Object \{ \$_\.Name -ne '1\.0' \}}).
-          with_unless(%r{Where-Object \{ \$_\.Name -ne '1\.0' \}}).
+          with_command(%r{\$pinned = '1\.0'}).
+          with_command(%r{-as \[version\]}).
+          with_unless(%r{\$pinned = '1\.0'}).
+          with_unless(%r{-as \[version\]}).
           with_provider('powershell').
           with_timeout(300).
           with_logoutput('on_failure').
@@ -85,8 +87,10 @@ describe 'windowspowershell::module' do
 
         it 'purges every version folder except the configured one' do
           is_expected.to contain_exec('windowspowershell purge other in-house versions of Acme').
-            with_command(%r{Where-Object \{ \$_\.Name -ne '2\.3' \}}).
-            with_unless(%r{Where-Object \{ \$_\.Name -ne '2\.3' \}})
+            with_command(%r{\$pinned = '2\.3'}).
+            with_command(%r{-as \[version\]}).
+            with_unless(%r{\$pinned = '2\.3'}).
+            with_unless(%r{-as \[version\]})
         end
       end
 
@@ -257,9 +261,11 @@ describe 'windowspowershell::module' do
         it 'purges the bracketed tree by literal directory path, keeping the version' do
           is_expected.to contain_exec('windowspowershell purge other in-house versions of Acme[1]').
             with_command(%r{Get-ChildItem -LiteralPath \$moduleDir -Directory}).
-            with_command(%r{Where-Object \{ \$_\.Name -ne '1\.0' \}}).
+            with_command(%r{\$pinned = '1\.0'}).
+            with_command(%r{-as \[version\]}).
             with_unless(%r{Get-ChildItem -LiteralPath \$moduleDir -Directory}).
-            with_unless(%r{Where-Object \{ \$_\.Name -ne '1\.0' \}})
+            with_unless(%r{\$pinned = '1\.0'}).
+            with_unless(%r{-as \[version\]})
         end
       end
 

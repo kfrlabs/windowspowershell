@@ -51,14 +51,67 @@ describe 'windowspowershell::external_module' do
           is_expected.to contain_exec('windowspowershell install ExampleModule').
             with_unless(%r{\$moduleDir = '#{Regexp.escape("#{modules}\\ExampleModule")}'}).
             with_unless(%r{Get-ChildItem -LiteralPath \$moduleDir -Directory}).
-            with_unless(%r{\$_\.Name -eq '2\.1\.0'})
+            with_unless(%r{\$pinned = '2\.1\.0'}).
+            with_unless(%r{\$_\.Name -eq \$pinned}).
+            with_unless(%r{-as \[version\]})
           expect(unless_of('windowspowershell install ExampleModule')).not_to match(%r{Get-Module -ListAvailable})
+        end
+
+        it 'treats a normalised folder as the pinned version' do
+          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$dirAs = \$dirName -as \[version\]})
+          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$dirAs\.Major -eq \$pinnedAs\.Major})
         end
 
         it 'purges the other versions after installing' do
           is_expected.to contain_exec('windowspowershell purge other versions of ExampleModule').
-            with_command(%r{Where-Object \{ \$_\.Name -ne '2\.1\.0' \}}).
+            with_command(%r{\$pinned = '2\.1\.0'}).
+            with_command(%r{-as \[version\]}).
             that_requires('Exec[windowspowershell install ExampleModule]')
+        end
+
+        context 'with a short pinned version' do
+          let(:params) { { 'ensure' => '2.1', 'repository' => 'PSGallery' } }
+
+          it { is_expected.to compile.with_all_deps }
+
+          it 'keeps the normalised folder instead of reinstalling' do
+            expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$pinned = '2\.1'})
+            expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$_\.Name -eq \$pinned})
+            expect(unless_of('windowspowershell install ExampleModule')).to match(%r{-as \[version\]})
+          end
+
+          it 'keeps the normalised folder instead of purging it' do
+            expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$pinned = '2\.1'})
+            expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{-as \[version\]})
+          end
+        end
+
+        context 'with a single-component pinned version' do
+          let(:params) { { 'ensure' => '2', 'repository' => 'PSGallery' } }
+
+          it { is_expected.to compile.with_all_deps }
+
+          it 'normalises the pin before casting so folder 2.0 counts as installed' do
+            expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$pinned = '2'})
+            expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$pinnedNorm = \$pinned})
+            expect(unless_of('windowspowershell install ExampleModule')).to match(%r{-match '\^\\d\+\$'})
+            expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\+ '\.0'})
+            expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$pinnedAs = \$pinnedNorm -as \[version\]})
+          end
+
+          it 'normalises the pin before casting so folder 2.0 is kept by the purge' do
+            expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$pinnedNorm = \$pinned})
+            expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$pinnedAs = \$pinnedNorm -as \[version\]})
+            expect(unless_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$pinnedAs = \$pinnedNorm -as \[version\]})
+          end
+        end
+
+        it 'keeps a non-version directory instead of purging it' do
+          expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{if \(\$null -eq \$dirAs\) \{ \$false \}})
+        end
+
+        it 'keeps a non-version directory in the purge check' do
+          expect(unless_of('windowspowershell purge other versions of ExampleModule')).to match(%r{if \(\$null -eq \$dirAs\) \{ \$false \}})
         end
 
         it 'declares no file resource for a repository-backed module' do
