@@ -104,6 +104,17 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- The `powershell7` fact documentation no longer claims to detect ZIP,
+  Microsoft Store, winget and non-standard installs (issue #48). The fact has
+  only ever tested `%ProgramFiles%\PowerShell\7\pwsh.exe`, which is the right
+  scope: the module manages the profile at
+  `C:\Program Files\PowerShell\7\profile.ps1`, and PowerShell only loads a
+  machine-wide profile from its own install directory, so detecting a pwsh
+  elsewhere would manage a profile it never reads. The fact comment, the
+  README (Facts and Limitations), the `manage_pwsh_profile` documentation and
+  the `fail()` raised when `manage_pwsh_profile => true` finds no PowerShell 7
+  now all say "default location only" instead of the misleading "not detected
+  (no pwsh.exe)". No behaviour change.
 - `windowspowershell::external_module` with `ensure => present` (any version
   accepted) no longer treats any sub-folder of the module directory as an
   installed version (issue #55). A stray folder under `Modules\<Name>` (a

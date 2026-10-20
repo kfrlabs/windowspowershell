@@ -1,10 +1,15 @@
-# @summary Reports whether PowerShell 7 (pwsh.exe) is installed machine-wide.
+# @summary Reports whether PowerShell 7 (pwsh.exe) is installed at its default
+#   machine-wide location.
 #
-# Detection is by the presence of pwsh.exe on disk rather than the package
-# inventory (the `packages_version` fact), which only sees the x64 MSI install
-# and misses ZIP, Microsoft Store, winget and 32-bit installations. What the
-# module actually needs to know is whether there is a PowerShell 7 whose
-# machine-wide profile it can manage, and the file on disk is exactly that.
+# Detection is by the presence of pwsh.exe at `%ProgramFiles%\PowerShell\7`
+# only, which is where the MSI package installs it. That is deliberate: the
+# module manages the machine-wide profile at that same location
+# (`C:\Program Files\PowerShell\7\profile.ps1`), and PowerShell only loads a
+# machine-wide profile from its own install directory. A ZIP install
+# elsewhere, a Microsoft Store install (read-only `WindowsApps`) or a 32-bit
+# install would not load that profile, so reporting them as installed would
+# make the module manage a profile no pwsh ever reads. They are reported as
+# not installed.
 #
 # Structured value:
 #   { 'installed' => Boolean, 'path' => String }

@@ -139,7 +139,9 @@ Default value: `true`
 Data type: `Optional[Boolean]`
 
 Whether to manage the PowerShell 7 profile. Left `undef`, it is managed
-only on nodes where PowerShell 7 is installed. Set it in Hiera to opt a
+only on nodes where PowerShell 7 is installed at its default location
+(`C:\Program Files\PowerShell\7\pwsh.exe`); a ZIP, Microsoft Store or
+32-bit install elsewhere is not detected. Set it in Hiera to opt a
 whole agent environment in or out.
 
 Default value: `undef`
