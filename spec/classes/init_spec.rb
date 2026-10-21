@@ -106,6 +106,14 @@ describe 'windowspowershell' do
             with_order('00').
             with_content(%r{Set-PSReadLineOption -PredictionViewStyle ListView})
         }
+
+        # Issue #58: no OSVersion gate. [Environment]::OSVersion can report
+        # 6.x without an app-compatibility manifest, silently skipping the
+        # PSReadLine config. Presence/version is guarded in the profile itself.
+        it 'does not gate the PSReadLine config on OSVersion' do
+          fragment = catalogue.resource('Concat::Fragment', 'windowspowershell header C:\Program Files\PowerShell\7\profile.ps1')
+          expect(fragment[:content]).not_to match(%r{\$isCompatibleOS|OSVersion\.Version})
+        end
       end
 
       context 'with PowerShell 7 installed but the profile opted out' do

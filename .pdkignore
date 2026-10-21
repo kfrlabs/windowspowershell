@@ -4,6 +4,9 @@
 pkg/
 coverage/
 spec/fixtures/modules/
+.rendered-powershell/
+tools/
+TESTING.md
 .vendor/
 vendor/
 .bundle/

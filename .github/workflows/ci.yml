@@ -69,6 +69,72 @@ jobs:
       - name: rspec-puppet
         run: bundle exec rake parallel_spec
 
+  powershell:
+    name: 'PowerShell: render, parse, PSScriptAnalyzer'
+    needs: lint
+    runs-on: ubuntu-latest
+    env:
+      PUPPET_GEM_VERSION: '~> 8.0'
+      WPS_RENDER_DIR: ${{ github.workspace }}/.rendered-powershell
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@824c0e29fdfc7d689c191c27acc969d2d04b7dd8 # v1.331.0
+        with:
+          ruby-version: '3.2'
+          bundler-cache: true
+      - name: Render the PowerShell the module generates
+        run: |
+          bundle exec rake spec_prep
+          bundle exec rspec --pattern spec/unit/rendered_powershell_spec.rb
+      - name: Parse and lint with PSScriptAnalyzer (PowerShell 7)
+        shell: pwsh
+        run: |
+          Install-Module PSScriptAnalyzer -Scope CurrentUser -Force
+          ./tools/Test-RenderedPowerShell.ps1 -Path .rendered-powershell, files
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: rendered-powershell
+          path: .rendered-powershell
+          include-hidden-files: true
+          retention-days: 7
+
+  powershell_windows:
+    name: 'PowerShell on ${{ matrix.os }}'
+    needs: powershell
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - windows-2022
+          - windows-2025
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: rendered-powershell
+          path: .rendered-powershell
+      - name: Parse and lint (Windows PowerShell 5.1)
+        shell: powershell
+        run: |
+          Install-Module PSScriptAnalyzer -Scope CurrentUser -Force
+          ./tools/Test-RenderedPowerShell.ps1 -Path .rendered-powershell, files
+      - name: Parse and lint (PowerShell 7)
+        shell: pwsh
+        run: |
+          Install-Module PSScriptAnalyzer -Scope CurrentUser -Force
+          ./tools/Test-RenderedPowerShell.ps1 -Path .rendered-powershell, files
+      - name: Runtime smoke test (Windows PowerShell 5.1)
+        shell: powershell
+        run: ./tools/Test-WindowsRuntime.ps1 -RenderedPath .rendered-powershell/runtime
+      - name: OS gate of the pwsh profile (PowerShell 7)
+        shell: pwsh
+        run: ./tools/Test-OsGate.ps1
+      - name: OS gate of the pwsh profile (Windows PowerShell 5.1)
+        shell: powershell
+        run: ./tools/Test-OsGate.ps1
+
   module_build:
     name: 'puppet module build'
     needs: lint
@@ -103,6 +169,8 @@ jobs:
     needs:
       - lint
       - spec
+      - powershell
+      - powershell_windows
       - module_build
     runs-on: ubuntu-latest
     steps:

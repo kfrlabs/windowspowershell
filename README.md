@@ -433,6 +433,12 @@ The module ships one custom fact:
 See [REFERENCE.md](REFERENCE.md), generated with
 `bundle exec rake strings:generate:reference`.
 
+## Development
+
+See [TESTING.md](TESTING.md) for how the module is tested (rspec-puppet, parsing and
+PSScriptAnalyzer of the generated PowerShell, Windows runtime smoke test) and for
+the manual Windows validation matrix.
+
 ## Limitations
 
 - Windows only. On any other operating system the class **and every defined

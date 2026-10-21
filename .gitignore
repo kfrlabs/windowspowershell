@@ -7,3 +7,4 @@ spec/fixtures/modules/
 coverage/
 .idea/
 .dpl.json
+.rendered-powershell/
