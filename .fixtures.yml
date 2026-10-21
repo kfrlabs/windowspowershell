@@ -1,8 +1,24 @@
 ---
+# Pinned Forge fixture versions (issue #71): `latest` is banned here.
+# Each ref must stay inside the matching `metadata.json` range:
+#   stdlib     >= 8.0.0 < 11.0.0
+#   powershell >= 5.0.0 < 7.0.0
+#   concat     >= 4.1.0 < 10.0.0
+# Extra constraint: puppetlabs/concat 9.x requires puppetlabs/stdlib
+# >= 9.0.0 < 10.0.0, so stdlib stays on 9.x until concat allows 10.x.
+# Bump procedure (no dependabot for fixtures): look up the newest Forge
+# release inside every applicable range, update the `ref` below, then run
+# `bundle exec rake spec_prep` followed by the spec suite.
 fixtures:
   forge_modules:
-    stdlib: "puppetlabs/stdlib"
-    powershell: "puppetlabs/powershell"
-    concat: "puppetlabs/concat"
+    stdlib:
+      repo: "puppetlabs/stdlib"
+      ref: "9.7.0"
+    powershell:
+      repo: "puppetlabs/powershell"
+      ref: "6.2.0"
+    concat:
+      repo: "puppetlabs/concat"
+      ref: "9.1.0"
   symlinks:
     windowspowershell: "#{source_dir}"
