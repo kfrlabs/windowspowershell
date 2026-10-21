@@ -1,3 +1,5 @@
+<%# The OS gate below is only evaluated by pwsh 7 (this profile is written to its install directory).
+    pwsh 7 reports the real Windows version, checked against CIM by tools/Test-OsGate.ps1 (see TESTING.md). -%>
 # Predictive IntelliSense, interactive sessions only.
 $isInteractiveShell = [Environment]::UserInteractive -and !([Environment]::GetCommandLineArgs() | Where-Object { $_ -ilike '-NonI*' })
 $isCompatibleOS = [System.Environment]::OSVersion.Version.Major -ge 10

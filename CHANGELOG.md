@@ -38,6 +38,21 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ### Added
 
+- Executable validation of the generated PowerShell (issue #50): a spec renders
+  every Exec command, guard and profile fragment of a set of scenarios and fails
+  when a template is never rendered; `tools/Test-RenderedPowerShell.ps1` parses
+  them and runs PSScriptAnalyzer (one justified, narrowly matched exception for
+  the proxy credential); `tools/Test-WindowsRuntime.ps1` replays them on a real
+  Windows node. CI gains a `powershell` job (Linux) and a `powershell_windows`
+  matrix (Windows Server 2022 and 2025, Windows PowerShell 5.1 and PowerShell 7).
+  The `powershell7` fact spec now also covers a missing `%ProgramFiles%`, a
+  non-Windows node and a real directory tree. The manual validation matrix is in
+  `TESTING.md`.
+- `tools/Test-OsGate.ps1` and a note in `TESTING.md`: the
+  `OSVersion.Major -ge 10` gate of the pwsh profile was checked against CIM and
+  is reliable on the only host that evaluates it (PowerShell 7); it is unchanged.
+  Windows Server 2016 and 2019 remain unverified.
+
 - Co-management of the machine-wide profiles (issue #31): the README gains a
   "Co-managing the profiles" section documenting that other Puppet code can
   add its own `concat::fragment` to the profile targets
