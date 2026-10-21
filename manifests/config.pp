@@ -2,8 +2,8 @@
 #   in-house and external modules add their Import-Module lines to.
 #
 # This class owns no module identity: it only declares the `concat` targets.
-# Each `windowspowershell::module` (when `import_in_profile => true`,
-# the default) and each `windowspowershell::external_module` (when
+# Each `windowspowershell::module` (when `import_in_profile => true` is
+# passed) and each `windowspowershell::external_module` (when
 # `import_in_profile => true` is passed) attaches its own `concat::fragment`
 # to the paths listed in `$windowspowershell::profile_paths`.
 #

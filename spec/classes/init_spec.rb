@@ -267,7 +267,9 @@ describe 'windowspowershell' do
               repository        => 'PSGallery',
               import_in_profile => true,
             }
-            windowspowershell::module { 'Acme': }
+            windowspowershell::module { 'Acme':
+              import_in_profile => true,
+            }
           PUPPET
         end
 
@@ -279,7 +281,9 @@ describe 'windowspowershell' do
       context 'with the same in-house and external modules declared in reverse order' do
         let(:pre_condition) do
           <<~PUPPET
-            windowspowershell::module { 'Acme': }
+            windowspowershell::module { 'Acme':
+              import_in_profile => true,
+            }
             windowspowershell::external_module { 'ExampleModule':
               ensure            => '2.1.0',
               repository        => 'PSGallery',
@@ -299,7 +303,9 @@ describe 'windowspowershell' do
         let(:profile) { 'C:\Windows\System32\WindowsPowerShell\v1.0\profile.ps1' }
         let(:pre_condition) do
           <<~PUPPET
-            windowspowershell::module { 'Acme': }
+            windowspowershell::module { 'Acme':
+              import_in_profile => true,
+            }
             concat::fragment { 'othermodule early alias':
               target  => '#{profile}',
               order   => '10',
@@ -394,7 +400,9 @@ describe 'windowspowershell' do
         let(:facts) { os_facts.merge('powershell7' => { 'installed' => true, 'path' => 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' }) }
         let(:pre_condition) do
           <<~PUPPET
-            windowspowershell::module { 'Acme': }
+            windowspowershell::module { 'Acme':
+              import_in_profile => true,
+            }
             windowspowershell::external_module { 'ExampleModule':
               ensure            => '2.1.0',
               repository        => 'PSGallery',

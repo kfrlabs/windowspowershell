@@ -120,7 +120,7 @@ Default value: `'C:\Program Files\WindowsPowerShell\Modules'`
 Data type: `Boolean`
 
 Whether to manage the machine-wide PowerShell profiles. Each in-house
-module with `import_in_profile => true` (the default) adds its own
+module with `import_in_profile => true` adds its own
 `Import-Module` line to these profiles; `windowspowershell::external_module` does
 the same for a third-party module when `import_in_profile => true` is
 passed to it.
@@ -422,14 +422,14 @@ Data type: `Boolean`
 
 Whether to add an `Import-Module` line for this module to every profile
 file managed by `windowspowershell::config` (see `manage_profiles` /
-`manage_pwsh_profile` on the main class). Defaults to `true`, but the
-import is often unnecessary: the module is under the machine-wide module
-directory and exports its functions by name, so PowerShell auto-loads it on
-first use, while the profile import adds to the startup time of every
-session. Keep it when the aliases or variables the module defines are
-needed from the start of the session. A failed import prints a warning.
+`manage_pwsh_profile` on the main class). Defaults to `false`: the module
+is under the machine-wide module directory and exports its functions by
+name, so PowerShell auto-loads it on first use, while the profile import
+adds to the startup time of every session. Set it to `true` when the
+aliases or variables the module defines are needed from the start of the
+session. A failed import prints a warning.
 
-Default value: `true`
+Default value: `false`
 
 ##### <a name="-windowspowershell--module--source"></a>`source`
 

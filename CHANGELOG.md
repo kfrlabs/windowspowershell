@@ -9,6 +9,21 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ### Changed
 
+- **Breaking (v2.0, issue #69):** `windowspowershell::module`'s
+  `import_in_profile` now defaults to `false` instead of `true`. The module
+  lives under the machine-wide module directory and exports its functions by
+  name, so PowerShell auto-loads it on first use; the profile import only
+  added to the startup time of every session. This is the flip the README
+  announced for the next major release.
+  - Migration: nodes that relied on the profile import (aliases or variables
+    available at startup, functions pre-loaded) must set
+    `import_in_profile => true` explicitly. `windowspowershell::external_module`
+    already defaulted to `false` and is unchanged.
+- **Breaking (v2.0, issue #72):** Puppet 7 is no longer supported
+  (`metadata.json` now requires `puppet >= 8.0.0 < 9.0.0`). Puppet 7 is EOL,
+  and keeping it forced the CI matrix onto Ruby 2.7, itself EOL. The
+  `ci.yml` / `release.yml` matrices now test Puppet 8 on Ruby 3.2 only.
+  - Migration: run the module with Puppet 8. No manifest change is needed.
 - **Breaking (v2.0, issue #57):** credentials embedded in the `proxy` URL
   (`http://user:pass@host`) are now refused at compile time by
   `Windowspowershell::Proxyurl`. They ended up in clear text in the `Exec`

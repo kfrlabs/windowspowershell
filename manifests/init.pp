@@ -19,7 +19,7 @@
 #   exist.
 # @param manage_profiles
 #   Whether to manage the machine-wide PowerShell profiles. Each in-house
-#   module with `import_in_profile => true` (the default) adds its own
+#   module with `import_in_profile => true` adds its own
 #   `Import-Module` line to these profiles; `windowspowershell::external_module` does
 #   the same for a third-party module when `import_in_profile => true` is
 #   passed to it.

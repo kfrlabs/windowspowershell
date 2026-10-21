@@ -55,8 +55,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - puppet_version: '~> 7.0'
-            ruby: '2.7'
           - puppet_version: '~> 8.0'
             ruby: '3.2'
     env:
