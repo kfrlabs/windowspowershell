@@ -8,6 +8,7 @@
 .*.sw[op]
 .metadata/
 pkg/
+Gemfile.lock
 coverage/
 spec/fixtures/modules/
 .rendered-powershell/
