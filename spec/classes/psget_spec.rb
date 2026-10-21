@@ -94,14 +94,11 @@ describe 'windowspowershell::external_module', type: :define do
           end
         end
 
-        # Deprecated: an authenticated proxy URL must still reach the bootstrap unchanged.
+        # Removed in v2.0 (issue #57): an authenticated proxy URL is refused.
         context 'with credentials embedded in the proxy URL on the class' do
           let(:pre_condition) { "class { 'windowspowershell': proxy => 'http://user:pass@proxy.example.net:3128' }" }
 
-          it 'propagates the authenticated proxy URL to the bootstrap' do
-            is_expected.to contain_exec('windowspowershell install nuget provider').
-              with_command(%r{-Proxy 'http://user:pass@proxy\.example\.net:3128'})
-          end
+          it { is_expected.to compile.and_raise_error(%r{parameter 'proxy'}) }
         end
       end
     end

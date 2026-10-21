@@ -7,6 +7,35 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking (v2.0, issue #57):** credentials embedded in the `proxy` URL
+  (`http://user:pass@host`) are now refused at compile time by
+  `Windowspowershell::Proxyurl`. They ended up in clear text in the `Exec`
+  `command`/`unless` (reports) and .NET may ignore them. The deprecation
+  warning (which never echoed the URL) and the `proxy_has_userinfo` logic are
+  removed; a URL containing userinfo (`@` before the first `/`) fails with
+  `parameter 'proxy'`.
+  - Migration: move the credentials to `proxy_credential`
+    (`{ username, password => Sensitive }`) with a clean `proxy` URL. Setting
+    `proxy_credential` without `proxy` still fails; setting both with userinfo
+    in `proxy` now fails on `parameter 'proxy'` instead of the old explicit
+    `embeds credentials` message.
+- **Breaking (v2.0, issue #56):** `windowspowershell::script`'s `scriptname`
+  is now typed `Windowspowershell::Scriptname` instead of
+  `Windowspowershell::Name` with a `fail()`. A trailing `.ps1`/`.psm1` (any
+  case) is still refused — the module appends `.ps1` itself — but the failure
+  is now a parameter type mismatch (`parameter 'scriptname'`) instead of the
+  `must not end with '.ps1' or '.psm1'` message. Dots elsewhere stay
+  legitimate (`Get-Example.v2`).
+- The version normalise-and-compare PowerShell helpers are now factorised
+  (issue #52): `templates/_version_compare.ps1.epp` defines
+  `Get-NormalizedVersion`, `Test-PinnedVersionMatch` and `Test-IsExtraVersion`
+  and is rendered via `epp()` from `check_psmodule.ps1.epp`,
+  `check_psmodule_versions.ps1.epp` and `purge_psmodule_versions.ps1.epp`.
+  No behaviour change — verified equivalent on Windows PowerShell 5.1 across
+  short, single-component, four-part and stray folder names (issue #30, #55).
+
 ### Added
 
 - Co-management of the machine-wide profiles (issue #31): the README gains a

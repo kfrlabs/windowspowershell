@@ -46,7 +46,7 @@
 define windowspowershell::script (
   Windowspowershell::Name $modulename,
   Enum['present', 'absent'] $ensure = 'present',
-  Windowspowershell::Name $scriptname = $name,
+  Windowspowershell::Scriptname $scriptname = $name,
   Optional[Windowspowershell::Name] $folder = undef,
   Optional[String[1]] $content = undef,
   Optional[String[1]] $source = undef,
@@ -61,9 +61,6 @@ define windowspowershell::script (
   }
   if $ensure == 'present' and $content =~ Undef and $source =~ Undef {
     fail("windowspowershell::script[${name}]: one of 'content' or 'source' is required when ensure => present.")
-  }
-  if $scriptname =~ /(?i)\.psm?1$/ {
-    fail("windowspowershell::script[${name}]: 'scriptname' must not end with '.ps1' or '.psm1': pass the name without the extension instead of '${scriptname}'. The module appends '.ps1' itself.")
   }
 
   # This define does not create the module it names. An implicit module made

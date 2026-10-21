@@ -7,6 +7,7 @@
 # apostrophe, the typographic single quotes that PowerShell also treats as
 # quote characters (U+2018 to U+201B), control characters and whitespace.
 #
-# Credentials embedded in the URL (`http://user:pass@host`) still match. That
-# form is deprecated in favour of `proxy_credential`, but it is not refused here.
-type Windowspowershell::Proxyurl = Pattern[/\A(?i:https?):\/\/[^'\u2018-\u201B\x00-\x1F\s]+\z/]
+# Credentials embedded in the URL (`http://user:pass@host`) are refused
+# (issue #57): they ended up in clear text in the Exec command, and .NET may
+# not honor them. Pass them via `proxy_credential` instead.
+type Windowspowershell::Proxyurl = Pattern[/\A(?i:https?):\/\/(?![^\/]*@)[^'\u2018-\u201B\x00-\x1F\s]+\z/]

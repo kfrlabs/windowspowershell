@@ -41,13 +41,12 @@
 #   Proxy passed to `Install-Module` when installing a third-party module from
 #   a repository. Left `undef`, no proxy is used and installs go out directly.
 #   Set it to an explicit proxy URL (e.g. 'http://proxy.example.net:3128').
-#   Credentials embedded in the URL (`http://user:pass@host`) are still
-#   accepted for now but deprecated: they end up in clear text in the Exec
-#   command, and .NET may not honor them. Use `proxy_credential` instead.
+#   Credentials embedded in the URL (`http://user:pass@host`) are refused: they
+#   ended up in clear text in the Exec command, and .NET may not honor them.
+#   Pass them via `proxy_credential` instead.
 # @param proxy_credential
 #   Credentials for an authenticating proxy, as a hash with `username` and a
-#   `Sensitive` `password`. Requires `proxy`, and is mutually exclusive with
-#   credentials embedded in the `proxy` URL. They are passed to
+#   `Sensitive` `password`. Requires `proxy`. They are passed to
 #   `Install-Module` and `Install-PackageProvider` through `-ProxyCredential`;
 #   the secret travels in the Exec `environment` (redacted from reports and
 #   logs) and never appears in the Exec `command` or `unless` text.
@@ -109,27 +108,12 @@ class windowspowershell (
   # it from ending the single-quoted PowerShell string it is embedded in.
   $proxy_url = $proxy
 
-  if $proxy =~ NotUndef {
-    $proxy_has_userinfo = $proxy =~ /^https?:\/\/[^\/@]+@/
-  } else {
-    $proxy_has_userinfo = false
-  }
-
   # Validated on every node, like the defined types' parameters.
   if $proxy_credential =~ NotUndef and $proxy =~ Undef {
     fail("windowspowershell: 'proxy_credential' needs 'proxy': it only carries the credentials, the proxy URL comes from 'proxy'.")
   }
-  if $proxy_credential =~ NotUndef and $proxy_has_userinfo {
-    fail("windowspowershell: 'proxy' embeds credentials (user:pass@host) and 'proxy_credential' is set as well. Drop the credentials from 'proxy'.")
-  }
   if !$manage_profiles and $manage_pwsh_profile == true {
     fail("windowspowershell: 'manage_pwsh_profile' is true but 'manage_profiles' is false: no profile is managed, so the PowerShell 7 profile would be a silent no-op. Set 'manage_profiles' to true, or leave 'manage_pwsh_profile' unset/false.")
-  }
-
-  # The message must never echo the URL: it would leak the very password it
-  # warns about.
-  if $proxy_has_userinfo and $supported {
-    warning("windowspowershell: credentials embedded in 'proxy' end up in clear text in the Exec command and may not be honored by .NET. Move them to 'proxy_credential'; the embedded form is deprecated.")
   }
 
   # The secret reaches the Exec through its environment, never through the

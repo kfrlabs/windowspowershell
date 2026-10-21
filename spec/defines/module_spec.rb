@@ -44,9 +44,9 @@ describe 'windowspowershell::module' do
       it 'purges the other versions after unblocking' do
         is_expected.to contain_exec('windowspowershell purge other in-house versions of Acme').
           with_command(%r{\$pinned = '1\.0'}).
-          with_command(%r{-as \[version\]}).
+          with_command(%r{Test-IsExtraVersion}).
           with_unless(%r{\$pinned = '1\.0'}).
-          with_unless(%r{-as \[version\]}).
+          with_unless(%r{Test-IsExtraVersion}).
           with_provider('powershell').
           with_timeout(300).
           with_logoutput('on_failure').
@@ -89,27 +89,27 @@ describe 'windowspowershell::module' do
         it 'purges every version folder except the configured one' do
           is_expected.to contain_exec('windowspowershell purge other in-house versions of Acme').
             with_command(%r{\$pinned = '2\.3'}).
-            with_command(%r{-as \[version\]}).
+            with_command(%r{Test-IsExtraVersion}).
             with_unless(%r{\$pinned = '2\.3'}).
-            with_unless(%r{-as \[version\]})
+            with_unless(%r{Test-IsExtraVersion})
         end
 
         # Numeric equivalence is shared with external_module on purpose: pin
         # 2.3 also keeps a 2.3.0 folder, missing segments counting as zero,
         # while a folder that does not parse as [version] is kept, never
-        # purged.
+        # purged. The comparison lives in _version_compare.ps1.epp (issue #52).
         it 'compares versions numerically, so a 2.3.0 folder counts as the pinned 2.3' do
           is_expected.to contain_exec('windowspowershell purge other in-house versions of Acme').
-            with_command(%r{\$_\.Name -eq \$pinned}).
+            with_command(%r{function Test-IsExtraVersion}).
             with_command(%r{\$dirAs\.Major -eq \$pinnedAs\.Major}).
             with_command(%r{\$dirBuild -eq \$pinnedBuild}).
             with_command(%r{\$dirRevision -eq \$pinnedRevision}).
-            with_command(%r{if \(\$null -eq \$dirAs\) \{ \$false \}}).
-            with_unless(%r{\$_\.Name -eq \$pinned}).
+            with_command(%r{if \(\$null -eq \$dirAs\) \{ return \$false \}}).
+            with_unless(%r{Test-IsExtraVersion}).
             with_unless(%r{\$dirAs\.Major -eq \$pinnedAs\.Major}).
             with_unless(%r{\$dirBuild -eq \$pinnedBuild}).
             with_unless(%r{\$dirRevision -eq \$pinnedRevision}).
-            with_unless(%r{if \(\$null -eq \$dirAs\) \{ \$false \}})
+            with_unless(%r{if \(\$null -eq \$dirAs\) \{ return \$false \}})
         end
       end
 
@@ -349,10 +349,10 @@ describe 'windowspowershell::module' do
           is_expected.to contain_exec('windowspowershell purge other in-house versions of Acme[1]').
             with_command(%r{Get-ChildItem -LiteralPath \$moduleDir -Directory}).
             with_command(%r{\$pinned = '1\.0'}).
-            with_command(%r{-as \[version\]}).
+            with_command(%r{Test-IsExtraVersion}).
             with_unless(%r{Get-ChildItem -LiteralPath \$moduleDir -Directory}).
             with_unless(%r{\$pinned = '1\.0'}).
-            with_unless(%r{-as \[version\]})
+            with_unless(%r{Test-IsExtraVersion})
         end
       end
 

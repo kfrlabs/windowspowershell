@@ -6,43 +6,18 @@ $moduleDir = '<%= $module_dir %>'
 if (-not (Test-Path -LiteralPath $moduleDir)) { exit 1 }
 
 <% if $version =~ NotUndef { -%>
-# Unparseable pin: only a literal folder match counts, otherwise the module counts as absent.
-# A single-component pin/dir (e.g. '2') is normalised to '2.0' before -as [version], which needs major.minor.
-# Keep in sync: this normalise-and-compare block is triplicated across
-# check_psmodule.ps1.epp, check_psmodule_versions.ps1.epp and purge_psmodule_versions.ps1.epp.
-$pinned = '<%= $version %>'
-$pinnedNorm = $pinned
-if ($pinnedNorm -match '^\d+$') { $pinnedNorm = $pinnedNorm + '.0' }
-$pinnedAs = $pinnedNorm -as [version]
-if ($null -ne $pinnedAs) {
-    if ($pinnedAs.Build -eq -1) { $pinnedBuild = 0 } else { $pinnedBuild = $pinnedAs.Build }
-    if ($pinnedAs.Revision -eq -1) { $pinnedRevision = 0 } else { $pinnedRevision = $pinnedAs.Revision }
-}
+# Pinned check (issue #30): a literal folder match counts, otherwise the folder
+# must parse as [version] and be numerically equal to the pin with missing
+# segments treated as zero. Unparseable folders never match. Shared with the
+# purge and purge-check scripts via _version_compare.ps1.epp (issue #52).
+<%= epp('windowspowershell/_version_compare.ps1.epp', { 'version' => $version }) -%>
 $found = Get-ChildItem -LiteralPath $moduleDir -Directory -ErrorAction SilentlyContinue |
-    Where-Object {
-        if ($_.Name -eq $pinned) { $true }
-        elseif ($null -eq $pinnedAs) { $false }
-        else {
-            $dirName = $_.Name
-            if ($dirName -match '^\d+$') { $dirName = $dirName + '.0' }
-            $dirAs = $dirName -as [version]
-            if ($null -eq $dirAs) { $false }
-            else {
-                if ($dirAs.Build -eq -1) { $dirBuild = 0 } else { $dirBuild = $dirAs.Build }
-                if ($dirAs.Revision -eq -1) { $dirRevision = 0 } else { $dirRevision = $dirAs.Revision }
-                ($dirAs.Major -eq $pinnedAs.Major) -and ($dirAs.Minor -eq $pinnedAs.Minor) -and ($dirBuild -eq $pinnedBuild) -and ($dirRevision -eq $pinnedRevision)
-            }
-        }
-    }
+    Where-Object { Test-PinnedVersionMatch $_.Name }
 <% } else { -%>
 # No pin: any installed version satisfies the check, but only a folder that parses as a [version]
 # is a version. A stray folder (backup, temp, etc.) must not make the module look installed.
-# A single-component dir (e.g. '2') is normalised to '2.0' before -as [version], which needs major.minor.
+<%= epp('windowspowershell/_version_compare.ps1.epp') -%>
 $found = Get-ChildItem -LiteralPath $moduleDir -Directory -ErrorAction SilentlyContinue |
-    Where-Object {
-        $dirName = $_.Name
-        if ($dirName -match '^\d+$') { $dirName = $dirName + '.0' }
-        $null -ne ($dirName -as [version])
-    }
+    Where-Object { $null -ne (Get-NormalizedVersion $_.Name) }
 <% } -%>
 if ($found) { exit 0 } else { exit 1 }
