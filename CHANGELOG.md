@@ -63,10 +63,6 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   The `powershell7` fact spec now also covers a missing `%ProgramFiles%`, a
   non-Windows node and a real directory tree. The manual validation matrix is in
   `TESTING.md`.
-- `tools/Test-OsGate.ps1` and a note in `TESTING.md`: the
-  `OSVersion.Major -ge 10` gate of the pwsh profile was checked against CIM and
-  is reliable on the only host that evaluates it (PowerShell 7); it is unchanged.
-  Windows Server 2016 and 2019 remain unverified.
 
 - Co-management of the machine-wide profiles (issue #31): the README gains a
   "Co-managing the profiles" section documenting that other Puppet code can
@@ -92,6 +88,14 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   first to opt out.
 
 ### Fixed
+
+- The unreliable `OSVersion.Major -ge 10` gate of the pwsh profile was removed
+  (issue #58, closes #67): `[Environment]::OSVersion` can report 6.x without an
+  app-compatibility manifest, silently skipping the PSReadLine configuration.
+  The gate bought nothing — PSReadLine presence and version are already guarded
+  in the profile itself — so the profile now configures PSReadLine whenever the
+  session is interactive. `tools/Test-OsGate.ps1`, its CI steps and its
+  `TESTING.md` section are removed.
 
 - The manifest (`.psd1`) now converges when only `author`, `companyname`,
   `version` or the GUID change (issue #45). `Exec["windowspowershell
