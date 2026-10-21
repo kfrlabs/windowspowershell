@@ -60,28 +60,6 @@ removes the tree when done.
 .\tools\Test-WindowsRuntime.ps1 -RenderedPath .rendered-powershell\runtime
 ```
 
-## OS gate of the pwsh profile
-
-`templates/pwsh_profile.ps1.epp` configures PSReadLine only when
-`[System.Environment]::OSVersion.Version.Major -ge 10`. A process without a
-Windows 10 compatibility manifest is told it runs on Windows 8, so this gate could
-skip the configuration silently. `tools/Test-OsGate.ps1` compares what the gate
-sees with the real version from CIM, and CI runs it on every Windows runner.
-
-Findings (verified 2026-10-20 on Windows Server 2025, build 26100):
-
-- A .NET Framework executable built without a manifest sees `6.2.9200.0`. The
-  concern in the issue is real for such a host.
-- Windows PowerShell 5.1 (`powershell.exe`, which embeds a manifest listing
-  Windows 10) and PowerShell 7.4.7 (`pwsh.exe`, also manifested) both see
-  `10.0.26100.0`, as does CIM.
-- The profile is only written to `C:\Program Files\PowerShell\7\profile.ps1`, so
-  pwsh 7 is the only host that ever evaluates the gate. The gate is therefore
-  reliable for the host it runs on, and was kept as is.
-
-Not verified: Windows Server 2016 and 2019, which were not available. Run
-`tools/Test-OsGate.ps1` under pwsh 7 there (see the matrix) before relying on it.
-
 ## Manual matrix
 
 Run on each release, with Windows PowerShell 5.1 and PowerShell 7 installed
@@ -89,16 +67,15 @@ Run on each release, with Windows PowerShell 5.1 and PowerShell 7 installed
 
 1. `tools/Test-RenderedPowerShell.ps1` under `powershell.exe` and `pwsh.exe`.
 2. `tools/Test-WindowsRuntime.ps1` under `powershell.exe`.
-3. `tools/Test-OsGate.ps1` under `pwsh.exe`.
-4. `puppet agent -t` with a catalogue that uses `windowspowershell` once, then a
+3. `puppet agent -t` with a catalogue that uses `windowspowershell` once, then a
    second time: no resource may change on the second run.
 
-| Release | Parse + PSScriptAnalyzer | Runtime smoke | OS gate | Notes |
-| --- | --- | --- | --- | --- |
-| Windows Server 2025 | 5.1 and 7.4.7: pass | 5.1: pass | 5.1 and 7.4.7: pass | Manual, 2026-10-20 |
-| Windows Server 2022 | CI (`windows-2022`) | CI | CI | Run by `powershell_windows` |
-| Windows Server 2019 | not run | not run | not run | To do by hand |
-| Windows Server 2016 | not run | not run | not run | To do by hand; check `Get-InstalledModule` and `PowerShellGet` there |
-| Windows 10 / 11 | not run | not run | not run | To do by hand |
+| Release | Parse + PSScriptAnalyzer | Runtime smoke | Notes |
+| --- | --- | --- | --- |
+| Windows Server 2025 | 5.1 and 7.4.7: pass | 5.1: pass | Manual, 2026-10-20 |
+| Windows Server 2022 | CI (`windows-2022`) | CI | Run by `powershell_windows` |
+| Windows Server 2019 | not run | not run | To do by hand |
+| Windows Server 2016 | not run | not run | To do by hand; check `Get-InstalledModule` and `PowerShellGet` there |
+| Windows 10 / 11 | not run | not run | To do by hand |
 
 Update this table when a release is verified.

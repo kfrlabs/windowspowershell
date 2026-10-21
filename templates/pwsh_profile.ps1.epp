@@ -1,5 +1,3 @@
-<%# The OS gate below is only evaluated by pwsh 7 (this profile is written to its install directory).
-    pwsh 7 reports the real Windows version, checked against CIM by tools/Test-OsGate.ps1 (see TESTING.md). -%>
 # Predictive IntelliSense, interactive sessions only.
 # No OS-version gate: [Environment]::OSVersion can report 6.x without an
 # app-compatibility manifest, silently skipping the config. Module

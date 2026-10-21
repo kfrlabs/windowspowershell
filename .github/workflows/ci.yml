@@ -128,12 +128,6 @@ jobs:
       - name: Runtime smoke test (Windows PowerShell 5.1)
         shell: powershell
         run: ./tools/Test-WindowsRuntime.ps1 -RenderedPath .rendered-powershell/runtime
-      - name: OS gate of the pwsh profile (PowerShell 7)
-        shell: pwsh
-        run: ./tools/Test-OsGate.ps1
-      - name: OS gate of the pwsh profile (Windows PowerShell 5.1)
-        shell: powershell
-        run: ./tools/Test-OsGate.ps1
 
   module_build:
     name: 'puppet module build'
