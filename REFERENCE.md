@@ -252,6 +252,11 @@ Default value: `'present'`
 Data type: `Windowspowershell::Name`
 
 Name of the PowerShell module. Defaults to the resource title.
+`Install-Module`, `Get-InstalledModule`, `Uninstall-Module` and
+`Import-Module` interpret `-Name` as a wildcard: `*`, `?`, `[` `]` and
+the backtick itself are escaped with a backtick in the generated scripts,
+so a literal name is always targeted (in-house names such as `Acme[Beta]`
+keep working, e.g. via the file-copy backend).
 Declare one resource per `modulename`: two resources sharing a
 `modulename` under different titles each purge the other side's version
 (see `purge_versions`), so the node flaps between both versions and never

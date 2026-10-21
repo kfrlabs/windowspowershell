@@ -1,6 +1,7 @@
 <%- | String[1] $modulename, Optional[String[1]] $version = undef | -%>
 try {
-    Import-Module '<%= $modulename %>'<% if $version { %> -RequiredVersion '<%= $version %>'<% } %> -ErrorAction Stop
+    # -Name takes wildcards, so escape them to target the literal module name.
+    Import-Module '<%= regsubst($modulename, '([`*?\[\]])', '`\1', 'G') %>'<% if $version { %> -RequiredVersion '<%= $version %>'<% } %> -ErrorAction Stop
 } catch {
     Write-Warning ('windowspowershell: could not import module {0}: {1}' -f '<%= $modulename %>', $_.Exception.Message)
 }

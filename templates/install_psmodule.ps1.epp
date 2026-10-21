@@ -15,7 +15,8 @@ $proxyCredential = New-Object System.Management.Automation.PSCredential($env:WPS
 <% } -%>
 # -Force also suppresses the prompt raised by an untrusted repository, so the
 # repository's InstallationPolicy is left as the administrator set it.
-Install-Module -Name '<%= $modulename %>' `
+# -Name takes wildcards, so escape them to target the literal module name.
+Install-Module -Name '<%= regsubst($modulename, '([`*?\[\]])', '`\1', 'G') %>' `
 <% if $version =~ NotUndef { -%>
     -RequiredVersion '<%= $version %>' `
 <% } -%>
