@@ -1,7 +1,9 @@
 # Predictive IntelliSense, interactive sessions only.
+# No OS-version gate: [Environment]::OSVersion can report 6.x without an
+# app-compatibility manifest, silently skipping the config. Module
+# presence/version is guarded below instead.
 $isInteractiveShell = [Environment]::UserInteractive -and !([Environment]::GetCommandLineArgs() | Where-Object { $_ -ilike '-NonI*' })
-$isCompatibleOS = [System.Environment]::OSVersion.Version.Major -ge 10
-if ($isInteractiveShell -and $isCompatibleOS) {
+if ($isInteractiveShell) {
     if (Get-Module -ListAvailable -Name PSReadLine) {
         try {
             Import-Module PSReadLine -ErrorAction Stop
