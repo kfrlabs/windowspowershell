@@ -72,10 +72,34 @@ Run on each release, with Windows PowerShell 5.1 and PowerShell 7 installed
 
 | Release | Parse + PSScriptAnalyzer | Runtime smoke | Notes |
 | --- | --- | --- | --- |
-| Windows Server 2025 | 5.1 and 7.4.7: pass | 5.1: pass | Manual, 2026-10-20 |
+| Windows Server 2025 | 5.1: pass | 5.1: pass | Manual, 2026-10-21 (see below). Double `puppet apply`: no changes on 2nd run. pwsh not installed on the lab host; PowerShell 7 covered by CI (`powershell_windows`, 2022 + 2025). |
 | Windows Server 2022 | CI (`windows-2022`) | CI | Run by `powershell_windows` |
-| Windows Server 2019 | not run | not run | To do by hand |
-| Windows Server 2016 | not run | not run | To do by hand; check `Get-InstalledModule` and `PowerShellGet` there |
+| Windows Server 2019 | not run | not run | No lab host; `ltsc2019` container pull failed (disk full on the Docker host). Same PS 5.1 code paths as the validated 2025 run. |
+| Windows Server 2016 | not run | not run | No lab host. Sensitive stack (PowerShellGet 1.0.0.1, NuGet 2.8.5.208) present on the 2025 lab host and exercised via `Install-Module PSScriptAnalyzer` from PSGallery. |
 | Windows 10 / 11 | not run | not run | To do by hand |
 
 Update this table when a release is verified.
+
+### Manual validation 2.0.0 (2026-10-21)
+
+Host `LAB-WIN-01`: Windows Server 2025 Standard (build 26100),
+Windows PowerShell 5.1.26100.33438, Puppet 8.31.0, PowerShellGet 1.0.0.1,
+PackageManagement 1.0.0.1, NuGet provider 2.8.5.208. Module under test is the
+release branch at `origin/main` plus this CHANGELOG/TESTING update;
+dependencies from the Forge (stdlib 9.7.0, concat 9.1.0, powershell 6.2.0).
+
+1. Parse + PSScriptAnalyzer under `powershell.exe`:
+   `Test-RenderedPowerShell.ps1 -Path .rendered-powershell,files` —
+   80 files, 0 parse errors, PSScriptAnalyzer 1.25.0 with 0 findings after the
+   allow-list (the `ConvertToSecureStringWithPlainText` entry matches the
+   `install_*` templates as expected).
+2. Runtime smoke under `powershell.exe`:
+   `Test-WindowsRuntime.ps1 -RenderedPath .rendered-powershell\runtime` — OK
+   (23 checks: purge idempotence, manifest create/update, `Import-Module`
+   round-trip, `ensure => absent`).
+3. Double `puppet apply` (run as a Scheduled Task as SYSTEM, the SSH channel
+   cannot host the `powershell` provider's stdin): catalogue with
+   `windowspowershell::module { 'WpsTest': version => '1.0', ... }` plus a
+   `windowspowershell::script` — first run creates the module tree, the
+   `.manifest-params` witness and the manifest; second run applies the catalog
+   with no resource changes.

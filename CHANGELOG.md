@@ -5,51 +5,7 @@ All notable changes to this module are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-### Changed
-
-- **Breaking (v2.0, issue #69):** `windowspowershell::module`'s
-  `import_in_profile` now defaults to `false` instead of `true`. The module
-  lives under the machine-wide module directory and exports its functions by
-  name, so PowerShell auto-loads it on first use; the profile import only
-  added to the startup time of every session. This is the flip the README
-  announced for the next major release.
-  - Migration: nodes that relied on the profile import (aliases or variables
-    available at startup, functions pre-loaded) must set
-    `import_in_profile => true` explicitly. `windowspowershell::external_module`
-    already defaulted to `false` and is unchanged.
-- **Breaking (v2.0, issue #72):** Puppet 7 is no longer supported
-  (`metadata.json` now requires `puppet >= 8.0.0 < 9.0.0`). Puppet 7 is EOL,
-  and keeping it forced the CI matrix onto Ruby 2.7, itself EOL. The
-  `ci.yml` / `release.yml` matrices now test Puppet 8 on Ruby 3.2 only.
-  - Migration: run the module with Puppet 8. No manifest change is needed.
-- **Breaking (v2.0, issue #57):** credentials embedded in the `proxy` URL
-  (`http://user:pass@host`) are now refused at compile time by
-  `Windowspowershell::Proxyurl`. They ended up in clear text in the `Exec`
-  `command`/`unless` (reports) and .NET may ignore them. The deprecation
-  warning (which never echoed the URL) and the `proxy_has_userinfo` logic are
-  removed; a URL containing userinfo (`@` before the first `/`) fails with
-  `parameter 'proxy'`.
-  - Migration: move the credentials to `proxy_credential`
-    (`{ username, password => Sensitive }`) with a clean `proxy` URL. Setting
-    `proxy_credential` without `proxy` still fails; setting both with userinfo
-    in `proxy` now fails on `parameter 'proxy'` instead of the old explicit
-    `embeds credentials` message.
-- **Breaking (v2.0, issue #56):** `windowspowershell::script`'s `scriptname`
-  is now typed `Windowspowershell::Scriptname` instead of
-  `Windowspowershell::Name` with a `fail()`. A trailing `.ps1`/`.psm1` (any
-  case) is still refused — the module appends `.ps1` itself — but the failure
-  is now a parameter type mismatch (`parameter 'scriptname'`) instead of the
-  `must not end with '.ps1' or '.psm1'` message. Dots elsewhere stay
-  legitimate (`Get-Example.v2`).
-- The version normalise-and-compare PowerShell helpers are now factorised
-  (issue #52): `templates/_version_compare.ps1.epp` defines
-  `Get-NormalizedVersion`, `Test-PinnedVersionMatch` and `Test-IsExtraVersion`
-  and is rendered via `epp()` from `check_psmodule.ps1.epp`,
-  `check_psmodule_versions.ps1.epp` and `purge_psmodule_versions.ps1.epp`.
-  No behaviour change — verified equivalent on Windows PowerShell 5.1 across
-  short, single-component, four-part and stray folder names (issue #30, #55).
+## [2.0.0] - 2026-10-21
 
 ### Added
 
@@ -86,6 +42,53 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   side. Modules created implicitly by `windowspowershell::script` also purge
   by default; declare the module explicitly with `purge_versions => false`
   first to opt out.
+
+### Changed
+
+- **Breaking (v2.0, issue #69):** `windowspowershell::module`'s
+  `import_in_profile` now defaults to `false` instead of `true`. The module
+  lives under the machine-wide module directory and exports its functions by
+  name, so PowerShell auto-loads it on first use; the profile import only
+  added to the startup time of every session. This is the flip the README
+  announced for the next major release.
+  - Migration: nodes that relied on the profile import (aliases or variables
+    available at startup, functions pre-loaded) must set
+    `import_in_profile => true` explicitly. `windowspowershell::external_module`
+    already defaulted to `false` and is unchanged.
+- **Breaking (v2.0, issue #72):** Puppet 7 is no longer supported
+  (`metadata.json` now requires `puppet >= 8.0.0 < 9.0.0`). Puppet 7 is EOL,
+  and keeping it forced the CI matrix onto Ruby 2.7, itself EOL. The
+  `ci.yml` / `release.yml` matrices now test Puppet 8 on Ruby 3.2 only.
+  - Migration: run the module with Puppet 8. No manifest change is needed.
+- **Breaking (v2.0, issue #56):** `windowspowershell::script`'s `scriptname`
+  is now typed `Windowspowershell::Scriptname` instead of
+  `Windowspowershell::Name` with a `fail()`. A trailing `.ps1`/`.psm1` (any
+  case) is still refused — the module appends `.ps1` itself — but the failure
+  is now a parameter type mismatch (`parameter 'scriptname'`) instead of the
+  `must not end with '.ps1' or '.psm1'` message. Dots elsewhere stay
+  legitimate (`Get-Example.v2`).
+- The version normalise-and-compare PowerShell helpers are now factorised
+  (issue #52): `templates/_version_compare.ps1.epp` defines
+  `Get-NormalizedVersion`, `Test-PinnedVersionMatch` and `Test-IsExtraVersion`
+  and is rendered via `epp()` from `check_psmodule.ps1.epp`,
+  `check_psmodule_versions.ps1.epp` and `purge_psmodule_versions.ps1.epp`.
+  No behaviour change — verified equivalent on Windows PowerShell 5.1 across
+  short, single-component, four-part and stray folder names (issue #30, #55).
+
+### Removed
+
+- **Breaking (v2.0, issue #57):** credentials embedded in the `proxy` URL
+  (`http://user:pass@host`) are now refused at compile time by
+  `Windowspowershell::Proxyurl`. They ended up in clear text in the `Exec`
+  `command`/`unless` (reports) and .NET may ignore them. The deprecation
+  warning from 1.2.0 (which never echoed the URL) and the `proxy_has_userinfo`
+  logic are removed; a URL containing userinfo (`@` before the first `/`)
+  fails with `parameter 'proxy'`.
+  - Migration: move the credentials to `proxy_credential`
+    (`{ username, password => Sensitive }`) with a clean `proxy` URL. Setting
+    `proxy_credential` without `proxy` still fails; setting both with userinfo
+    in `proxy` now fails on `parameter 'proxy'` instead of the old explicit
+    `embeds credentials` message.
 
 ### Fixed
 
@@ -144,10 +147,10 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   - Every third-party action in `ci.yml` and `release.yml` is pinned to a full
     commit SHA, with the tag in a trailing comment, and a Dependabot
     configuration (`package-ecosystem: github-actions`) keeps them current.
-  - `release.yml` now runs the same Puppet 7 / Puppet 8 `rspec-puppet` matrix
-    as `ci.yml` before publishing. The tests run in separate jobs, so the
-    `forge` environment and its credentials are only exposed to the final
-    publish job.
+  - `release.yml` now runs the same `rspec-puppet` matrix as `ci.yml` before
+    publishing (Puppet 7 / Puppet 8 at the time; since reduced to Puppet 8
+    only by issue #72). The tests run in separate jobs, so the `forge`
+    environment and its credentials are only exposed to the final publish job.
   - `puppetlabs_spec_helper` moved from the `release_prep` to the `test` gem
     group: the `Rakefile` requires it unconditionally, so
     `BUNDLE_WITHOUT=release_prep` no longer fails with a `LoadError`.
@@ -164,8 +167,8 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   - The README and the `import_in_profile` parameter documentation of
     `windowspowershell::module` explain when the profile import is actually
     needed (aliases or variables at startup) and that otherwise module
-    auto-loading already covers it, at a lower startup cost. The default is
-    unchanged; it may become `false` in the next major release.
+    auto-loading already covers it, at a lower startup cost. The default
+    flip itself ships in this release (issue #69).
   - New "Repository trust" section in the README, and a note on the
     `repository` parameter of `windowspowershell::external_module`: the
     repository named is trusted to execute code as `SYSTEM` because
@@ -175,8 +178,6 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
     `unblock-files` Exec, and the SysWOW64 comment moved from
     `windowspowershell::config` to `profile_paths` in `init.pp`, which it
     describes. No behaviour change.
-
-### Fixed
 
 - The `powershell7` fact documentation no longer claims to detect ZIP,
   Microsoft Store, winget and non-standard installs (issue #48). The fact has
@@ -204,8 +205,9 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   `http://` / `https://` requirement and refuses the apostrophe, the
   typographic single quotes PowerShell also treats as quote characters
   (U+2018 to U+201B), control characters and whitespace, at compile time.
-  A URL that was valid before and contains none of those still compiles,
-  including the deprecated `user:pass@host` form.
+  A URL that was valid before and contains none of those still compiles;
+  the `user:pass@host` form it still accepted is removed in this release
+  (issue #57).
 - `Windowspowershell::Name`, `Windowspowershell::Psstring` and
   `Windowspowershell::Rootpath` now also refuse the typographic single quotes
   U+2018, U+2019, U+201A and U+201B (issue #36). PowerShell treats them as
@@ -236,6 +238,15 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   `System.Version` parses every component as an Int32 and a tenth digit
   would overflow at Exec runtime instead; single-component pins such as `2`
   are still accepted.
+
+- Forge tarball and fixtures locked (issues #68, #71): `.pmtignore` is now
+  kept identical to `.pdkignore` (CI diffs them), `tools/check-tarball.sh`
+  verifies the built tarball carries the full payload (`metadata.json`,
+  `manifests/`, `files/`, `templates/`, `types/`, ...) and no dev-only
+  paths (`tools/`, `TESTING.md`, `spec/fixtures`, ...), and `release.yml`
+  re-verifies the artifact before `module:push`. `.fixtures.yml` pins the
+  Forge fixtures inside the `metadata.json` ranges (stdlib 9.7.0,
+  powershell 6.2.0, concat 9.1.0).
 
 ## [1.2.0] - 2026-10-16
 
