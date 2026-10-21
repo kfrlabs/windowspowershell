@@ -156,8 +156,34 @@ jobs:
           sudo dpkg -i "puppet-tools-release-$(lsb_release -cs).deb"
           sudo apt-get update -qq
           sudo apt-get install -y -qq pdk
-      - name: Build the module package, the way the Forge would
-        run: pdk build
+      - name: .pmtignore must mirror .pdkignore (issue #68)
+        # `pdk build` reads .pdkignore; blacksmith 8 (module:push) ships an
+        # allowlisted payload and reads neither file, while legacy
+        # `puppet module build` tooling reads .pmtignore. A drift here
+        # means a builder could ship dev-only paths to the Forge.
+        run: diff -u .pdkignore .pmtignore
+      - name: Published payload must equal the tested payload (issue #68)
+        run: |
+          set -e
+          pdk build
+          tar -tzf pkg/*.tar.gz | sort > /tmp/pdk.list
+          mv pkg/*.tar.gz /tmp/pdk-build.tar.gz
+          bundle exec rake module:build
+          tar -tzf pkg/*.tar.gz | sort > /tmp/puppet.list
+          echo '--- pdk tarball (tested) ---'
+          cat /tmp/pdk.list
+          echo '--- blacksmith tarball (published to the Forge) ---'
+          cat /tmp/puppet.list
+          sh tools/check-tarball.sh /tmp/pdk-build.tar.gz
+          sh tools/check-tarball.sh pkg/*.tar.gz
+          mkdir -p /tmp/pdk-payload /tmp/puppet-payload
+          tar -xzf /tmp/pdk-build.tar.gz -C /tmp/pdk-payload
+          tar -xzf pkg/*.tar.gz -C /tmp/puppet-payload
+          # pdk additionally ships its own dev files (spec/, Gemfile,
+          # Rakefile); everything else must be byte-identical.
+          diff -r -x spec -x Gemfile -x Rakefile \
+            /tmp/pdk-payload/*/ /tmp/puppet-payload/*/ \
+            && echo 'Payload identical.'
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: module-package

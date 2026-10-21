@@ -89,6 +89,16 @@ jobs:
           ruby-version: '3.2'
           bundler-cache: true
 
+      - name: Published tarball must equal the CI-tested tarball (issue #68)
+        # Tag pushes do not run ci.yml, so release.yml re-verifies the
+        # artifact it is about to publish. Payload equality with the
+        # `pdk build` tarball was proven by ci.yml on the same commit.
+        run: |
+          set -e
+          diff -u .pdkignore .pmtignore
+          bundle exec rake module:build
+          sh tools/check-tarball.sh pkg/*.tar.gz
+
       - name: Build and push to the Puppet Forge
         env:
           BLACKSMITH_FORGE_USERNAME: ${{ secrets.FORGE_USERNAME }}

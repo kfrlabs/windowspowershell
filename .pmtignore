@@ -1,0 +1,18 @@
+# Keep .pdkignore and .pmtignore in sync (CI diffs them, issue #68).
+# `pdk build` reads .pdkignore. `bundle exec rake module:push`
+# (blacksmith 8 via puppet-modulebuilder) ships an allowlisted payload and
+# reads neither file; legacy `puppet module build` tooling reads .pmtignore.
+# Identical files keep dev-only paths out of the Forge tarball on every
+# builder, and CI verifies the tarball content before any 2.0.0 push.
+.git/
+.*.sw[op]
+.metadata/
+pkg/
+coverage/
+spec/fixtures/modules/
+.rendered-powershell/
+tools/
+TESTING.md
+.vendor/
+vendor/
+.bundle/
