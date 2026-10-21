@@ -5,7 +5,7 @@
 [![Puppet Forge version](https://img.shields.io/puppetforge/v/kfrlabs/windowspowershell.svg)](https://forge.puppet.com/modules/kfrlabs/windowspowershell)
 [![Puppet Forge downloads](https://img.shields.io/puppetforge/dt/kfrlabs/windowspowershell.svg)](https://forge.puppet.com/modules/kfrlabs/windowspowershell)
 [![License: Apache-2.0](https://img.shields.io/github/license/kfrlabs/windowspowershell.svg)](LICENSE)
-[![Puppet >= 7.0, < 9.0](https://img.shields.io/badge/puppet-%3E%3D7.0_%3C9.0-blue.svg)](metadata.json)
+[![Puppet >= 8.0, < 9.0](https://img.shields.io/badge/puppet-%3E%3D8.0_%3C9.0-blue.svg)](metadata.json)
 [![PDK 3.4.0](https://img.shields.io/badge/PDK-3.4.0-orange.svg)](https://puppet.com/docs/pdk/latest/pdk.html)
 [![Windows 2016–2025, 10/11](https://img.shields.io/badge/windows-2016--2025_%7C_10%2F11-0078D6.svg?logo=windows)](metadata.json)
 
@@ -70,19 +70,22 @@ casts `-ModuleVersion` to `[version]`. See the breaking-change note under
 
 #### Importing the module from the profile
 
-By default (`import_in_profile => true`) the module is also imported by the
-machine-wide profiles, so every new PowerShell session pays the cost of loading
-it at startup. That is often unnecessary: the module lives under the
-machine-wide module directory, which is part of `PSModulePath`, and its
-manifest exports each function by name, so PowerShell discovers and loads it on
-first use of one of its functions.
+By default (`import_in_profile => false`) the module is not imported by the
+machine-wide profiles: it lives under the machine-wide module directory,
+which is part of `PSModulePath`, and its manifest exports each function by
+name, so PowerShell discovers and loads it on first use of one of its
+functions, without paying the load cost at every session startup.
 
-Keep the profile import when the session needs something module auto-loading
-does not provide up front, typically the aliases or variables the module
-defines (the manifest exports them with a wildcard, which auto-loading does not
-use to discover them), or when a function must already be loaded at startup.
-Otherwise set `import_in_profile => false`. The default stays `true` for now to
-avoid changing existing nodes; it may become `false` in the next major release.
+Set `import_in_profile => true` when the session needs something module
+auto-loading does not provide up front, typically the aliases or variables
+the module defines (the manifest exports them with a wildcard, which
+auto-loading does not use to discover them), or when a function must already
+be loaded at startup.
+
+> **Breaking change in 2.0.0** (issue #69): the default was `true` before.
+> Every session paid the import cost unless the site opted out. After the
+> upgrade, nodes that relied on the profile import (aliases/variables
+> available at startup) must set `import_in_profile => true` explicitly.
 
 If the import fails (a broken module, a missing file), the profile prints a
 warning with the reason at the start of the session instead of failing

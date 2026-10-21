@@ -45,12 +45,12 @@
 # @param import_in_profile
 #   Whether to add an `Import-Module` line for this module to every profile
 #   file managed by `windowspowershell::config` (see `manage_profiles` /
-#   `manage_pwsh_profile` on the main class). Defaults to `true`, but the
-#   import is often unnecessary: the module is under the machine-wide module
-#   directory and exports its functions by name, so PowerShell auto-loads it on
-#   first use, while the profile import adds to the startup time of every
-#   session. Keep it when the aliases or variables the module defines are
-#   needed from the start of the session. A failed import prints a warning.
+#   `manage_pwsh_profile` on the main class). Defaults to `false`: the module
+#   is under the machine-wide module directory and exports its functions by
+#   name, so PowerShell auto-loads it on first use, while the profile import
+#   adds to the startup time of every session. Set it to `true` when the
+#   aliases or variables the module defines are needed from the start of the
+#   session. A failed import prints a warning.
 # @param source
 #   Optional Puppet file source bulk-deploying every script under it straight
 #   into `Functions`, one recursive, **purging** copy preserving the source
@@ -94,7 +94,7 @@ define windowspowershell::module (
   Windowspowershell::Moduleversion $version = '1.0',
   Windowspowershell::Psstring $companyname = 'Unknown',
   Windowspowershell::Psstring $author = 'Unknown',
-  Boolean $import_in_profile = true,
+  Boolean $import_in_profile = false,
   Optional[String[1]] $source = undef,
   Boolean $purge_versions = true,
 ) {
