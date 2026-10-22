@@ -363,6 +363,22 @@ describe 'windowspowershell::module' do
             with_unless(%r{\$pinned = '1\.0'}).
             with_unless(%r{Test-IsExtraVersion})
         end
+
+        # Import-Module reads -Name as a wildcard too (issue #73), so the
+        # manifest path in the profile fragment escapes brackets literally.
+        context 'with import_in_profile => true' do
+          let(:params) { { 'import_in_profile' => true } }
+
+          it { is_expected.to compile.with_all_deps }
+
+          it 'escapes the manifest path wildcards in the profile import' do
+            profile = 'C:\Windows\System32\WindowsPowerShell\v1.0\profile.ps1'
+            is_expected.to contain_concat_fragment("windowspowershell import Acme[1] in #{profile}").
+              with_target(profile).
+              with_order('50').
+              with_content(%r{Import-Module 'C:\\Program Files\\WindowsPowerShell\\Modules\\Acme`\[1`\]\\1\.0\\Acme`\[1`\]\.psd1'})
+          end
+        end
       end
 
       context 'with a version that is not a version' do

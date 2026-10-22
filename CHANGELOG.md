@@ -5,7 +5,7 @@ All notable changes to this module are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.0.0] - 2026-10-21
+## [2.0.0] - 2026-10-22
 
 ### Added
 
@@ -90,7 +90,32 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
     in `proxy` now fails on `parameter 'proxy'` instead of the old explicit
     `embeds credentials` message.
 
+- **Breaking (v2.0, issue #70):** Windows Server 2016 is no longer supported
+  (`metadata.json` no longer lists it, and the README badge and Limitations
+  say 2019–2025 plus 10/11). Windows Server 2019 is claimed but still to be
+  tested/confirmed; see `TESTING.md`.
+  - Migration: run the module on a supported release. No manifest change is
+    needed.
+
 ### Fixed
+
+- PowerShell `-Name` wildcard characters are now escaped literally
+  (issue #73): `Install-Module`, `Get-InstalledModule`, `Uninstall-Module`
+  and `Import-Module` interpret `-Name` as a wildcard, while
+  `Windowspowershell::Name` allows brackets (in-house use, cf. issue #15).
+  `*`, `?`, `[`, `]` and the backtick itself are now escaped with a backtick
+  in the generated scripts, so a literal module name is always targeted. The
+  `modulename` parameter documentation of
+  `windowspowershell::external_module` describes this.
+- `data/common.yaml` is now an explicit empty hash instead of a comments-only
+  document. It still ships no override, but Puppet no longer logs `file does
+  not contain a valid yaml hash` on every catalogue compile.
+- Forge discoverability and repository hygiene (issue #73):
+  `metadata.json` carries Forge tags, the README hygiene is fixed, and the
+  repository gains a `SECURITY.md` policy with issue/PR templates and a
+  Dependabot configuration watching the GitHub Actions. None of this ships
+  in the Forge tarball (`SECURITY.md` stays on GitHub only, like
+  `TESTING.md`).
 
 - The unreliable `OSVersion.Major -ge 10` gate of the pwsh profile was removed
   (issue #58, closes #67): `[Environment]::OSVersion` can report 6.x without an
@@ -246,7 +271,9 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   paths (`tools/`, `TESTING.md`, `spec/fixtures`, ...), and `release.yml`
   re-verifies the artifact before `module:push`. `.fixtures.yml` pins the
   Forge fixtures inside the `metadata.json` ranges (stdlib 9.7.0,
-  powershell 6.2.0, concat 9.1.0).
+  powershell 6.2.0, concat 9.1.0). The ignore files exclude the whole
+  `spec/fixtures/` tree (not just `spec/fixtures/modules/`), so a `pdk build`
+  run after the specs also packs no empty `spec/fixtures/` directory entries.
 
 ## [1.2.0] - 2026-10-16
 

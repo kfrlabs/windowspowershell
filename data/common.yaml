@@ -11,4 +11,7 @@
 #
 # This file is kept as an extension point: a consuming control-repo can still
 # layer its own module-data overrides on top of this hierarchy if it ever
-# needs to, but this module itself ships none.
+# needs to, but this module itself ships none. The explicit empty hash keeps
+# the document a valid (empty) YAML mapping instead of `nil`, which Puppet
+# would warn about on every catalogue compile.
+{}
