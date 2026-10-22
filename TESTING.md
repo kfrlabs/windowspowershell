@@ -74,8 +74,7 @@ Run on each release, with Windows PowerShell 5.1 and PowerShell 7 installed
 | --- | --- | --- | --- |
 | Windows Server 2025 | 5.1: pass | 5.1: pass | Manual, 2026-10-21 (see below). Double `puppet apply`: no changes on 2nd run. pwsh not installed on the lab host; PowerShell 7 covered by CI (`powershell_windows`, 2022 + 2025). |
 | Windows Server 2022 | CI (`windows-2022`) | CI | Run by `powershell_windows` |
-| Windows Server 2019 | not run | not run | No lab host; `ltsc2019` container pull failed (disk full on the Docker host). Same PS 5.1 code paths as the validated 2025 run. |
-| Windows Server 2016 | not run | not run | No lab host. Sensitive stack (PowerShellGet 1.0.0.1, NuGet 2.8.5.208) present on the 2025 lab host and exercised via `Install-Module PSScriptAnalyzer` from PSGallery. |
+| Windows Server 2019 | not run | not run | Claimed in `metadata.json` but still to be tested/confirmed (issue #70). No lab host yet; `ltsc2019` container pull failed (disk full on the Docker host). Same PS 5.1 code paths as the validated 2025 run. |
 | Windows 10 / 11 | not run | not run | To do by hand |
 
 Update this table when a release is verified.
