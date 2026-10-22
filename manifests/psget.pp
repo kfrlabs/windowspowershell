@@ -14,7 +14,7 @@ class windowspowershell::psget {
   assert_private()
 
   # PowerShellGet needs NuGet to talk to a NuGet-backed repository, and
-  # Windows Server 2016 ships without it. Bootstrapping it is itself an
+  # older Windows releases may ship without it. Bootstrapping it is itself an
   # outbound call, hence the TLS 1.2 opt-in and the proxy.
   exec { 'windowspowershell install nuget provider':
     command     => epp('windowspowershell/install_nuget.ps1.epp', {
