@@ -1,7 +1,7 @@
 source ENV['GEM_SOURCE'] || 'https://rubygems.org'
 
 group :test do
-  gem 'voxpupuli-test', '~> 8.0', require: false
+  gem 'voxpupuli-test', '~> 9.2', require: false
   gem 'rspec-puppet-facts', require: false
   # Re-evaluated 2026-10-21 (issue #73): facterdb 2.1.x pulls jgrep 1.5.4,
   # whose `JSON.create_id = nil` was removed in json >= 2.10
