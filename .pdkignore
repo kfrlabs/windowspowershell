@@ -14,7 +14,7 @@ SECURITY.md
 pkg/
 Gemfile.lock
 coverage/
-spec/fixtures/modules/
+spec/fixtures/
 .rendered-powershell/
 tools/
 TESTING.md
