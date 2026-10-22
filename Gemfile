@@ -8,7 +8,7 @@ group :test do
   # (NoMethodError, then "Invalid JSON given", on_supported_os empty).
   # jgrep 1.6.0 fixes it but needs Ruby >= 3.3 while CI runs Ruby 3.2,
   # so the pin stays until Ruby and voxpupuli-test/facterdb move on.
-  gem 'json', '~> 2.9.0', require: false
+  gem 'json', '~> 2.21.2', require: false
   # Required unconditionally by the Rakefile, so it must be installed in every
   # context that runs `rake`, including BUNDLE_WITHOUT=release_prep.
   gem 'puppetlabs_spec_helper', '>= 2.12', require: false
