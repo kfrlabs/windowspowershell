@@ -19,7 +19,7 @@ group :development do
 end
 
 group :release_prep do
-  gem 'puppet-blacksmith', '~> 8.0', require: false
+  gem 'puppet-blacksmith', '~> 9.1', require: false
   gem 'puppet-strings', '>= 2.2', require: false
 end
 
