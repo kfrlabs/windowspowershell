@@ -11,3 +11,12 @@ updates:
     labels:
       - ci
       - security
+  - package-ecosystem: bundler
+    directory: /
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: chore
+    labels:
+      - ci
+      - security

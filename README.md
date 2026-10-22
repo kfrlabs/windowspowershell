@@ -15,6 +15,7 @@
 2. [Usage](#usage)
 3. [Reference](#reference)
 4. [Limitations](#limitations)
+5. [Development](#development)
 
 ## Description
 
@@ -419,14 +420,9 @@ The module ships one custom fact:
   fact. Forcing it `true` on a node without PowerShell 7 at the default
   location fails the catalogue with an explicit message rather than writing a
   profile into a directory that does not exist.
-- **`proxy`** (class parameter -- **not** a fact) --
-  Proxy passed to `Install-Module` via the `$proxy` class parameter.
-  Set it in Hiera or node definition; if `undef`, installations go out directly.
-  Credentials embedded in the URL (e.g. 'http://user:pass@proxy.example.net:3128')
-  are refused: use `proxy_credential`.
-- **`proxy_credential`** (class parameter) --
-  Credentials for an authenticating proxy, as `{ username => String, password =>
-  Sensitive[String] }`. Requires `proxy`. See [Proxy](#proxy).
+
+`proxy` and `proxy_credential` are class parameters, not facts: see
+[Proxy](#proxy).
 
 ## Reference
 
@@ -439,6 +435,8 @@ See [TESTING.md](TESTING.md) for how the module is tested (rspec-puppet, parsing
 PSScriptAnalyzer of the generated PowerShell, Windows runtime smoke test) and for
 the manual Windows validation matrix.
 
+Contributions are welcome via GitHub issues and pull requests.
+
 ## Limitations
 
 - Windows only. On any other operating system the class **and every defined
@@ -449,8 +447,8 @@ the manual Windows validation matrix.
 - Requires `puppetlabs/powershell` for the `powershell` Exec provider,
   `puppetlabs/stdlib`, and `puppetlabs/concat` for the profile fragments.
 - Version purging (`windowspowershell::external_module`) works on the versioned
-  directory layout (`Modules\\<Name>\\<Version>\\`). A module installed the old
-  flat way, with its files directly under `Modules\\<Name>\\`, is left alone.
+  directory layout (`Modules\<Name>\<Version>\`). A module installed the old
+  flat way, with its files directly under `Modules\<Name>\`, is left alone.
 - Third-party module management is confined to the **AllUsers** scope in the
   **64-bit** path (`C:\Program Files\WindowsPowerShell\Modules`). Copies under a
   user profile's `Documents\WindowsPowerShell\Modules`, `System32`, PowerShell

@@ -6,5 +6,6 @@
 $moduleDir = '<%= $module_dir %>'
 if (Test-Path -LiteralPath $moduleDir) { exit 1 }
 
-$registered = Get-InstalledModule -Name '<%= $modulename %>' -AllVersions -ErrorAction SilentlyContinue
+# -Name takes wildcards, so escape them to target the literal module name.
+$registered = Get-InstalledModule -Name '<%= regsubst($modulename, '([`*?\[\]])', '`\1', 'G') %>' -AllVersions -ErrorAction SilentlyContinue
 if ($registered) { exit 1 } else { exit 0 }

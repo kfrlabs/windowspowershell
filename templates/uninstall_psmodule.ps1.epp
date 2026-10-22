@@ -7,7 +7,8 @@ $ErrorActionPreference = 'Stop'
 # module and a later reinstall starts from a clean record. SilentlyContinue on
 # this call alone: a module deployed by file copy was never registered, and a
 # missing registration is not a failure here.
-Uninstall-Module -Name '<%= $modulename %>' -AllVersions -Force -ErrorAction SilentlyContinue -Verbose
+# -Name takes wildcards, so escape them to target the literal module name.
+Uninstall-Module -Name '<%= regsubst($modulename, '([`*?\[\]])', '`\1', 'G') %>' -AllVersions -Force -ErrorAction SilentlyContinue -Verbose
 
 # Then take the whole tree under the machine-wide module directory, which also
 # catches versions this module deployed by file copy, that PowerShellGet has no

@@ -1,6 +1,8 @@
 <%- | Stdlib::Windowspath $manifest_path | -%>
 try {
-    Import-Module '<%= $manifest_path %>' -ErrorAction Stop
+    # -Name takes wildcards (a manifest path with brackets would match several
+    # paths), so escape them to target the literal path.
+    Import-Module '<%= regsubst($manifest_path, '([`*?\[\]])', '`\1', 'G') %>' -ErrorAction Stop
 } catch {
     Write-Warning ('windowspowershell: could not import module {0}: {1}' -f '<%= $manifest_path %>', $_.Exception.Message)
 }

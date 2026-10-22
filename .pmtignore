@@ -4,6 +4,10 @@
 # reads neither file; legacy `puppet module build` tooling reads .pmtignore.
 # Identical files keep dev-only paths out of the Forge tarball on every
 # builder, and CI verifies the tarball content before any 2.0.0 push.
+# SECURITY.md stays on GitHub only: `pdk build` would ship it, but the
+# blacksmith/puppet-modulebuilder allowlist used for the Forge publish does
+# not, so shipping it would break the payload-equality gate (issue #68).
+SECURITY.md
 .git/
 .*.sw[op]
 .metadata/
