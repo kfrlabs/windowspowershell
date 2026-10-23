@@ -108,8 +108,13 @@ The following parameters are available in the `windowspowershell` class:
 
 Data type: `Windowspowershell::Rootpath`
 
-Machine-wide PowerShell module directory, shared by every in-house module
-this class lays out and by `windowspowershell::external_module`. The module manages this directory itself (via ensure_resource,
+Machine-wide PowerShell module directory, shared by every in-house
+module this class lays out and by `windowspowershell::external_module`
+with the `source` backend. The `repository` backend always installs
+with `Install-Module -Scope AllUsers` to
+`C:\Program Files\WindowsPowerShell\Modules` and ignores a custom root
+(issue #85): combining `repository` with a custom `module_root` fails
+compilation. The module manages this directory itself (via ensure_resource,
 so it can be co-managed by another module), but its parent must already
 exist.
 
@@ -276,6 +281,13 @@ Repository to install from, e.g. `PSGallery`. Mutually exclusive with
 suppresses the untrusted-repository prompt: the repository named here is
 trusted to execute code as `SYSTEM`, so prefer an internal mirror in
 production.
+Requires the default `module_root`
+(`C:\Program Files\WindowsPowerShell\Modules`):
+`Install-Module -Scope AllUsers` always installs there and ignores a
+custom root (issue #85), so a custom root would reinstall on every run.
+The custom repository itself must be registered for the `SYSTEM` account
+(`Register-PSRepository` is per-user): a repository registered in an
+interactive session is invisible to the agent (see README).
 
 Default value: `undef`
 

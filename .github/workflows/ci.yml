@@ -169,6 +169,43 @@ jobs:
           Stop-Service puppet -ErrorAction SilentlyContinue
           ./tools/Test-PuppetApply.ps1 -Site spec/integration/site.pp -Modulepath 'C:\wps-int\modules'
 
+  integration_repository_windows:
+    name: 'Puppet apply (repository backend) on ${{ matrix.os }}'
+    needs: powershell_windows
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - windows-2022
+          - windows-2025
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install Puppet agent 8
+        shell: powershell
+        run: |
+          # Pinned: metadata.json requires puppet >= 8 < 9, so this must stay
+          # on Puppet 8 even when the community feed offers a newer major.
+          choco install puppet-agent --version 8.10.0 -y --no-progress
+          'C:\Program Files\Puppet Labs\Puppet\bin' | Out-File -FilePath $env:GITHUB_PATH -Append
+      - name: Stage the test modules
+        shell: powershell
+        run: |
+          # Same staging as integration_windows: the checkout under its module
+          # name next to the pinned Forge dependencies (see .fixtures.yml).
+          $staging = 'C:\wps-int\modules'
+          New-Item -ItemType Directory -Path 'C:\wps-int' -Force | Out-Null
+          New-Item -ItemType Directory -Path $staging -Force | Out-Null
+          Copy-Item -Recurse -Force "$env:GITHUB_WORKSPACE" "$staging\windowspowershell"
+          puppet module install puppetlabs-stdlib --version 9.7.0 --target-dir $staging
+          puppet module install puppetlabs-concat --version 9.1.0 --target-dir $staging
+          puppet module install puppetlabs-powershell --version 6.2.0 --target-dir $staging
+      - name: Repository backend apply twice (second run must be clean)
+        shell: powershell
+        run: |
+          Stop-Service puppet -ErrorAction SilentlyContinue
+          ./tools/Test-RepositoryBackend.ps1 -Site spec/integration/site_repository.pp -Modulepath 'C:\wps-int\modules'
+
   module_build:
     name: 'puppet module build'
     needs: lint
@@ -233,6 +270,7 @@ jobs:
       - powershell
       - powershell_windows
       - integration_windows
+      - integration_repository_windows
       - module_build
     runs-on: ubuntu-latest
     steps:

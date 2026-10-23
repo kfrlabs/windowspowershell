@@ -79,9 +79,7 @@ ordering `File`/`Exec`/`Concat` resources, firing the
 manifest-regeneration notifies, and rejecting duplicate resources. The file
 sources are served from the `wps_integration` fixture module
 (`spec/integration/modules/wps_integration`), so the `files/` payload shipped
-to the Forge stays clean and no Gallery or NuGet access is needed. The
-repository backend (`Install-Module`, proxy) is still covered by specs and by
-hand only (issue #85).
+to the Forge stays clean and no Gallery or NuGet access is needed.
 
 The CI `integration_windows` job (Windows Server 2022 and 2025) installs
 Puppet agent 8, stages this checkout as `windowspowershell` next to the
@@ -102,6 +100,62 @@ environment that does not exist locally (e.g. `environment=saim` in
 `puppet.conf`), pass `-Environment production`. Run the apply as a Scheduled
 Task as SYSTEM: the SSH channel cannot host the `powershell` provider's
 stdin.
+
+## Repository backend test (Windows only, issue #85)
+
+`tools/Test-RepositoryBackend.ps1` closes the gap the integration test above
+leaves: the `repository` backend (`Install-Module` as SYSTEM) never ran for
+real. The script builds a minimal `WpsRepoTest 1.0.0` module, registers a
+local file repository `WpsLocal` for the account running the script, publishes
+the module into it (`Publish-Module -Force`: without `-Force` the NuGet
+bootstrap prompt throws `ShouldContinue` when non-interactive), then applies
+`spec/integration/site_repository.pp` twice. The first run may change
+resources (exit 2); the second must change nothing (exit 0). Functional checks
+verify `Get-InstalledModule`, the `AllUsers` layout and an `Import-Module`
+round-trip.
+
+Two findings from the first SYSTEM run are now enforced or documented:
+
+- `Register-PSRepository` is per-user: a repository registered interactively
+  is invisible to the agent (`Unable to find repository 'WpsLocal'`). Register
+  it as SYSTEM (this script does it when run as SYSTEM) on every node.
+- `Install-Module -Scope AllUsers` always installs to
+  `C:\Program Files\WindowsPowerShell\Modules` and ignores a custom
+  `module_root`: combining `repository` with a custom root now fails
+  compilation instead of reinstalling on every run.
+
+The CI `integration_repository_windows` job (Windows Server 2022 and 2025)
+runs:
+
+```powershell
+./tools/Test-RepositoryBackend.ps1 -Site spec/integration/site_repository.pp -Modulepath 'C:\wps-int\modules'
+```
+
+as SYSTEM (the job runs on the runner, whose default account sees the
+locally registered repository). To run it on a lab node, stage the checkout
+as for the integration test, then run the script as a Scheduled Task as
+SYSTEM.
+
+## Proxy test (Windows only, issue #85)
+
+`tools/Test-ProxyBackend.ps1` validates `-Proxy` / `-ProxyCredential` for
+real: it starts a minimal authenticating CONNECT proxy on 127.0.0.1, then
+`Find-Module` (and, best-effort, `Save-Module` — same PackageManagement
+download path as `Install-Module`, without polluting `AllUsers`) against the
+real PowerShell Gallery through it. Good credentials succeed; a `file://`
+repository ignores `-Proxy` (no HTTP involved, expected). Run it as SYSTEM on
+a node with Gallery access:
+
+```powershell
+./tools/Test-ProxyBackend.ps1
+```
+
+Manual validation 2026-10-23 (LAB-WINDOCKER-01, Windows Server 2025, 5.1):
+`Find-Module PSScriptAnalyzer` through the local authenticating proxy as
+SYSTEM succeeds; the proxy log shows `407` without credentials and
+`TUNNEL-OK` with them. `Save-Module` through the same proxy establishes
+tunnels but can stall on the post-download publisher check, so it runs
+best-effort with a timeout (TEST1 already proves the proxy path).
 
 ## Manual matrix
 

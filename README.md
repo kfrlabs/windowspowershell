@@ -189,6 +189,21 @@ deployed by file copy that PowerShellGet never recorded.
 "any version" and needs a `repository`; the file backend always needs an
 explicit version, since it has to know which directory to populate.
 
+> **Repository backend requires the default `module_root`** (issue #85):
+> `Install-Module -Scope AllUsers` always installs to
+> `C:\Program Files\WindowsPowerShell\Modules` and ignores a custom root,
+> so combining `repository` with a custom `module_root` fails compilation
+> instead of reinstalling on every run. Use the `source` backend for a
+> custom root.
+
+A custom repository must be registered for the `SYSTEM` account (issue #85):
+`Register-PSRepository` is per-user, so a repository registered in an
+interactive session is invisible to the agent and `Install-Module` fails
+with "Unable to find repository". Register it from a Scheduled Task as
+SYSTEM (or the account running the agent) on every node that uses it, before
+the first agent run. See `tools/Test-RepositoryBackend.ps1` for a
+self-contained local file repository example.
+
 `ensure => present` is install-once: it installs the newest version only when
 none is present and never upgrades an already-installed one on later runs. To
 move a node to a newer version, pin that version in `ensure`.
@@ -247,7 +262,15 @@ class { 'windowspowershell':
 The credentials reach `Install-Module` and `Install-PackageProvider` through
 `-ProxyCredential`. The script reads them from the `WPS_PROXY_USER` and
 `WPS_PROXY_PASSWORD` environment variables of the `Exec`, so the secret never
-appears in the `command` or `unless` text. The `environment` of the `Exec` is
+appears in the `command` or `unless` text.
+
+Validated end to end as SYSTEM against the real Gallery through a local
+authenticating CONNECT proxy (issue #85, `tools/Test-ProxyBackend.ps1`):
+`Find-Module` (same PackageManagement download path as `Install-Module`)
+succeeds with good credentials on Windows Server 2025. A file:// repository
+ignores `-Proxy` (expected: no HTTP involved), which is why the repository
+integration test stays offline and proxy coverage lives in the dedicated
+proxy script. The `environment` of the `Exec` is
 wrapped in `Sensitive`, which keeps it out of Puppet reports and logs. It still
 reaches the agent inside the catalog, as for any secret an agent has to use.
 

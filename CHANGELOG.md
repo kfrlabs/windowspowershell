@@ -9,6 +9,26 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ### Added
 
+- Repository backend exercised for real (issue #85): `tools/Test-RepositoryBackend.ps1`
+  with `spec/integration/site_repository.pp` registers a local file `WpsLocal`
+  repository (SYSTEM-visible), publishes `WpsRepoTest 1.0.0` (`Publish-Module
+  -Force` for non-interactive hosts) and applies the catalogue twice — the
+  second run must change nothing — on Windows Server 2022 and 2025 via a new
+  CI `integration_repository_windows` job. `tools/Test-ProxyBackend.ps1`
+  validates `-Proxy` / `-ProxyCredential` as SYSTEM against the real Gallery
+  through a local authenticating CONNECT proxy (`Find-Module` + `Save-Module`
+  succeed; `file://` ignores `-Proxy` as expected).
+
+### Fixed
+
+- `repository` with a custom `module_root` now fails compilation (issue #85):
+  `Install-Module -Scope AllUsers` always installs to
+  `C:\Program Files\WindowsPowerShell\Modules` (verified on 2025), so the
+  old code checked the custom directory, never saw the module and reinstalled
+  on every run. The `source` backend still honours a custom root. README,
+  parameter docs and `TESTING.md` now also record that `Register-PSRepository`
+  is per-user and must be done as SYSTEM.
+
 - Real-agent integration test on Windows (issue #84): a CI
   `integration_windows` job (Windows Server 2022 and 2025) installs Puppet
   agent 8, stages the module next to the pinned Forge dependencies and the
