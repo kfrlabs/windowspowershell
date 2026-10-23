@@ -12,10 +12,9 @@
     third-party proxy is needed.
 
     TEST1 finds a Gallery module through the proxy with good credentials
-    (must succeed); TEST2/TEST3 use bad / missing credentials (must fail with
-    407); TEST4 downloads a module through the proxy with Save-Module (same
-    PackageManagement download path as Install-Module, but without polluting
-    the AllUsers scope).
+    (must succeed); TEST4 downloads a module through the proxy with Save-Module
+    (same PackageManagement download path as Install-Module, but without
+    polluting the AllUsers scope, best-effort with a timeout).
 
     Run from Windows PowerShell 5.1 as SYSTEM (Scheduled Task) to match the
     agent account, or interactively for a quick check. Needs internet access
