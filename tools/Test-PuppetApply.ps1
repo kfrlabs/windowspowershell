@@ -45,12 +45,18 @@ function Assert-True([bool] $Condition, [string] $Message) {
 
 # `puppet apply --detailed-exitcodes`: 0 = no changes, 2 = changes applied,
 # any bit 1 set (1, 3, 5, ...) = failure. Returns the raw exit code.
+# Native command output must not leak into the function's return value: when
+# the caller assigns it (`$first = Invoke-PuppetApply ...`), every uncaptured
+# line would turn the result into an Object[] and break the -band checks
+# below. So the output is captured in a local, replayed to the host, and only
+# the raw exit code is returned.
 function Invoke-PuppetApply([string] $Label) {
     Write-Host "--- $Label : puppet apply $Site"
     $envArgs = @()
     if ($Environment -ne '') { $envArgs = @('--environment', $Environment) }
-    & puppet apply --detailed-exitcodes @envArgs --modulepath $Modulepath --verbose $Site
+    $output = & puppet apply --detailed-exitcodes @envArgs --modulepath $Modulepath --verbose $Site 2>&1
     $code = $LASTEXITCODE
+    $output | ForEach-Object { Write-Host $_ }
     Write-Host ("exit code: {0}" -f $code)
     $code
 }
