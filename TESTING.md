@@ -1,6 +1,6 @@
 # Testing
 
-The module is tested at four levels. The first two run on every pull request
+The module is tested at five levels. The first three run on every pull request
 (see `.github/workflows/ci.yml`); the last two need a Windows node.
 
 | Level | What it checks | Where |
@@ -8,6 +8,7 @@ The module is tested at four levels. The first two run on every pull request
 | rspec-puppet | The catalogue compiles, resources and parameters are right | Linux CI (`spec`) |
 | Rendered PowerShell | Every script the module sends to a node parses and passes PSScriptAnalyzer | Linux CI (`powershell`), Windows CI (`powershell_windows`) |
 | Runtime smoke test | The rendered scripts actually do what they say on a real Windows node | Windows CI (`powershell_windows`) |
+| Integration test | A real agent applies a catalogue twice; the second run changes nothing | Windows CI (`integration_windows`) |
 | Manual matrix | Windows releases the CI does not offer | By hand, see below |
 
 ## Rendered PowerShell
@@ -60,6 +61,48 @@ removes the tree when done.
 .\tools\Test-WindowsRuntime.ps1 -RenderedPath .rendered-powershell\runtime
 ```
 
+## Integration test (Windows only, issue #84)
+
+`tools/Test-PuppetApply.ps1` is the real-agent counterpart of the offline
+replay above: it runs `puppet apply` on `spec/integration/site.pp`, then
+applies the same catalogue a second time. The first run may change resources
+(exit code 2 with `--detailed-exitcodes`); the second must change nothing
+(exit code 0). Functional checks then verify the converged state: the
+manifest version and its nested modules, an `Import-Module` round-trip of
+both modules, and the profile import line.
+
+The catalogue is minimal and offline on purpose: an in-house module deployed
+by bulk copy (`source`), one script deployed by `content`, one third-party
+module deployed by file copy (`source` backend), and one profile import. It
+exercises what the other levels cannot: a real agent compiling the catalogue,
+ordering `File`/`Exec`/`Concat` resources, firing the
+manifest-regeneration notifies, and rejecting duplicate resources. The file
+sources are served from the `wps_integration` fixture module
+(`spec/integration/modules/wps_integration`), so the `files/` payload shipped
+to the Forge stays clean and no Gallery or NuGet access is needed. The
+repository backend (`Install-Module`, proxy) is still covered by specs and by
+hand only (issue #85).
+
+The CI `integration_windows` job (Windows Server 2022 and 2025) installs
+Puppet agent 8, stages this checkout as `windowspowershell` next to the
+pinned Forge dependencies (same versions as `.fixtures.yml`) and the fixture
+module under `C:\wps-int\modules`, stops the agent service so it cannot
+contend for the run lock, then runs:
+
+```powershell
+.\tools\Test-PuppetApply.ps1 -Site spec\integration\site.pp -Modulepath C:\wps-int\modules
+```
+
+To run the same check on a lab node (Puppet 8, Windows PowerShell 5.1), copy
+the checkout and the fixture module to the node, stage them the same way
+(`C:\wps-int\modules\windowspowershell` plus the pinned dependencies and
+`wps_integration`), create the module-root parent (`C:\wps-int` already
+exists there), then run the script. On a node enrolled to an agent
+environment that does not exist locally (e.g. `environment=saim` in
+`puppet.conf`), pass `-Environment production`. Run the apply as a Scheduled
+Task as SYSTEM: the SSH channel cannot host the `powershell` provider's
+stdin.
+
 ## Manual matrix
 
 Run on each release, with Windows PowerShell 5.1 and PowerShell 7 installed
@@ -70,12 +113,12 @@ Run on each release, with Windows PowerShell 5.1 and PowerShell 7 installed
 3. `puppet agent -t` with a catalogue that uses `windowspowershell` once, then a
    second time: no resource may change on the second run.
 
-| Release | Parse + PSScriptAnalyzer | Runtime smoke | Notes |
-| --- | --- | --- | --- |
-| Windows Server 2025 | 5.1: pass | 5.1: pass | Manual, 2026-10-21 (see below). Double `puppet apply`: no changes on 2nd run. pwsh not installed on the lab host; PowerShell 7 covered by CI (`powershell_windows`, 2022 + 2025). |
-| Windows Server 2022 | CI (`windows-2022`) | CI | Run by `powershell_windows` |
-| Windows Server 2019 | not run | not run | Claimed in `metadata.json` but still to be tested/confirmed (issue #70). No lab host yet; `ltsc2019` container pull failed (disk full on the Docker host). Same PS 5.1 code paths as the validated 2025 run. |
-| Windows 10 / 11 | not run | not run | To do by hand |
+| Release | Parse + PSScriptAnalyzer | Runtime smoke | Integration (`apply` twice) | Notes |
+| --- | --- | --- | --- | --- |
+| Windows Server 2025 | 5.1: pass | 5.1: pass | CI (`windows-2025`) | Manual, 2026-10-21 (see below). pwsh not installed on the lab host; PowerShell 7 covered by CI (`powershell_windows`, 2022 + 2025). |
+| Windows Server 2022 | CI (`windows-2022`) | CI | CI (`windows-2022`) | Run by `powershell_windows` + `integration_windows` |
+| Windows Server 2019 | not run | not run | not run | Claimed in `metadata.json` but still to be tested/confirmed (issue #70). No lab host yet; `ltsc2019` container pull failed (disk full on the Docker host). Same PS 5.1 code paths as the validated 2025 run. |
+| Windows 10 / 11 | not run | not run | not run | To do by hand |
 
 Update this table when a release is verified.
 
