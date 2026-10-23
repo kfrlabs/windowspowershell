@@ -9,8 +9,12 @@
 # It exercises what rspec-puppet and the offline script replays cannot: a real
 # agent compiling this catalog, ordering File/Exec/Concat resources, firing the
 # manifest-regeneration notifies, and detecting duplicate resources.
+# Backslashes on purpose: update_manifest.ps1.epp derives the NestedModules
+# entries with a plain string Replace of the module path, so a forward-slashed
+# module_root would leave absolute paths in the manifest. Backslashes keep the
+# entries relative (Functions\...), like the runtime smoke test's root.
 class { 'windowspowershell':
-  module_root => 'C:/wps-int/Modules',
+  module_root => 'C:\wps-int\Modules',
 }
 
 # In-house module deployed by bulk copy (`source`): covers the recursive

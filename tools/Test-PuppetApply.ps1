@@ -81,7 +81,11 @@ try {
     Assert-True (Test-Path -LiteralPath $manifest) 'in-house: manifest written'
     $data = Import-PowerShellDataFile -LiteralPath $manifest
     Assert-True ($data.ModuleVersion -eq '1.0') 'in-house: manifest version is 1.0'
-    Assert-True ((@($data.NestedModules) -contains 'Functions\Get-WpsIntHello.ps1') -and ((@($data.NestedModules) -join ',') -match 'Get-WpsIntFromSource')) 'in-house: both scripts are nested modules'
+    # Match on file names, not on the exact relative form: the entries stay
+    # relative with a backslashed module_root (see site.pp) but could
+    # legitimately be absolute if a site passes forward slashes.
+    $nested = @($data.NestedModules) -join ','
+    Assert-True (($nested -match 'Get-WpsIntHello\.ps1') -and ($nested -match 'Get-WpsIntFromSource\.ps1')) 'in-house: both scripts are nested modules'
 
     $witness = Join-Path $ModuleRoot 'WpsInt\1.0\.manifest-params'
     Assert-True (Test-Path -LiteralPath $witness) 'in-house: manifest witness written'
