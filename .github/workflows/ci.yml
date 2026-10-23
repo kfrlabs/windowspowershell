@@ -91,7 +91,7 @@ jobs:
         shell: pwsh
         run: |
           Install-Module PSScriptAnalyzer -Scope CurrentUser -Force
-          ./tools/Test-RenderedPowerShell.ps1 -Path .rendered-powershell, files
+          ./tools/Test-RenderedPowerShell.ps1 -Path .rendered-powershell, files, spec/integration/modules/wps_integration/files
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: rendered-powershell
@@ -119,15 +119,55 @@ jobs:
         shell: powershell
         run: |
           Install-Module PSScriptAnalyzer -Scope CurrentUser -Force
-          ./tools/Test-RenderedPowerShell.ps1 -Path .rendered-powershell, files
+          ./tools/Test-RenderedPowerShell.ps1 -Path .rendered-powershell, files, spec/integration/modules/wps_integration/files
       - name: Parse and lint (PowerShell 7)
         shell: pwsh
         run: |
           Install-Module PSScriptAnalyzer -Scope CurrentUser -Force
-          ./tools/Test-RenderedPowerShell.ps1 -Path .rendered-powershell, files
+          ./tools/Test-RenderedPowerShell.ps1 -Path .rendered-powershell, files, spec/integration/modules/wps_integration/files
       - name: Runtime smoke test (Windows PowerShell 5.1)
         shell: powershell
         run: ./tools/Test-WindowsRuntime.ps1 -RenderedPath .rendered-powershell/runtime
+
+  integration_windows:
+    name: 'Puppet apply on ${{ matrix.os }}'
+    needs: powershell_windows
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - windows-2022
+          - windows-2025
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install Puppet agent 8
+        shell: powershell
+        run: |
+          # Pinned: metadata.json requires puppet >= 8 < 9, so this must stay
+          # on Puppet 8 even when the community feed offers a newer major.
+          choco install puppet-agent --version 8.10.0 -y --no-progress
+          'C:\Program Files\Puppet Labs\Puppet\bin' | Out-File -FilePath $env:GITHUB_PATH -Append
+      - name: Stage the test modules
+        shell: powershell
+        run: |
+          # The checkout is not on a modulepath and its directory name is not
+          # guaranteed, so copy it under its module name next to the pinned
+          # Forge dependencies (kept in sync with .fixtures.yml, issue #71) and
+          # the wps_integration fixture module carrying the file sources.
+          $staging = 'C:\wps-int\modules'
+          New-Item -ItemType Directory -Path 'C:\wps-int' -Force | Out-Null
+          New-Item -ItemType Directory -Path $staging -Force | Out-Null
+          Copy-Item -Recurse -Force "$env:GITHUB_WORKSPACE" "$staging\windowspowershell"
+          Copy-Item -Recurse -Force "$env:GITHUB_WORKSPACE\spec\integration\modules\wps_integration" "$staging\wps_integration"
+          puppet module install puppetlabs-stdlib --version 9.7.0 --target-dir $staging
+          puppet module install puppetlabs-concat --version 9.1.0 --target-dir $staging
+          puppet module install puppetlabs-powershell --version 6.2.0 --target-dir $staging
+      - name: Double puppet apply (second run must be clean)
+        shell: powershell
+        run: |
+          Stop-Service puppet -ErrorAction SilentlyContinue
+          ./tools/Test-PuppetApply.ps1 -Site spec/integration/site.pp -Modulepath 'C:\wps-int\modules'
 
   module_build:
     name: 'puppet module build'
@@ -192,6 +232,7 @@ jobs:
       - spec
       - powershell
       - powershell_windows
+      - integration_windows
       - module_build
     runs-on: ubuntu-latest
     steps:

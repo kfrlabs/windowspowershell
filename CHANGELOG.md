@@ -5,6 +5,21 @@ All notable changes to this module are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Real-agent integration test on Windows (issue #84): a CI
+  `integration_windows` job (Windows Server 2022 and 2025) installs Puppet
+  agent 8, stages the module next to the pinned Forge dependencies and the
+  `wps_integration` fixture module, then `tools/Test-PuppetApply.ps1` applies
+  `spec/integration/site.pp` twice — the second run must change nothing — and
+  checks the converged state (`Import-Module` round-trip of both modules, the
+  profile import line). The offline catalogue (in-house module by bulk copy,
+  script by content, external module by file copy, all from `source`) covers
+  ordering, notifies and duplicate resources without Gallery or NuGet access.
+  `TESTING.md` documents the new level and how to run it on a lab node.
+
 ## [2.0.0] - 2026-10-22
 
 ### Added

@@ -1,0 +1,24 @@
+{
+  "name": "puppet-wps_integration",
+  "version": "0.1.0",
+  "author": "ci",
+  "summary": "Fixture module holding file sources for the windowspowershell integration test (spec/integration). Never published.",
+  "license": "Apache-2.0",
+  "source": "https://github.com/kfrlabs/windowspowershell",
+  "dependencies": [],
+  "operatingsystem_support": [
+    {
+      "operatingsystem": "windows",
+      "operatingsystemrelease": [
+        "2022",
+        "2025"
+      ]
+    }
+  ],
+  "requirements": [
+    {
+      "name": "puppet",
+      "version_requirement": ">= 8.0.0 < 9.0.0"
+    }
+  ]
+}
