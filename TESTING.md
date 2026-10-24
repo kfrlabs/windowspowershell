@@ -157,6 +157,47 @@ SYSTEM succeeds; the proxy log shows `407` without credentials and
 tunnels but can stall on the post-download publisher check, so it runs
 best-effort with a timeout (TEST1 already proves the proxy path).
 
+## Non-ASCII encoding (Windows PowerShell 5.1, issue #89)
+
+`Windowspowershell::Name` accepts non-ASCII (`Café-Tools` is in the type
+spec), and `windowspowershell::script` writes `content` verbatim. Puppet
+`File`/`Concat` resources serialize that text as UTF-8 **without** a BOM,
+and Windows PowerShell 5.1 decodes a BOM-less file with the system ANSI
+code page instead. The linter (`tools/Test-RenderedPowerShell.ps1`) reads
+every file explicitly as UTF-8, so CI never sees the corruption -- only a
+real 5.1 host does.
+
+Manual verification 2026-10-24 (Windows Server 2025, 5.1.26100.33438):
+
+- Host `LAB-WINDOCKER-01` (Docker Windows): a `café èè ü` string written
+  as UTF-8 without BOM dot-sources under 5.1 as 19 characters
+  (`99 97 102 101 195 169 ...`, the UTF-8 bytes `C3 A9` read as two ANSI
+  characters) instead of 15 (`... 233 ...` for `é`); the same bytes with
+  a BOM read back correctly. Byte-level proof that 5.1 follows the BOM.
+- Host `LAB-WIN-01` (Puppet 8.31.0 agent): catalogue with
+  `windowspowershell::module { 'Café-Tools': }` and
+  `windowspowershell::script { 'Get-CaféTest': content => "function
+  Get-CaféTest { 'café èè ü' }\n" }`, applied twice as SYSTEM (Scheduled
+  Task, the SSH channel cannot host the `powershell` provider's stdin).
+  First run exits 2 (module tree, root module, witness, manifest creation
+  and the `update-manifest`/`unblock-files` refreshes all converge);
+  second run exits 0 (fully idempotent -- the encoding changes nothing
+  about convergence). The deployed `Get-CaféTest.ps1` is 43 bytes, UTF-8,
+  no BOM (`... 43 61 66 C3 A9 ...`, `hasBOM=False`); the `Café-Tools`
+  directory and the manifest `NestedModules` entry
+  (`Functions\Get-CaféTest.ps1`) keep the `é`. `Import-Module Café-Tools`
+  succeeds, but the exported function is registered under its mojibake
+  spelling (`Get-CafÃ©Test`), so calling `Get-CaféTest` fails with
+  `CommandNotFoundException`.
+
+Conclusion (documented limitation, no code change): keep module names,
+script names and script content ASCII-only wherever Windows PowerShell
+5.1 may run the agent. Files deployed from a `source` (bulk module copy,
+external-module file copy) are byte-copies -- save them ASCII-only (or
+UTF-8 with BOM, which 5.1 honours) at the source. PowerShell 7 reads
+BOM-less UTF-8 correctly, so the limitation is specific to the 5.1 host
+running the agent. See [Limitations](README.md#limitations).
+
 ## Manual matrix
 
 Run on each release, with Windows PowerShell 5.1 and PowerShell 7 installed

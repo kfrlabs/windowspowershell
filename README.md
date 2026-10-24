@@ -549,3 +549,11 @@ Contributions are welcome via GitHub issues and pull requests.
   fragments (see [Co-managing the profiles](#co-managing-the-profiles)), but
   lines written by a GPO startup script, another tool or an administrator are
   removed. Managing only a delimited block of the file is not supported.
+- Non-ASCII module names, script names and script content are not supported
+  where Windows PowerShell 5.1 runs the agent (issue #89): the files Puppet
+  writes are UTF-8 without a BOM, which 5.1 reads as ANSI, so e.g.
+  `Café-Tools` converges (the double apply is clean) but the deployed
+  function is unreachable under its real name. Keep names and content
+  ASCII-only where 5.1 may run; files deployed from a `source` must be saved
+  accordingly (UTF-8 with BOM also works, PowerShell 7 reads BOM-less UTF-8
+  fine). Verified on Windows Server 2025, see `TESTING.md`.
