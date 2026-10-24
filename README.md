@@ -350,6 +350,29 @@ does no per-session unblocking: unblocking is a deployment concern, and doing
 it on every import walked the whole tree on each PowerShell session that
 loaded the module.
 
+### Execution cost per run (issue #92)
+
+In steady state (nothing to change), each managed module costs one
+PowerShell spawn per run: the `unless` guard of its version-purge `Exec`
+(`windowspowershell::module` and the `source` backend of
+`windowspowershell::external_module`). A repository-backed external module
+costs two (install check plus purge check). Measured on Windows Server 2025
+(Puppet 8.31, agent as SYSTEM): ~0.65 s per module (~1.5 s once per run for
+the first, cold spawn; ~0.6 s each after that).
+
+| In-house modules | Stable run, total | Of which purge checks |
+|---|---|---|
+| 1 | ~34 s | ~1.5 s |
+| 10 | ~40 s | ~7 s |
+| 30 | ~54 s | ~20 s |
+
+The run total is dominated by a fixed Puppet overhead (~30 s of fact
+collection on the measured node plus catalog compilation), not by this
+module: up to about fifteen modules the extra cost disappears in the noise.
+Past that, budget roughly 0.65 s per module per run. If a module's versions
+are guaranteed unique (a single `external_module` per name, no side-by-side
+copies), `purge_versions => false` drops its per-run cost to zero.
+
 ### Co-managing the profiles
 
 The machine-wide profiles (`System32`, `SysWOW64` and, when managed, PowerShell
