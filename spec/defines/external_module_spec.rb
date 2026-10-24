@@ -406,6 +406,26 @@ describe 'windowspowershell::external_module' do
         it { is_expected.to compile.and_raise_error(%r{needs a 'repository' or a 'source'}) }
       end
 
+      # Install-Module -Scope AllUsers ignores a custom module_root (issue #85):
+      # the check would miss the module and reinstall on every run.
+      context 'from a repository with a custom module_root' do
+        let(:params) { { 'ensure' => '2.1.0', 'repository' => 'PSGallery' } }
+        let(:pre_condition) { "class { 'windowspowershell': module_root => 'C:\\wps-custom\\Modules' }" }
+
+        it { is_expected.to compile.and_raise_error(%r{needs the default 'module_root'}) }
+      end
+
+      context 'from a source with a custom module_root' do
+        let(:params) { { 'ensure' => '2.1.0', 'source' => 'puppet:///modules/x/y/' } }
+        let(:pre_condition) { "class { 'windowspowershell': module_root => 'C:\\wps-custom\\Modules' }" }
+
+        it { is_expected.to compile.with_all_deps }
+
+        it 'copies into the custom root' do
+          is_expected.to contain_file('C:\\wps-custom\\Modules\\ExampleModule\\2.1.0')
+        end
+      end
+
       context 'with ensure => absent' do
         let(:params) { { 'ensure' => 'absent' } }
 

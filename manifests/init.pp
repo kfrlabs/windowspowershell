@@ -13,8 +13,13 @@
 # system.
 #
 # @param module_root
-#   Machine-wide PowerShell module directory, shared by every in-house module
-#   this class lays out and by `windowspowershell::external_module`. The module manages this directory itself (via ensure_resource,
+#   Machine-wide PowerShell module directory, shared by every in-house
+#   module this class lays out and by `windowspowershell::external_module`
+#   with the `source` backend. The `repository` backend always installs
+#   with `Install-Module -Scope AllUsers` to
+#   `C:\Program Files\WindowsPowerShell\Modules` and ignores a custom root
+#   (issue #85): combining `repository` with a custom `module_root` fails
+#   compilation. The module manages this directory itself (via ensure_resource,
 #   so it can be co-managed by another module), but its parent must already
 #   exist.
 # @param manage_profiles

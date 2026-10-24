@@ -63,7 +63,9 @@ describe 'windowspowershell', type: :class do
       windowspowershell::external_module { 'Proxied': ensure => '1.2.3', repository => 'PSGallery' }
     PUPPET
     # Fixed layout for the Windows runtime smoke test: it builds this tree on a
-    # real node and runs the rendered scripts against it.
+    # real node and runs the rendered scripts against it. Repository-backed modules stay
+    # out of this scenario (issue #85): Install-Module -Scope AllUsers ignores the custom
+    # runtime root, so they are covered by external_from_repository instead.
     'runtime' => <<~PUPPET,
       windowspowershell::module { 'WpsSmoke': version => '1.4', author => 'CI', companyname => 'CI', import_in_profile => false }
       windowspowershell::external_module { 'WpsPinned':
@@ -71,7 +73,7 @@ describe 'windowspowershell', type: :class do
         source            => 'puppet:///modules/profile/pinned',
         import_in_profile => false,
       }
-      windowspowershell::external_module { 'WpsFloating': ensure => present, repository => 'PSGallery' }
+      windowspowershell::external_module { 'WpsFloating': ensure => '1.0.0', source => 'puppet:///modules/profile/floating' }
       windowspowershell::external_module { 'WpsGone': ensure => absent }
     PUPPET
   }

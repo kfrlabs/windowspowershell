@@ -40,6 +40,13 @@
 #   suppresses the untrusted-repository prompt: the repository named here is
 #   trusted to execute code as `SYSTEM`, so prefer an internal mirror in
 #   production.
+#   Requires the default `module_root`
+#   (`C:\Program Files\WindowsPowerShell\Modules`):
+#   `Install-Module -Scope AllUsers` always installs there and ignores a
+#   custom root (issue #85), so a custom root would reinstall on every run.
+#   The custom repository itself must be registered for the `SYSTEM` account
+#   (`Register-PSRepository` is per-user): a repository registered in an
+#   interactive session is invisible to the agent (see README).
 # @param source
 #   Puppet file source holding the module files, for nodes that cannot reach a
 #   repository. Mutually exclusive with `repository`.
@@ -113,6 +120,21 @@ define windowspowershell::external_module (
     'present' => undef,
     'absent'  => undef,
     default   => $ensure,
+  }
+
+  # The repository backend installs with `Install-Module -Scope AllUsers`,
+  # which always targets `C:\Program Files\WindowsPowerShell\Modules` and
+  # ignores a custom `module_root` (verified on Windows Server 2025, issue
+  # #85): the install check would then look in the custom directory, never
+  # see the module, and reinstall on every run. Refuse that combination at
+  # compile time instead of converging never. The `source` backend honours
+  # `module_root` and stays available for isolated roots (integration test,
+  # smoke test).
+  if $repository =~ NotUndef {
+    $normalized_root = regsubst(downcase($windowspowershell::module_root), '/', '\\', 'G')
+    if $normalized_root != 'c:\\program files\\windowspowershell\\modules' {
+      fail("windowspowershell::external_module[${name}]: 'repository' needs the default 'module_root' ('C:\\Program Files\\WindowsPowerShell\\Modules'): 'Install-Module -Scope AllUsers' always installs there and ignores a custom root, so the install check would miss the module and reinstall on every run. Keep the default root for repository-backed modules, or use 'source' for a custom root.")
+    }
   }
 
   if !$windowspowershell::supported {
