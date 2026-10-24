@@ -122,9 +122,7 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   old folder behind declaring a stale manifest, so the one-time manual cleanup
   step from the 1.2.0 migration note is no longer needed on nodes that run
   this version. Set `purge_versions => false` to keep old versions side by
-  side. Modules created implicitly by `windowspowershell::script` also purge
-  by default; declare the module explicitly with `purge_versions => false`
-  first to opt out.
+  side.
 
 ### Changed
 
@@ -150,6 +148,19 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   is now a parameter type mismatch (`parameter 'scriptname'`) instead of the
   `must not end with '.ps1' or '.psm1'` message. Dots elsewhere stay
   legitimate (`Get-Example.v2`).
+- **Breaking (v2.0, issue #28):** the generated manifest's GUID is now derived from the
+  module name alone instead of name and version. PowerShell identifies a module by
+  name plus GUID and expects the GUID to stay the same from one version of a
+  module to the next; with the old derivation, bumping `version` gave the new
+  folder a different GUID, so two version folders of the same module declared
+  two different module identities.
+  - Migration: existing nodes keep the old GUID until the manifest is next
+    regenerated (the first run after the issue #45 witness file lands, a script
+    change, or a missing `.psd1`), at which point it changes once to the new
+    name-derived value. Anything that pinned the old
+    GUID, such as a `RequiredModules` entry with a `GUID` key, has to be
+    updated.
+
 - The version normalise-and-compare PowerShell helpers are now factorised
   (issue #52): `templates/_version_compare.ps1.epp` defines
   `Get-NormalizedVersion`, `Test-PinnedVersionMatch` and `Test-IsExtraVersion`
@@ -179,6 +190,20 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   tested/confirmed; see `TESTING.md`.
   - Migration: run the module on a supported release. No manifest change is
     needed.
+
+- **Breaking (v2.0, issue #46):** `windowspowershell::script` no longer builds the module it
+  names with `ensure_resource`. That implicit module made the
+  version depend on declaration order: an explicit `windowspowershell::module`
+  declared from a scope evaluated after the script's body died with Puppet's
+  bare `Duplicate declaration`. The module now has to be declared explicitly
+  (`windowspowershell::module { 'Acme': }` is enough for the defaults), and a
+  script naming an undeclared module fails to compile with a message that
+  names the module and says where to declare it. Declaring the module before
+  or after the scripts in the same class stays fine, because a define body is
+  evaluated after the scope that declared it.
+  - Migration: add a `windowspowershell::module` for every `modulename` that
+    was only ever created implicitly. Nothing changes on the node: same
+    module name, same defaults, same paths.
 
 ### Fixed
 
@@ -225,32 +250,6 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
     witness) to force a rebuild.
   - New specs cover an `author`-only and a `companyname`-only change.
 
-- **Breaking:** `windowspowershell::script` no longer builds the module it
-  names with `ensure_resource` (issue #46). That implicit module made the
-  version depend on declaration order: an explicit `windowspowershell::module`
-  declared from a scope evaluated after the script's body died with Puppet's
-  bare `Duplicate declaration`. The module now has to be declared explicitly
-  (`windowspowershell::module { 'Acme': }` is enough for the defaults), and a
-  script naming an undeclared module fails to compile with a message that
-  names the module and says where to declare it. Declaring the module before
-  or after the scripts in the same class stays fine, because a define body is
-  evaluated after the scope that declared it.
-  - Migration: add a `windowspowershell::module` for every `modulename` that
-    was only ever created implicitly. Nothing changes on the node: same
-    module name, same defaults, same paths.
-- The generated manifest's GUID is now derived from the module name alone
-  instead of name and version (issue #28). PowerShell identifies a module by
-  name plus GUID and expects the GUID to stay the same from one version of a
-  module to the next; with the old derivation, bumping `version` gave the new
-  folder a different GUID, so two version folders of the same module declared
-  two different module identities.
-  - Migration: existing nodes keep the old GUID until the manifest is next
-    regenerated (the first run after the issue #45 witness file lands, a script
-    change, or a missing `.psd1`), at which point it changes once to the new
-    name-derived value. Anything that pinned the old
-    GUID, such as a `RequiredModules` entry with a `GUID` key, has to be
-    updated.
-
 - CI and release hardening (issue #32):
   - Every third-party action in `ci.yml` and `release.yml` is pinned to a full
     commit SHA, with the tag in a trailing comment, and a Dependabot
@@ -259,6 +258,9 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
     publishing (Puppet 7 / Puppet 8 at the time; since reduced to Puppet 8
     only by issue #72). The tests run in separate jobs, so the `forge`
     environment and its credentials are only exposed to the final publish job.
+    Known limitation (issue #91): only `rspec-puppet` is re-run on tag pushes;
+    the `powershell` / `powershell_windows` and Windows integration jobs are
+    not re-run by `release.yml`.
   - `puppetlabs_spec_helper` moved from the `release_prep` to the `test` gem
     group: the `Rakefile` requires it unconditionally, so
     `BUNDLE_WITHOUT=release_prep` no longer fails with a `LoadError`.

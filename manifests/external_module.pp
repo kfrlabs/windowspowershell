@@ -205,7 +205,7 @@ define windowspowershell::external_module (
       file { "${module_dir}\\${module_version}":
         ensure  => directory,
         recurse => true,
-        source  => pick($source, "puppet:///modules/windowspowershell/modules/${modulename}/${module_version}/"),
+        source  => $source,
         require => File[$module_dir],
       }
       $installed_by = File["${module_dir}\\${module_version}"]

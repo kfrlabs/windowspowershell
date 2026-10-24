@@ -47,6 +47,24 @@ different `ensure`.
 include windowspowershell
 ```
 
+### Upgrading to 2.0
+
+Checklist when coming from 1.x (details in [CHANGELOG.md](CHANGELOG.md#200---2026-10-22)):
+
+- `import_in_profile` now defaults to `false` (issue #69): set it `true`
+  explicitly where aliases/variables must be available at startup.
+- Declare every in-house module explicitly (issue #46): `script` no longer
+  creates its module, and `purge_versions` (default `true`, issue #29) cleans
+  old version folders.
+- Expect one manifest regeneration (issues #45, #28): the witness file makes
+  `author`/`companyname`/`version`/GUID changes converge, and the GUID becomes
+  name-derived once.
+- Puppet 7 and Windows Server 2016 are dropped (issues #72, #70): run Puppet 8
+  on a supported release.
+- `proxy` URLs with userinfo and `scriptname` ending in `.ps1`/`.psm1` fail
+  on parameter typing (issues #57, #56): move credentials to
+  `proxy_credential`.
+
 ### In-house modules: `windowspowershell::module`
 
 One resource is one module identity. Every module has to be declared: a

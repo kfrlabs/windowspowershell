@@ -47,6 +47,8 @@ jobs:
   # having been tested on every Puppet version that metadata.json declares.
   # Kept out of the `release` job on purpose: that job is the only one that
   # runs in the `forge` environment and sees the Forge credentials.
+  # Known limitation (issue #91): only rspec-puppet is re-run here, not the
+  # `powershell` / `powershell_windows` and Windows integration jobs.
   spec:
     name: 'rspec-puppet (Puppet ${{ matrix.puppet_version }}, Ruby ${{ matrix.ruby }})'
     needs: verify
