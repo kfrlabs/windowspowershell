@@ -47,6 +47,13 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   deployed function is unreachable under its real name. ASCII-only names
   and content are now the documented rule where 5.1 may run the agent.
 
+- `manage_profiles` documented as destructive by design (issue #90):
+  default `true` rebuilds each managed profile from its fragments without
+  a backup from the first run, so existing content not from a
+  `concat::fragment` is removed. README (Co-managing) and the parameter
+  docs now state the first-run backup/inventory step and recommend piloting
+  with `manage_profiles => false` before opting in. No behaviour change.
+
 ### Fixed
 
 - Missing `module_root` parent now fails fast with an explicit message
