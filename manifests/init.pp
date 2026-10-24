@@ -20,8 +20,12 @@
 #   `C:\Program Files\WindowsPowerShell\Modules` and ignores a custom root
 #   (issue #85): combining `repository` with a custom `module_root` fails
 #   compilation. The module manages this directory itself (via ensure_resource,
-#   so it can be co-managed by another module), but its parent must already
-#   exist.
+#   so it can be co-managed by another module), but it never creates missing
+#   parents: when the parent directory does not exist on the node, the run
+#   fails early with a message naming `module_root` and the missing parent
+#   (issue #96) instead of the file provider's generic error. Create the
+#   parent on the node before the run, or fix the typo. See
+#   "Troubleshooting" in the README.
 # @param manage_profiles
 #   Whether to manage the machine-wide PowerShell profiles. Each in-house
 #   module with `import_in_profile => true` adds its own

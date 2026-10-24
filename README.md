@@ -371,7 +371,10 @@ collection on the measured node plus catalog compilation), not by this
 module: up to about fifteen modules the extra cost disappears in the noise.
 Past that, budget roughly 0.65 s per module per run. If a module's versions
 are guaranteed unique (a single `external_module` per name, no side-by-side
-copies), `purge_versions => false` drops its per-run cost to zero.
+copies), `purge_versions => false` drops its per-run cost to zero. On top of
+the per-module checks, every run also evaluates the `module_root` parent
+guard of `windowspowershell::install` (issue #96): one `unless` spawn per
+run (~0.6 s), whether or not anything is managed.
 
 ### Co-managing the profiles
 
@@ -470,6 +473,35 @@ The module ships one custom fact:
 `proxy` and `proxy_credential` are class parameters, not facts: see
 [Proxy](#proxy).
 
+### Troubleshooting
+
+#### `module_root` parent does not exist (issue #96)
+
+A custom `module_root` whose parent directory does not exist on the node
+fails the run before anything is deployed:
+
+```text
+Error: .../Exec[windowspowershell module_root parent exists]/returns:
+change from 'notrun' to ['0'] failed: 'throw 'windowspowershell:
+module_root ''C:\wps-perf\Modules1'' was not created: parent directory
+''C:\wps-perf'' does not exist. ...''' ...
+Notice: .../File[C:\wps-perf\Modules1]: Dependency Exec[windowspowershell
+module_root parent exists] has failures: true
+Warning: .../File[C:\wps-perf\Modules1]: Skipping because of failed dependencies
+```
+
+With `--detailed-exitcodes` the run reports failure (exit 4 when nothing
+else changed), and every resource depending on `module_root` is skipped.
+This is the guard in `windowspowershell::install` failing fast with an
+explicit message, instead of the file provider's generic `parent directory
+... does not exist` further down the run.
+
+Fix: create the parent on the node (`New-Item -ItemType Directory -Path
+C:\wps-perf`), or fix the typo in `module_root`. The module deliberately
+does not create missing parents: silently growing an arbitrary tree as
+SYSTEM would turn a typo into a green run deploying modules where
+PowerShell never looks.
+
 ## Reference
 
 See [REFERENCE.md](REFERENCE.md), generated with
@@ -492,7 +524,11 @@ Contributions are welcome via GitHub issues and pull requests.
   type** are a no-op, so nodes can be classified without filtering on the
   operating system. Parameter validation still runs everywhere, so a bad
   `scriptname` or a missing `content` fails the catalogue on Linux too.
-- The parent of `module_root` must already exist.
+- The parent of `module_root` must already exist: the module manages the
+  directory itself but never creates missing parents (a typo would otherwise
+  turn into a green run deploying where PowerShell never looks). A missing
+  parent fails the run early with an explicit message naming `module_root`
+  and the parent (issue #96); see [Troubleshooting](#troubleshooting).
 - Requires `puppetlabs/powershell` for the `powershell` Exec provider,
   `puppetlabs/stdlib`, and `puppetlabs/concat` for the profile fragments.
 - Version purging (`windowspowershell::external_module`) works on the versioned
