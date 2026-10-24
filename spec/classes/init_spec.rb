@@ -76,13 +76,6 @@ describe 'windowspowershell' do
         it { is_expected.to contain_file('C:\\Program Files\\Custom\\Modules').with_ensure('directory') }
       end
 
-      context 'with a UNC module_root' do
-        let(:params) { { 'module_root' => '\\\\serveur\\partage\\Modules' } }
-
-        it { is_expected.to compile.with_all_deps }
-        it { is_expected.to contain_file('\\\\serveur\\partage\\Modules').with_ensure('directory') }
-      end
-
       # A bracket is legal in the type and Windows itself allows it; PowerShell
       # only misreads it with -Path, not with the file resources here.
       context 'with a module_root holding brackets' do
@@ -90,6 +83,115 @@ describe 'windowspowershell' do
 
         it { is_expected.to compile.with_all_deps }
         it { is_expected.to contain_file('C:\\Modules[1]').with_ensure('directory') }
+
+        # The guard uses -LiteralPath for the same reason, so brackets in the
+        # parent do not turn into a wildcard match.
+        it 'checks the bracketed parent literally' do
+          is_expected.to contain_exec('windowspowershell module_root parent exists').
+            with_unless(%r{Test-Path -LiteralPath 'C:\\'})
+        end
+      end
+
+      # Issue #96: a module_root whose parent does not exist on the node used
+      # to fail the run with the file provider's generic message while every
+      # dependent resource was skipped in cascade (exit 4). The install class
+      # now checks the parent first, ordered before File[$module_root], and
+      # fails with a message naming module_root and the missing parent.
+      context 'with the default module_root' do
+        it 'checks the parent before creating the directory' do
+          is_expected.to contain_exec('windowspowershell module_root parent exists').
+            with_provider('powershell').
+            with_before('File[C:\Program Files\WindowsPowerShell\Modules]')
+        end
+
+        it 'names the missing parent in the guard' do
+          is_expected.to contain_exec('windowspowershell module_root parent exists').
+            with_unless(%r{Test-Path -LiteralPath 'C:\\Program Files\\WindowsPowerShell'})
+        end
+
+        it 'names module_root and the parent in the failure message' do
+          is_expected.to contain_exec('windowspowershell module_root parent exists').
+            with_command(%r{module_root.*C:\\Program Files\\WindowsPowerShell\\Modules.*parent directory.*C:\\Program Files\\WindowsPowerShell})
+        end
+      end
+
+      context 'with a custom module_root one level deep' do
+        let(:params) { { 'module_root' => 'C:\wps-perf\Modules1' } }
+
+        it { is_expected.to compile.with_all_deps }
+
+        it 'guards on the immediate parent' do
+          is_expected.to contain_exec('windowspowershell module_root parent exists').
+            with_unless(%r{Test-Path -LiteralPath 'C:\\wps-perf'}).
+            with_before('File[C:\wps-perf\Modules1]')
+        end
+
+        it 'names the custom root in the failure message' do
+          is_expected.to contain_exec('windowspowershell module_root parent exists').
+            with_command(%r{module_root.*C:\\wps-perf\\Modules1.*parent directory.*C:\\wps-perf})
+        end
+      end
+
+      context 'with a custom module_root carrying a trailing slash' do
+        let(:params) { { 'module_root' => 'C:\wps-perf\Modules1\\' } }
+
+        it { is_expected.to compile.with_all_deps }
+
+        it 'guards on the parent, not on the empty trailing segment' do
+          is_expected.to contain_exec('windowspowershell module_root parent exists').
+            with_unless(%r{Test-Path -LiteralPath 'C:\\wps-perf'})
+        end
+      end
+
+      context 'with a module_root directly under a drive root' do
+        let(:params) { { 'module_root' => 'C:\Modules' } }
+
+        it { is_expected.to compile.with_all_deps }
+
+        it 'guards on the drive root, naming a missing drive explicitly' do
+          is_expected.to contain_exec('windowspowershell module_root parent exists').
+            with_unless(%r{Test-Path -LiteralPath 'C:\\'})
+        end
+      end
+
+      context 'with a UNC module_root' do
+        let(:params) { { 'module_root' => '\\\\serveur\\partage\\Modules' } }
+
+        it { is_expected.to compile.with_all_deps }
+        it { is_expected.to contain_file('\\\\serveur\\partage\\Modules').with_ensure('directory') }
+
+        it 'guards on the share' do
+          is_expected.to contain_exec('windowspowershell module_root parent exists').
+            with_unless(%r{Test-Path -LiteralPath '\\\\serveur\\partage'})
+        end
+      end
+
+      # A bare drive root is its own parent: there is nothing to check.
+      context 'with a module_root that is a drive root' do
+        let(:params) { { 'module_root' => 'C:\\' } }
+
+        it { is_expected.to compile.with_all_deps }
+        it { is_expected.to contain_file('C:\\').with_ensure('directory') }
+        it { is_expected.not_to contain_exec('windowspowershell module_root parent exists') }
+      end
+
+      # A bare share root has no checkable parent: '\\serveur' is not a
+      # directory Test-Path can check, so the file provider's own error
+      # stays the signal.
+      context 'with a module_root that is a bare share root' do
+        let(:params) { { 'module_root' => '\\\\serveur\\partage' } }
+
+        it { is_expected.to compile.with_all_deps }
+        it { is_expected.not_to contain_exec('windowspowershell module_root parent exists') }
+      end
+
+      # The 5.1 provider behind Test-Path does not understand the '\\?\'
+      # prefix: the check would fail closed on an existing directory.
+      context 'with an extended-prefix module_root' do
+        let(:params) { { 'module_root' => '\\\\?\\C:\\wps\\Modules' } }
+
+        it { is_expected.to compile.with_all_deps }
+        it { is_expected.not_to contain_exec('windowspowershell module_root parent exists') }
       end
 
       context 'without PowerShell 7' do
@@ -465,6 +567,7 @@ describe 'windowspowershell' do
     it 'is a no-op' do
       is_expected.not_to contain_class('windowspowershell::install')
       is_expected.not_to contain_class('windowspowershell::config')
+      is_expected.not_to contain_exec('windowspowershell module_root parent exists')
       expect(catalogue.resources.reject { |r| %w[Class Stage Node].include?(r.type) }).to be_empty
     end
 

@@ -21,6 +21,19 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- Missing `module_root` parent now fails fast with an explicit message
+  (issue #96): whether the parent directory exists is node state,
+  unknowable at compile time, so `windowspowershell::install` checks it at
+  the start of the run, ordered before the managed directory, and fails
+  naming `module_root` and the missing parent — instead of the file
+  provider's generic `parent directory ... does not exist` with every
+  dependent resource skipped in cascade. Verified on Windows Server 2025
+  with a real agent run (missing parent, then converged double apply).
+  Deliberately not auto-creation: silently growing an arbitrary tree as
+  SYSTEM would turn a typo into a green run deploying where PowerShell
+  never looks. README (Limitations, Troubleshooting, per-run cost) and the
+  parameter docs record the decision.
+
 - `repository` with a custom `module_root` now fails compilation (issue #85):
   `Install-Module -Scope AllUsers` always installs to
   `C:\Program Files\WindowsPowerShell\Modules` (verified on 2025), so the
