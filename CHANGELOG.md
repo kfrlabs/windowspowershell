@@ -19,6 +19,13 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   through a local authenticating CONNECT proxy (`Find-Module` + `Save-Module`
   succeed; `file://` ignores `-Proxy` as expected).
 
+- Non-ASCII encoding limitation verified on real Windows PowerShell 5.1
+  (issue #89) and documented in `TESTING.md` and `README.md` (Limitations):
+  files Puppet writes are UTF-8 without a BOM, which 5.1 reads as ANSI, so
+  a `Café-Tools` module converges (double apply exits 2 then 0) but the
+  deployed function is unreachable under its real name. ASCII-only names
+  and content are now the documented rule where 5.1 may run the agent.
+
 ### Fixed
 
 - Missing `module_root` parent now fails fast with an explicit message
