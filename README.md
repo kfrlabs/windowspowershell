@@ -39,10 +39,9 @@ says explicitly which in-house module it belongs to.
 
 ## Usage
 
-The module exposes one class and three defined types. The defined types that
-manage something concrete (`windowspowershell::script`,
-`windowspowershell::external_module`) are ensurable, so adding and retiring something is
-the same resource with a different `ensure`.
+The module exposes one class and three defined types. Every defined type is
+ensurable, so adding and retiring something is the same resource with a
+different `ensure`.
 
 ```puppet
 include windowspowershell
@@ -68,6 +67,38 @@ windowspowershell::module { 'Acme':
 single number such as `'1'` is refused at compile time, because PowerShell
 casts `-ModuleVersion` to `[version]`. See the breaking-change note under
 [1.2.0] in [CHANGELOG.md](CHANGELOG.md).
+
+To retire an in-house module that is no longer shipped, declare it absent
+and retire its scripts first (a present script targeting an absent module
+fails compilation, so the catalogue tells you which ones are left):
+
+```puppet
+windowspowershell::module { 'Acme':
+  ensure => absent,
+}
+
+windowspowershell::script { 'Get-DiskUsage':
+  modulename => 'Acme',
+  ensure     => absent,
+}
+```
+
+`ensure => absent` removes the whole module tree under the machine-wide
+module directory (every version folder) and drops its `Import-Module` line
+from the managed profiles on the next run. In-house modules are never
+registered with PowerShellGet, so unlike the third-party `ensure => absent`
+below there is no `Uninstall-Module` step.
+
+In-house modules must never carry a protected system name: declaring
+`windowspowershell::module { 'PowerShellGet': }` (or `'PackageManagement'`,
+any case) fails compilation whatever `ensure` is, and
+`windowspowershell::external_module` refuses those two names with
+`ensure => absent` (issue #88). Overwriting or deleting them breaks
+`Install-Module` for every later run. The refuse-list is deliberately
+minimal -- only the two modules the package provider itself needs -- and
+documented here rather than hidden in code: anything else under the
+machine-wide directory (user-installed third-party modules, stale copies)
+stays manageable, at the operator's own risk.
 
 #### Importing the module from the profile
 

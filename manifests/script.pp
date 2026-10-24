@@ -13,7 +13,12 @@
 #   does not create it, and fails to compile when it is missing (see the
 #   README for the declaration order).
 # @param ensure
-#   Whether the script should be present or absent.
+#   Whether the script should be present or absent. A script with
+#   `ensure => present` targeting a module declared with
+#   `ensure => absent` fails compilation (issue #88): retire the script
+#   (`ensure => absent`) first, or restore the module. A script with
+#   `ensure => absent` targeting an absent module only removes its own file
+#   without notifying the manifest refresh, which no longer exists.
 # @param scriptname
 #   Base name of the script, without the `.ps1` extension. Defaults to the
 #   resource title. This is also the name of the exported PowerShell function.
@@ -83,8 +88,13 @@ define windowspowershell::script (
   # path independently. It only sees explicitly set parameters, never the
   # define defaults, so a module left at its defaults reads as undef here.
   # Fall back to the $version default declared on windowspowershell::module,
-  # which has to stay equal to this literal (a spec guards it).
+  # which has to stay equal to this literal (a spec guards it). Same for
+  # `ensure`: only an explicit `ensure => absent` reads back as absent.
   $module_version = pick(getparam(Windowspowershell::Module[$modulename], 'version'), '1.0')
+  $module_ensure = pick(getparam(Windowspowershell::Module[$modulename], 'ensure'), 'present')
+  if $module_ensure == 'absent' and $ensure == 'present' {
+    fail("windowspowershell::script[${name}]: module '${modulename}' is absent (windowspowershell::module { '${modulename}': ensure => absent }): retire this script first (ensure => absent) or restore the module (ensure => present).")
+  }
   $functions_path = "${windowspowershell::module_root}\\${modulename}\\${module_version}\\Functions"
 
   $script_folder = $folder ? {
@@ -118,9 +128,15 @@ define windowspowershell::script (
       ],
     }
   } else {
+    # When the module itself is absent its manifest Execs no longer exist, so
+    # an absent script only removes its own file and notifies nothing.
+    $absent_notify = $module_ensure == 'absent' ? {
+      true    => undef,
+      default => Exec["windowspowershell update-manifest ${modulename}"],
+    }
     file { $script_path:
       ensure => absent,
-      notify => Exec["windowspowershell update-manifest ${modulename}"],
+      notify => $absent_notify,
     }
   }
 }

@@ -158,6 +158,27 @@ describe 'windowspowershell::script' do
         end
       end
 
+      # Issue #88: a present script targeting an absent module would rebuild a
+      # tree the module just removed. Retire the script first instead.
+      context 'with ensure => present targeting an absent module' do
+        let(:pre_condition) { "windowspowershell::module { 'Acme': ensure => absent }" }
+
+        it { is_expected.to compile.and_raise_error(%r{module 'Acme' is absent}) }
+      end
+
+      context 'with ensure => absent targeting an absent module' do
+        let(:pre_condition) { "windowspowershell::module { 'Acme': ensure => absent }" }
+        let(:params) { { 'modulename' => 'Acme', 'ensure' => 'absent' } }
+
+        it { is_expected.to compile.with_all_deps }
+
+        it 'removes the script without notifying the manifest refresh, which no longer exists' do
+          is_expected.to contain_file("#{functions}\\Get-Example.ps1").with_ensure('absent')
+          expect(catalogue.resource('File', "#{functions}\\Get-Example.ps1")[:notify]).to be_nil
+          is_expected.not_to contain_exec('windowspowershell update-manifest Acme')
+        end
+      end
+
       context 'with no modulename' do
         let(:params) { { 'content' => 'x' } }
 
