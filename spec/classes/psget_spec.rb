@@ -33,14 +33,25 @@ describe 'windowspowershell::external_module', type: :define do
         end
 
         # The guard keeps the bootstrap idempotent: NuGet is installed only when
-        # Get-PackageProvider does not already report it.
+        # no provider at or above the minimum version is present (issue #86).
         it 'declares the bootstrap Exec with its guard, timeout and log policy' do
           is_expected.to contain_exec('windowspowershell install nuget provider').with(
             'provider' => 'powershell',
             'timeout' => 300,
             'logoutput' => 'on_failure'
           ).with_unless(%r{Get-PackageProvider -Name NuGet}).
-            with_command(%r{Install-PackageProvider -Name NuGet})
+            with_unless(%r{2\.8\.5\.201}).
+            with_command(%r{Install-PackageProvider -Name NuGet}).
+            with_command(%r{-MinimumVersion 2\.8\.5\.201})
+        end
+
+        # The guard and the install must stay on the same threshold, otherwise
+        # a present-but-old provider satisfies `unless` and never converges.
+        it 'keeps the guard and the install on the same minimum version' do
+          guard = catalogue.resource('Exec', 'windowspowershell install nuget provider')[:unless]
+          command = catalogue.resource('Exec', 'windowspowershell install nuget provider')[:command]
+          expect(guard).to match(%r{\[version\]'2\.8\.5\.201'})
+          expect(command).to match(%r{-MinimumVersion 2\.8\.5\.201})
         end
 
         # Bootstrapping NuGet is itself an outbound call, so the script opts into
