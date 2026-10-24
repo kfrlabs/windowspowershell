@@ -29,19 +29,32 @@
 # genuine conflict and fails to compile like any other duplicate resource
 # declaration, rather than being silently merged.
 #
+# @param ensure
+#   Whether the in-house module should be present or absent. `absent` removes
+#   the whole module tree under the machine-wide module directory (every
+#   version folder) and, by declaring no profile fragment, drops its
+#   `Import-Module` line from the managed profiles on the next run. The other
+#   parameters are ignored when `ensure => absent`.
+#   In-house modules must never carry a protected system name
+#   (`PowerShellGet`, `PackageManagement`): declaring one fails compilation
+#   (issue #88), whatever `ensure` is. Manage third-party code with
+#   `windowspowershell::external_module` instead -- which itself refuses
+#   `ensure => absent` for those two names.
 # @param version
 #   Version folder the module is installed under, and the ModuleVersion written
 #   into the generated manifest. Defaults to `1.0`. Requires at least two
 #   dot-separated components: a single number such as `1` is rejected at compile
 #   time because PowerShell's `[version]` type, which `-ModuleVersion` casts to,
-#   requires both a major and a minor version.
+#   requires both a major and a minor version. Ignored when `ensure => absent`.
 # @param companyname
 #   CompanyName field written into the generated module manifest. Defaults to
-#   the neutral `Unknown`; override with the real company.
+#   the neutral `Unknown`; override with the real company. Ignored when
+#   `ensure => absent`.
 # @param author
 #   Author field written into the generated module manifest. Defaults to the
 #   neutral `Unknown`; a team or service identity is a better fit than a
-#   person's name, since it stays meaningful over time.
+#   person's name, since it stays meaningful over time. Ignored when
+#   `ensure => absent`.
 # @param import_in_profile
 #   Whether to add an `Import-Module` line for this module to every profile
 #   file managed by `windowspowershell::config` (see `manage_profiles` /
@@ -50,13 +63,15 @@
 #   name, so PowerShell auto-loads it on first use, while the profile import
 #   adds to the startup time of every session. Set it to `true` when the
 #   aliases or variables the module defines are needed from the start of the
-#   session. A failed import prints a warning.
+#   session. A failed import prints a warning. Ignored (no-op) when
+#   `ensure => absent`: no fragment is declared, so the line disappears.
 # @param source
 #   Optional Puppet file source bulk-deploying every script under it straight
 #   into `Functions`, one recursive, **purging** copy preserving the source
 #   tree -- the "dynamic" way to build a module: drop a new `.ps1` under that
 #   source directory (optionally in a sub-folder) and it ships on the next
-#   Puppet run, with no Puppet code change and no per-script resource. Because
+#   Puppet run, with no Puppet code change and no per-script resource. Ignored
+#   when `ensure => absent`. Because
 #   this copy purges, it takes over the *whole* `Functions` directory: do not
 #   mix it with `windowspowershell::script` resources naming the same module,
 #   since this copy would remove what they manage (and vice versa) on the
@@ -66,6 +81,7 @@
 #   template).
 # @param purge_versions
 #   Whether to remove versions of the module other than the one in `version`.
+#   Ignored when `ensure => absent` (the whole tree goes).
 #   Co-managing one modulename from both `windowspowershell::module` and
 #   `windowspowershell::external_module` requires `purge_versions => false` on
 #   one side, or each purge removes the other side's version.
@@ -86,11 +102,22 @@
 #     content    => file('profile/powershell/Get-DiskUsage.ps1'),
 #   }
 #
+# @example Retire an in-house module that is no longer shipped
+#   windowspowershell::module { 'Acme':
+#     ensure => absent,
+#   }
+#
+#   windowspowershell::script { 'Get-DiskUsage':
+#     modulename => 'Acme',
+#     ensure     => absent,
+#   }
+#
 # @example Build a module dynamically from a whole directory of scripts
 #   windowspowershell::module { 'Acme':
 #     source => 'puppet:///modules/profile/acme-scripts',
 #   }
 define windowspowershell::module (
+  Enum['present', 'absent'] $ensure = 'present',
   Windowspowershell::Moduleversion $version = '1.0',
   Windowspowershell::Psstring $companyname = 'Unknown',
   Windowspowershell::Psstring $author = 'Unknown',
@@ -107,6 +134,16 @@ define windowspowershell::module (
   # string fails the catalogue here rather than further down.
   $modulename = assert_type(Windowspowershell::Name, $title) |$expected, $actual| {
     fail("Windowspowershell::Module[${title}]: title expects a match for ${expected}, got ${actual}")
+  }
+
+  # In-house modules must never shadow a protected system module (issue #88).
+  # Overwriting PowerShellGet or PackageManagement with a generated manifest --
+  # or deleting them with `ensure => absent` below -- breaks Install-Module for
+  # every later run. Refused for every `ensure`, on every node, so the mistake
+  # is caught by the first agent to compile it. Comparison is case-insensitive:
+  # PowerShell resolves module names without regard to case.
+  if $modulename.downcase in ['powershellget', 'packagemanagement'] {
+    fail("Windowspowershell::Module[${title}]: refusing to manage protected system module '${modulename}' as an in-house module: removing or overwriting it breaks Install-Module for every later run. Manage third-party code with windowspowershell::external_module instead, and never declare a protected name as in-house.")
   }
 
   # Every path this module's identity needs, derived here once, the same way
@@ -127,161 +164,174 @@ define windowspowershell::module (
   $manifest_guid = fqdn_uuid($modulename)
 
   if $windowspowershell::supported {
-    file { $module_dir:
-      ensure  => directory,
-      require => File[$windowspowershell::module_root],
-    }
+    if $ensure == 'absent' {
+      # One resource removes one module identity: every version folder goes,
+      # like external_module's absent branch. No manifest, no Execs, no profile
+      # fragment: declaring none drops the Import-Module line from the managed
+      # profiles on the next run. In-house modules are never registered with
+      # PowerShellGet, so no Uninstall-Module is needed -- unlike the
+      # third-party branch, which has to clear that record too.
+      file { $module_dir:
+        ensure => absent,
+        force  => true,
+      }
+    } else {
+      file { $module_dir:
+        ensure  => directory,
+        require => File[$windowspowershell::module_root],
+      }
 
-    file { $module_path:
-      ensure => directory,
-    }
+      file { $module_path:
+        ensure => directory,
+      }
 
-    # With a source, this single recursive, purging copy is both the
-    # directory creation and the bulk script deployment: a new script only
-    # needs to be dropped under that source (optionally in a sub-folder, to
-    # land under a matching Functions/ sub-folder), no Puppet code change and
-    # no per-script declaration. Without one, this only creates the directory
-    # and individual windowspowershell::script resources populate it, which
-    # is required for callers that need dynamic content (e.g. a template).
-    file { $functions_path:
-      ensure  => directory,
-      recurse => $source =~ NotUndef,
-      purge   => $source =~ NotUndef,
-      source  => $source,
-      notify  => $source =~ NotUndef ? {
-        true    => [
-          Exec["windowspowershell update-manifest ${modulename}"],
-          Exec["windowspowershell unblock-files ${modulename}"],
-        ],
-        default => undef,
-      },
-    }
+      # With a source, this single recursive, purging copy is both the
+      # directory creation and the bulk script deployment: a new script only
+      # needs to be dropped under that source (optionally in a sub-folder, to
+      # land under a matching Functions/ sub-folder), no Puppet code change and
+      # no per-script declaration. Without one, this only creates the directory
+      # and individual windowspowershell::script resources populate it, which
+      # is required for callers that need dynamic content (e.g. a template).
+      file { $functions_path:
+        ensure  => directory,
+        recurse => $source =~ NotUndef,
+        purge   => $source =~ NotUndef,
+        source  => $source,
+        notify  => $source =~ NotUndef ? {
+          true    => [
+            Exec["windowspowershell update-manifest ${modulename}"],
+            Exec["windowspowershell unblock-files ${modulename}"],
+          ],
+          default => undef,
+        },
+      }
 
-    # Root module: dot-sources nothing itself. The generated manifest lists
-    # every .ps1 under Functions/ as a NestedModule, so PowerShell loads them
-    # all.
-    file { $rootmodule_path:
-      ensure  => file,
-      content => file('windowspowershell/rootmodule.psm1'),
-      notify  => [
-        Exec["windowspowershell update-manifest ${modulename}"],
-        Exec["windowspowershell unblock-files ${modulename}"],
-      ],
-    }
-
-    # One command, two triggers. A stable -Guid (derived above) keeps the
-    # module identity constant across regenerations.
-    $manifest_command = epp('windowspowershell/update_manifest.ps1.epp', {
-        'module_path'    => $module_path,
-        'functions_path' => $functions_path,
-        'manifest_path'  => $manifest_path,
-        'module_name'    => $modulename,
-        'company_name'   => $companyname,
-        'author'         => $author,
-        'module_version' => $version,
-        'guid'           => $manifest_guid,
-    })
-
-    # Witness of the manifest parameters. Its content is a pure function of
-    # $manifest_command (author, companyname, version, guid, paths and any
-    # flag a future release adds), so a change in any of them changes the file
-    # and fires the refresh below. A refresh-only Exec never runs on a change
-    # of its own `command`, and no other resource changes when only `author`
-    # or `companyname` does, so without this file the .psd1 would stay stale
-    # indefinitely. A missing or hand-edited witness is rewritten the same way,
-    # which re-runs the manifest build.
-    $manifest_witness = join([
-        "# Managed by Puppet (windowspowershell::module ${modulename}). Do not edit.",
-        '# SHA-256 of the manifest build command; a change regenerates the .psd1.',
-        sha256($manifest_command),
-        '',
-    ], "\n")
-
-    file { $manifest_witness_path:
-      ensure  => file,
-      content => $manifest_witness,
-      notify  => [
-        Exec["windowspowershell update-manifest ${modulename}"],
-        Exec["windowspowershell unblock-files ${modulename}"],
-      ],
-    }
-
-    # Build the manifest once per version folder: `creates` only tests that the
-    # .psd1 exists, so a manifest that is present but stale or corrupt is left
-    # alone -- the witness above and `update-manifest` below are what rebuild it.
-    exec { "windowspowershell create-manifest ${modulename}":
-      command   => $manifest_command,
-      provider  => powershell,
-      creates   => $manifest_path,
-      logoutput => on_failure,
-    }
-
-    # Refresh-only: notified by the root module and by every
-    # windowspowershell::script naming this module, and refreshed once per
-    # transaction no matter how many scripts changed.
-    exec { "windowspowershell update-manifest ${modulename}":
-      command     => $manifest_command,
-      provider    => powershell,
-      refreshonly => true,
-      logoutput   => on_failure,
-    }
-
-    # Unblock the module tree at deploy time rather than on every import, and
-    # at most once per transaction no matter how many files changed. `-File`
-    # keeps directories out of the pipeline, which Unblock-File cannot act on.
-    # `-LiteralPath` is required because a module name or `module_root` may
-    # legally hold `[` and `]`, which `-Path` reads as a wildcard character
-    # class and so matches nothing, silently leaving the whole tree blocked.
-    exec { "windowspowershell unblock-files ${modulename}":
-      command     => "Get-ChildItem -LiteralPath '${module_path}' -Recurse -File | Unblock-File",
-      provider    => powershell,
-      refreshonly => true,
-      logoutput   => on_failure,
-    }
-
-    # Purging by directory rather than Uninstall-Module on purpose: it also
-    # catches versions deployed before the manifest carried the right
-    # ModuleVersion, which PowerShellGet has no record of.
-    if $purge_versions {
-      exec { "windowspowershell purge other in-house versions of ${modulename}":
-        command   => epp('windowspowershell/purge_psmodule_versions.ps1.epp', {
-            'module_dir' => $module_dir,
-            'version'    => $version,
-        }),
-        unless    => epp('windowspowershell/check_psmodule_versions.ps1.epp', {
-            'module_dir' => $module_dir,
-            'version'    => $version,
-        }),
-        provider  => powershell,
-        timeout   => 300,
-        logoutput => on_failure,
-        require   => [
+      # Root module: dot-sources nothing itself. The generated manifest lists
+      # every .ps1 under Functions/ as a NestedModule, so PowerShell loads them
+      # all.
+      file { $rootmodule_path:
+        ensure  => file,
+        content => file('windowspowershell/rootmodule.psm1'),
+        notify  => [
           Exec["windowspowershell update-manifest ${modulename}"],
           Exec["windowspowershell unblock-files ${modulename}"],
         ],
       }
-    }
 
-    File[$module_dir]
-    -> File[$module_path]
-    -> File[$functions_path]
-    -> File[$rootmodule_path]
-    -> File[$manifest_witness_path]
-    -> Exec["windowspowershell create-manifest ${modulename}"]
-    -> Exec["windowspowershell update-manifest ${modulename}"]
-    -> Exec["windowspowershell unblock-files ${modulename}"]
+      # One command, two triggers. A stable -Guid (derived above) keeps the
+      # module identity constant across regenerations.
+      $manifest_command = epp('windowspowershell/update_manifest.ps1.epp', {
+          'module_path'    => $module_path,
+          'functions_path' => $functions_path,
+          'manifest_path'  => $manifest_path,
+          'module_name'    => $modulename,
+          'company_name'   => $companyname,
+          'author'         => $author,
+          'module_version' => $version,
+          'guid'           => $manifest_guid,
+      })
 
-    if $import_in_profile {
-      # One fragment per managed profile: concat assembles the header
-      # (owned by windowspowershell::config) plus one Import-Module line
-      # per module, so several modules no longer overwrite each other.
-      $windowspowershell::profile_paths.each |$profile_path| {
-        concat::fragment { "windowspowershell import ${modulename} in ${profile_path}":
-          target  => $profile_path,
-          order   => '50',
-          content => epp('windowspowershell/import_module.ps1.epp', {
-              'manifest_path' => $manifest_path,
+      # Witness of the manifest parameters. Its content is a pure function of
+      # $manifest_command (author, companyname, version, guid, paths and any
+      # flag a future release adds), so a change in any of them changes the file
+      # and fires the refresh below. A refresh-only Exec never runs on a change
+      # of its own `command`, and no other resource changes when only `author`
+      # or `companyname` does, so without this file the .psd1 would stay stale
+      # indefinitely. A missing or hand-edited witness is rewritten the same way,
+      # which re-runs the manifest build.
+      $manifest_witness = join([
+          "# Managed by Puppet (windowspowershell::module ${modulename}). Do not edit.",
+          '# SHA-256 of the manifest build command; a change regenerates the .psd1.',
+          sha256($manifest_command),
+          '',
+      ], "\n")
+
+      file { $manifest_witness_path:
+        ensure  => file,
+        content => $manifest_witness,
+        notify  => [
+          Exec["windowspowershell update-manifest ${modulename}"],
+          Exec["windowspowershell unblock-files ${modulename}"],
+        ],
+      }
+
+      # Build the manifest once per version folder: `creates` only tests that the
+      # .psd1 exists, so a manifest that is present but stale or corrupt is left
+      # alone -- the witness above and `update-manifest` below are what rebuild it.
+      exec { "windowspowershell create-manifest ${modulename}":
+        command   => $manifest_command,
+        provider  => powershell,
+        creates   => $manifest_path,
+        logoutput => on_failure,
+      }
+
+      # Refresh-only: notified by the root module and by every
+      # windowspowershell::script naming this module, and refreshed once per
+      # transaction no matter how many scripts changed.
+      exec { "windowspowershell update-manifest ${modulename}":
+        command     => $manifest_command,
+        provider    => powershell,
+        refreshonly => true,
+        logoutput   => on_failure,
+      }
+
+      # Unblock the module tree at deploy time rather than on every import, and
+      # at most once per transaction no matter how many files changed. `-File`
+      # keeps directories out of the pipeline, which Unblock-File cannot act on.
+      # `-LiteralPath` is required because a module name or `module_root` may
+      # legally hold `[` and `]`, which `-Path` reads as a wildcard character
+      # class and so matches nothing, silently leaving the whole tree blocked.
+      exec { "windowspowershell unblock-files ${modulename}":
+        command     => "Get-ChildItem -LiteralPath '${module_path}' -Recurse -File | Unblock-File",
+        provider    => powershell,
+        refreshonly => true,
+        logoutput   => on_failure,
+      }
+
+      # Purging by directory rather than Uninstall-Module on purpose: it also
+      # catches versions deployed before the manifest carried the right
+      # ModuleVersion, which PowerShellGet has no record of.
+      if $purge_versions {
+        exec { "windowspowershell purge other in-house versions of ${modulename}":
+          command   => epp('windowspowershell/purge_psmodule_versions.ps1.epp', {
+              'module_dir' => $module_dir,
+              'version'    => $version,
           }),
+          unless    => epp('windowspowershell/check_psmodule_versions.ps1.epp', {
+              'module_dir' => $module_dir,
+              'version'    => $version,
+          }),
+          provider  => powershell,
+          timeout   => 300,
+          logoutput => on_failure,
+          require   => [
+            Exec["windowspowershell update-manifest ${modulename}"],
+            Exec["windowspowershell unblock-files ${modulename}"],
+          ],
+        }
+      }
+
+      File[$module_dir]
+      -> File[$module_path]
+      -> File[$functions_path]
+      -> File[$rootmodule_path]
+      -> File[$manifest_witness_path]
+      -> Exec["windowspowershell create-manifest ${modulename}"]
+      -> Exec["windowspowershell update-manifest ${modulename}"]
+      -> Exec["windowspowershell unblock-files ${modulename}"]
+
+      if $import_in_profile {
+        # One fragment per managed profile: concat assembles the header
+        # (owned by windowspowershell::config) plus one Import-Module line
+        # per module, so several modules no longer overwrite each other.
+        $windowspowershell::profile_paths.each |$profile_path| {
+          concat::fragment { "windowspowershell import ${modulename} in ${profile_path}":
+            target  => $profile_path,
+            order   => '50',
+            content => epp('windowspowershell/import_module.ps1.epp', {
+                'manifest_path' => $manifest_path,
+            }),
+          }
         }
       }
     }

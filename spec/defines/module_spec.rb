@@ -83,6 +83,93 @@ describe 'windowspowershell::module' do
         it { is_expected.not_to contain_exec('windowspowershell purge other in-house versions of Acme') }
       end
 
+      # Issue #88: removing an in-house module from Puppet left its tree on
+      # the nodes. ensure => absent removes the whole module directory.
+      context 'with ensure => absent' do
+        let(:params) { { 'ensure' => 'absent' } }
+
+        it { is_expected.to compile.with_all_deps }
+
+        it 'removes the whole module tree, whatever the version was' do
+          is_expected.to contain_file("#{modules}\\Acme").
+            with_ensure('absent').
+            with_force(true)
+        end
+
+        it 'declares no version folder, manifest Exec or unblock Exec' do
+          is_expected.not_to contain_file("#{modules}\\Acme\\1.0")
+          is_expected.not_to contain_file("#{modules}\\Acme\\1.0\\Functions")
+          is_expected.not_to contain_exec('windowspowershell create-manifest Acme')
+          is_expected.not_to contain_exec('windowspowershell update-manifest Acme')
+          is_expected.not_to contain_exec('windowspowershell unblock-files Acme')
+          is_expected.not_to contain_exec('windowspowershell purge other in-house versions of Acme')
+        end
+
+        it 'adds no Import-Module fragment to the profiles' do
+          [
+            'C:\Windows\System32\WindowsPowerShell\v1.0\profile.ps1',
+            'C:\Windows\SysWOW64\WindowsPowerShell\v1.0\profile.ps1',
+          ].each do |profile|
+            is_expected.not_to contain_concat_fragment("windowspowershell import Acme in #{profile}")
+          end
+        end
+
+        context 'with PowerShell 7 installed and import_in_profile => true' do
+          let(:facts) { os_facts.merge('powershell7' => { 'installed' => true, 'path' => 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' }) }
+          let(:params) { { 'ensure' => 'absent', 'import_in_profile' => true } }
+
+          it { is_expected.to compile.with_all_deps }
+
+          it 'adds no fragment to the pwsh profile either' do
+            is_expected.not_to contain_concat_fragment('windowspowershell import Acme in C:\Program Files\PowerShell\7\profile.ps1')
+          end
+        end
+      end
+
+      context 'with ensure => absent and present-only parameters set' do
+        let(:params) do
+          {
+            'ensure' => 'absent',
+            'version' => '2.3',
+            'companyname' => 'Acme Corp',
+            'author' => 'Platform Team',
+            'source' => 'puppet:///modules/profile/acme-scripts',
+            'import_in_profile' => true,
+          }
+        end
+
+        it { is_expected.to compile.with_all_deps }
+
+        it 'still removes the whole tree and declares nothing else' do
+          is_expected.to contain_file("#{modules}\\Acme").with_ensure('absent')
+          is_expected.not_to contain_file("#{modules}\\Acme\\2.3")
+          is_expected.not_to contain_exec('windowspowershell create-manifest Acme')
+          is_expected.not_to contain_exec('windowspowershell update-manifest Acme')
+        end
+      end
+
+      # Issue #88: PowerShellGet and PackageManagement ship with Windows and
+      # Install-Module stops working without them. Refused whatever `ensure`
+      # is, on every node, with a message that names the guard.
+      context 'with a protected system module name' do
+        let(:title) { 'PowerShellGet' }
+
+        it { is_expected.to compile.and_raise_error(%r{refusing to manage protected system module}) }
+      end
+
+      context 'with a protected system module name and ensure => absent' do
+        let(:title) { 'PackageManagement' }
+        let(:params) { { 'ensure' => 'absent' } }
+
+        it { is_expected.to compile.and_raise_error(%r{refusing to manage protected system module}) }
+      end
+
+      context 'with a protected system module name in another case' do
+        let(:title) { 'powershellget' }
+
+        it { is_expected.to compile.and_raise_error(%r{refusing to manage protected system module}) }
+      end
+
       context 'with a non-default version' do
         let(:params) { { 'version' => '2.3' } }
 
@@ -529,6 +616,22 @@ describe 'windowspowershell::module' do
     it 'declares nothing at all' do
       expect(catalogue.resources.select { |r| %w[File Exec Concat Concat::Fragment].include?(r.type) }).to be_empty
       is_expected.not_to contain_exec('windowspowershell purge other in-house versions of Acme')
+    end
+
+    context 'with ensure => absent' do
+      let(:params) { { 'ensure' => 'absent' } }
+
+      it { is_expected.to compile.with_all_deps }
+
+      it 'declares nothing at all' do
+        expect(catalogue.resources.select { |r| %w[File Exec Concat Concat::Fragment].include?(r.type) }).to be_empty
+      end
+    end
+
+    context 'with a protected system module name' do
+      let(:title) { 'PowerShellGet' }
+
+      it { is_expected.to compile.and_raise_error(%r{refusing to manage protected system module}) }
     end
   end
 end

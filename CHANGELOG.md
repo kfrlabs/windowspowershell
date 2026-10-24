@@ -9,6 +9,27 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ### Added
 
+- `windowspowershell::module` is now ensurable (issue #88):
+  `ensure => absent` removes the whole in-house module tree under the
+  machine-wide module directory (every version folder) and, by declaring no
+  profile fragment, drops its `Import-Module` line from the managed profiles
+  on the next run. In-house modules are never registered with PowerShellGet,
+  so there is no `Uninstall-Module` step, unlike the third-party
+  `ensure => absent`. A `windowspowershell::script` with `ensure => present`
+  targeting an absent module fails compilation (retire the script first);
+  a script with `ensure => absent` targeting an absent module only removes
+  its own file, without notifying the manifest refresh that no longer
+  exists. Protected system modules are refused at compile time: declaring
+  `windowspowershell::module { 'PowerShellGet': }` or `'PackageManagement'`
+  (any case, any `ensure`) fails, and `windowspowershell::external_module`
+  refuses those two names with `ensure => absent`. The list is deliberately
+  minimal -- only the two modules the provider itself needs -- and the
+  decision is documented in the README. Verified on Windows Server 2025 with
+  a real agent run as SYSTEM: present converges (exit 2) with a working
+  `Import-Module` round-trip, absent removes the tree (exit 2) and the second
+  run is clean (exit 0); both guards fail compilation with an explicit
+  message.
+
 - Repository backend exercised for real (issue #85): `tools/Test-RepositoryBackend.ps1`
   with `spec/integration/site_repository.pp` registers a local file `WpsLocal`
   repository (SYSTEM-visible), publishes `WpsRepoTest 1.0.0` (`Publish-Module

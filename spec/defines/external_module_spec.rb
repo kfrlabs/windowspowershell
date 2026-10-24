@@ -482,6 +482,27 @@ describe 'windowspowershell::external_module' do
         it { is_expected.to compile.and_raise_error(%r{parameter 'modulename'}) }
       end
 
+      # Issue #88: PowerShellGet and PackageManagement ship with Windows and
+      # Install-Module stops working without them. Only `absent` is refused:
+      # installing or upgrading them stays legitimate.
+      context 'with ensure => absent and a protected system modulename' do
+        let(:params) { { 'ensure' => 'absent', 'modulename' => 'PowerShellGet' } }
+
+        it { is_expected.to compile.and_raise_error(%r{refusing to remove protected system module}) }
+      end
+
+      context 'with ensure => absent and a protected system modulename in another case' do
+        let(:params) { { 'ensure' => 'absent', 'modulename' => 'packagemanagement' } }
+
+        it { is_expected.to compile.and_raise_error(%r{refusing to remove protected system module}) }
+      end
+
+      context 'with a version pinned and a protected system modulename' do
+        let(:params) { { 'ensure' => '2.1.0', 'repository' => 'PSGallery', 'modulename' => 'PowerShellGet' } }
+
+        it { is_expected.to compile.with_all_deps }
+      end
+
       context 'with both repository and source' do
         let(:params) { { 'ensure' => '2.1.0', 'repository' => 'PSGallery', 'source' => 'puppet:///modules/x/y/' } }
 
@@ -752,6 +773,12 @@ describe 'windowspowershell::external_module' do
       let(:params) { { 'ensure' => '2.1.0', 'repository' => 'PSGallery', 'source' => 'puppet:///modules/x/y/' } }
 
       it { is_expected.to compile.and_raise_error(%r{mutually exclusive}) }
+    end
+
+    context 'with ensure => absent and a protected system modulename' do
+      let(:params) { { 'ensure' => 'absent', 'modulename' => 'PowerShellGet' } }
+
+      it { is_expected.to compile.and_raise_error(%r{refusing to remove protected system module}) }
     end
   end
 end

@@ -20,6 +20,9 @@
 #   short pin into a longer folder name (e.g. pin `2.1` installs under
 #   `2.1.0`); that normalised folder counts as the pinned version, so the
 #   install check stays idempotent and the purge keeps it.
+#   `absent` is refused for the protected system modules `PowerShellGet` and
+#   `PackageManagement` (issue #88): removing them breaks Install-Module for
+#   every later run.
 # @param modulename
 #   Name of the PowerShell module. Defaults to the resource title.
 #   `Install-Module`, `Get-InstalledModule`, `Uninstall-Module` and
@@ -113,6 +116,13 @@ define windowspowershell::external_module (
   }
   if $ensure != 'present' and $ensure != 'absent' and $repository =~ Undef and $source =~ Undef {
     fail("windowspowershell::external_module[${name}]: ensure => '${ensure}' needs a 'repository' or a 'source' to install from. Pin a version with 'repository' to install from a repository, or pass a 'source' holding the module files.")
+  }
+  # Protected system modules must survive (issue #88): removing PowerShellGet
+  # or PackageManagement breaks Install-Module for every later run. Only
+  # `absent` is refused -- installing or upgrading them stays legitimate.
+  # Case-insensitive: PowerShell resolves module names without regard to case.
+  if $ensure == 'absent' and $modulename.downcase in ['powershellget', 'packagemanagement'] {
+    fail("windowspowershell::external_module[${name}]: refusing to remove protected system module '${modulename}' with ensure => absent: it breaks Install-Module for every later run. Remove the resource instead of declaring it absent.")
   }
 
   $module_dir     = "${windowspowershell::module_root}\\${modulename}"

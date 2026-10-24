@@ -253,6 +253,9 @@ A version string pins that exact version. PowerShellGet may normalise a
 short pin into a longer folder name (e.g. pin `2.1` installs under
 `2.1.0`); that normalised folder counts as the pinned version, so the
 install check stays idempotent and the purge keeps it.
+`absent` is refused for the protected system modules `PowerShellGet` and
+`PackageManagement` (issue #88): removing them breaks Install-Module for
+every later run.
 
 Default value: `'present'`
 
@@ -387,6 +390,19 @@ windowspowershell::script { 'Get-DiskUsage':
 }
 ```
 
+##### Retire an in-house module that is no longer shipped
+
+```puppet
+windowspowershell::module { 'Acme':
+  ensure => absent,
+}
+
+windowspowershell::script { 'Get-DiskUsage':
+  modulename => 'Acme',
+  ensure     => absent,
+}
+```
+
 ##### Build a module dynamically from a whole directory of scripts
 
 ```puppet
@@ -399,12 +415,30 @@ windowspowershell::module { 'Acme':
 
 The following parameters are available in the `windowspowershell::module` defined type:
 
+* [`ensure`](#-windowspowershell--module--ensure)
 * [`version`](#-windowspowershell--module--version)
 * [`companyname`](#-windowspowershell--module--companyname)
 * [`author`](#-windowspowershell--module--author)
 * [`import_in_profile`](#-windowspowershell--module--import_in_profile)
 * [`source`](#-windowspowershell--module--source)
 * [`purge_versions`](#-windowspowershell--module--purge_versions)
+
+##### <a name="-windowspowershell--module--ensure"></a>`ensure`
+
+Data type: `Enum['present', 'absent']`
+
+Whether the in-house module should be present or absent. `absent` removes
+the whole module tree under the machine-wide module directory (every
+version folder) and, by declaring no profile fragment, drops its
+`Import-Module` line from the managed profiles on the next run. The other
+parameters are ignored when `ensure => absent`.
+In-house modules must never carry a protected system name
+(`PowerShellGet`, `PackageManagement`): declaring one fails compilation
+(issue #88), whatever `ensure` is. Manage third-party code with
+`windowspowershell::external_module` instead -- which itself refuses
+`ensure => absent` for those two names.
+
+Default value: `'present'`
 
 ##### <a name="-windowspowershell--module--version"></a>`version`
 
@@ -414,7 +448,7 @@ Version folder the module is installed under, and the ModuleVersion written
 into the generated manifest. Defaults to `1.0`. Requires at least two
 dot-separated components: a single number such as `1` is rejected at compile
 time because PowerShell's `[version]` type, which `-ModuleVersion` casts to,
-requires both a major and a minor version.
+requires both a major and a minor version. Ignored when `ensure => absent`.
 
 Default value: `'1.0'`
 
@@ -423,7 +457,8 @@ Default value: `'1.0'`
 Data type: `Windowspowershell::Psstring`
 
 CompanyName field written into the generated module manifest. Defaults to
-the neutral `Unknown`; override with the real company.
+the neutral `Unknown`; override with the real company. Ignored when
+`ensure => absent`.
 
 Default value: `'Unknown'`
 
@@ -433,7 +468,8 @@ Data type: `Windowspowershell::Psstring`
 
 Author field written into the generated module manifest. Defaults to the
 neutral `Unknown`; a team or service identity is a better fit than a
-person's name, since it stays meaningful over time.
+person's name, since it stays meaningful over time. Ignored when
+`ensure => absent`.
 
 Default value: `'Unknown'`
 
@@ -448,7 +484,8 @@ is under the machine-wide module directory and exports its functions by
 name, so PowerShell auto-loads it on first use, while the profile import
 adds to the startup time of every session. Set it to `true` when the
 aliases or variables the module defines are needed from the start of the
-session. A failed import prints a warning.
+session. A failed import prints a warning. Ignored (no-op) when
+`ensure => absent`: no fragment is declared, so the line disappears.
 
 Default value: `false`
 
@@ -460,7 +497,8 @@ Optional Puppet file source bulk-deploying every script under it straight
 into `Functions`, one recursive, **purging** copy preserving the source
 tree -- the "dynamic" way to build a module: drop a new `.ps1` under that
 source directory (optionally in a sub-folder) and it ships on the next
-Puppet run, with no Puppet code change and no per-script resource. Because
+Puppet run, with no Puppet code change and no per-script resource. Ignored
+when `ensure => absent`. Because
 this copy purges, it takes over the *whole* `Functions` directory: do not
 mix it with `windowspowershell::script` resources naming the same module,
 since this copy would remove what they manage (and vice versa) on the
@@ -476,6 +514,7 @@ Default value: `undef`
 Data type: `Boolean`
 
 Whether to remove versions of the module other than the one in `version`.
+Ignored when `ensure => absent` (the whole tree goes).
 Co-managing one modulename from both `windowspowershell::module` and
 `windowspowershell::external_module` requires `purge_versions => false` on
 one side, or each purge removes the other side's version.
@@ -544,7 +583,12 @@ README for the declaration order).
 
 Data type: `Enum['present', 'absent']`
 
-Whether the script should be present or absent.
+Whether the script should be present or absent. A script with
+`ensure => present` targeting a module declared with
+`ensure => absent` fails compilation (issue #88): retire the script
+(`ensure => absent`) first, or restore the module. A script with
+`ensure => absent` targeting an absent module only removes its own file
+without notifying the manifest refresh, which no longer exists.
 
 Default value: `'present'`
 
