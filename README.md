@@ -409,6 +409,12 @@ run (~0.6 s), whether or not anything is managed.
 
 ### Co-managing the profiles
 
+> Destructive by design (issue #90): `manage_profiles` defaults to `true`,
+> and from the first run each managed profile is rebuilt from its fragments
+> without a backup. Inventory and back up any existing profile content before
+> the first run, and pilot new nodes with `manage_profiles => false` before
+> opting in.
+
 The machine-wide profiles (`System32`, `SysWOW64` and, when managed, PowerShell
 7) are `concat` resources owned by this module: on every run the file is
 rebuilt from its fragments, so **anything in it that does not come from a
@@ -461,9 +467,12 @@ Keep these points in mind:
   fragments as they are.
 - To manage the profiles entirely from your own code instead, set
   `manage_profiles => false`. The class then declares no profile at all and
-  `profile_paths` is empty.
+  `profile_paths` is empty. This is also the recommended pilot path: start
+  with `false`, inventory existing profile content, move what must survive
+  into a fragment, then opt in.
 - Content that Puppet does not manage (a GPO startup script writing to the
-  profile, an administrator editing it) is **not** preserved. Move it into a
+  profile, an administrator editing it) is **not** preserved and is removed
+  without a backup from the first run. Move it into a
   fragment, or keep it out of these files.
 
 ### Configuration
