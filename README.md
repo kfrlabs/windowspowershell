@@ -7,7 +7,7 @@
 [![License: Apache-2.0](https://img.shields.io/github/license/kfrlabs/windowspowershell.svg)](LICENSE)
 [![Puppet >= 8.0, < 9.0](https://img.shields.io/badge/puppet-%3E%3D8.0_%3C9.0-blue.svg)](metadata.json)
 [![PDK 3.4.0](https://img.shields.io/badge/PDK-3.4.0-orange.svg)](https://puppet.com/docs/pdk/latest/pdk.html)
-[![Windows 2019–2025, 10/11](https://img.shields.io/badge/windows-2019--2025_%7C_10%2F11-0078D6.svg?logo=windows)](metadata.json)
+[![Windows 2019–2025, 11](https://img.shields.io/badge/windows-2019--2025_%7C_11-0078D6.svg?logo=windows)](metadata.json)
 
 ## Table of Contents
 
@@ -575,9 +575,9 @@ Contributions are welcome via GitHub issues and pull requests.
 
 ## Limitations
 
-- Supported releases are Windows Server 2019–2025 and Windows 10/11 (see
+- Supported releases are Windows Server 2019–2025 and Windows 11 (see
   `metadata.json`). Windows Server 2016 is not supported. Windows Server 2019
-  is claimed but still to be tested/confirmed (issue #70); see `TESTING.md`.
+  is claimed but still to be tested/confirmed (issue #87); see `TESTING.md`.
 - Windows only. On any other operating system the class **and every defined
   type** are a no-op, so nodes can be classified without filtering on the
   operating system. Parameter validation still runs everywhere, so a bad
