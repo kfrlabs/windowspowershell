@@ -159,6 +159,19 @@ describe 'windowspowershell', type: :class do
         end
       end
 
+      # Issue #86: an old-but-present NuGet provider must not satisfy the
+      # bootstrap guard, otherwise Install-PackageProvider never converges.
+      if %w[external_from_repository proxy proxy_credential].include?(scenario)
+        it 'guards the NuGet bootstrap on the minimum version' do
+          guards = powershell_snippets.select do |label, _|
+            label == 'windowspowershell install nuget provider (unless)'
+          end.map(&:last)
+          expect(guards.size).to eq(1)
+          expect(guards.first).to match(%r{Get-PackageProvider -Name NuGet})
+          expect(guards.first).to match(%r{\[version\]'2\.8\.5\.201'})
+        end
+      end
+
       next unless render_dir
 
       it "writes the snippets to #{render_dir}" do

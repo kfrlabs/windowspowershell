@@ -28,7 +28,8 @@ describe 'windowspowershell::external_module' do
         it 'bootstraps NuGet before installing' do
           is_expected.to contain_class('windowspowershell::psget')
           is_expected.to contain_exec('windowspowershell install nuget provider').
-            with_unless(%r{Get-PackageProvider -Name NuGet})
+            with_unless(%r{Get-PackageProvider -Name NuGet}).
+            with_unless(%r{2\.8\.5\.201})
           is_expected.to contain_exec('windowspowershell install ExampleModule').
             that_requires('Exec[windowspowershell install nuget provider]')
         end
