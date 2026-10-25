@@ -198,6 +198,22 @@ UTF-8 with BOM, which 5.1 honours) at the source. PowerShell 7 reads
 BOM-less UTF-8 correctly, so the limitation is specific to the 5.1 host
 running the agent. See [Limitations](README.md#limitations).
 
+## Release gate
+
+Pushing a `v*.*.*` tag runs `.github/workflows/release.yml`: `verify` (tag,
+syntax, lint, metadata) plus `spec` (rspec-puppet on the release matrix),
+then the `verify_ci` gate, then the `forge` publish job.
+
+`verify_ci` does not re-run the Windows jobs. It queries the check-runs API
+for this exact commit and requires at least one `completed` / `success` run
+of the `Test suite` check from `ci.yml` (the aggregator over lint, spec,
+PowerShell, Windows runtime/integration and module build). In-progress,
+cancelled or superseded runs fail closed and block the release; only a green
+`Test suite` lets the tag publish.
+
+If the gate blocks a tag: push the commit to `main`, let CI go green, then
+move the tag onto the green commit and push it again.
+
 ## Manual matrix
 
 Run on each release, with Windows PowerShell 5.1 and PowerShell 7 installed

@@ -5,6 +5,16 @@ All notable changes to this module are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Release gate (issue #105): `release.yml` no longer publishes a tag without
+  the Windows jobs being green. A read-only `verify_ci` job gates the Forge
+  publish on the `Test suite` check from `ci.yml` being `completed` /
+  `success` on the tagged commit (fail-closed); only rspec-puppet is still
+  re-run on the tag itself.
+
 ## [2.1.0] - 2026-10-24
 
 ### Added
