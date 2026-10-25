@@ -571,6 +571,10 @@ See [TESTING.md](TESTING.md) for how the module is tested (rspec-puppet, parsing
 PSScriptAnalyzer of the generated PowerShell, Windows runtime smoke test) and for
 the manual Windows validation matrix.
 
+A `v*.*.*` tag only publishes to the Forge when CI is green on that commit:
+`release.yml` gates the publish on the `Test suite` check from `ci.yml`
+(see [Release gate](TESTING.md#release-gate)).
+
 Contributions are welcome via GitHub issues and pull requests.
 
 ## Limitations

@@ -47,8 +47,10 @@ jobs:
   # having been tested on every Puppet version that metadata.json declares.
   # Kept out of the `release` job on purpose: that job is the only one that
   # runs in the `forge` environment and sees the Forge credentials.
-  # Known limitation (issue #91): only rspec-puppet is re-run here, not the
-  # `powershell` / `powershell_windows` and Windows integration jobs.
+  # The Windows jobs are not re-run here (issue #105): `verify_ci` below
+  # gates the release on the `Test suite` check from ci.yml being green on
+  # this commit, keeping forge isolation without re-running the expensive
+  # Windows matrix.
   spec:
     name: 'rspec-puppet (Puppet ${{ matrix.puppet_version }}, Ruby ${{ matrix.ruby }})'
     needs: verify
@@ -73,11 +75,43 @@ jobs:
       - name: rspec-puppet
         run: bundle exec rake parallel_spec
 
+  # Read-only gate (issue #105): a tag push does not run ci.yml, so verify
+  # the `Test suite` check from ci.yml is green on this exact commit before
+  # anything may publish. Runs before `release` and outside the `forge`
+  # environment, so the publish job keeps its credential isolation without
+  # re-running the expensive Windows matrix.
+  verify_ci:
+    name: 'CI Test suite is green'
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: read
+    steps:
+      - name: Verify CI Test suite passed on this commit
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          SHA="$GITHUB_SHA"
+          REPO="$GITHUB_REPOSITORY"
+          gh api "repos/$REPO/commits/$SHA/check-runs?per_page=100" --paginate > /tmp/check-runs.jsonl
+          echo '--- Test suite check runs on this commit ---'
+          jq -s -r --arg sha "$SHA" '.[].check_runs[] | select(.name == "Test suite" and .head_sha == $sha) | "\(.status) \(.conclusion // "null") \(.html_url // "")"' /tmp/check-runs.jsonl || true
+          count=$(jq -s --arg sha "$SHA" '[.[].check_runs[] | select(.name == "Test suite" and .head_sha == $sha and .status == "completed" and .conclusion == "success")] | length' /tmp/check-runs.jsonl)
+          if [ "$count" -ge 1 ]; then
+            echo "Found $count successful 'Test suite' check run(s) for commit $SHA."
+            exit 0
+          fi
+          echo "::error::No successful 'Test suite' check run from ci.yml found for commit $SHA (fail-closed: in-progress, cancelled or superseded runs do not count). Push this commit to main and let CI go green, then move the tag onto the green commit before publishing."
+          exit 1
+
   release:
     name: Publish to the Forge
     needs:
       - verify
       - spec
+      - verify_ci
     runs-on: ubuntu-latest
     environment: forge
     env:
@@ -93,8 +127,10 @@ jobs:
 
       - name: Published tarball must equal the CI-tested tarball (issue #68)
         # Tag pushes do not run ci.yml, so release.yml re-verifies the
-        # artifact it is about to publish. Payload equality with the
-        # `pdk build` tarball was proven by ci.yml on the same commit.
+        # artifact it is about to publish (`verify_ci` above verifies the
+        # Windows jobs are green instead of re-running them). Payload
+        # equality with the `pdk build` tarball was proven by ci.yml on the
+        # same commit.
         run: |
           set -e
           diff -u .pdkignore .pmtignore
