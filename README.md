@@ -255,7 +255,10 @@ self-contained local file repository example.
 
 `ensure => present` is install-once: it installs the newest version only when
 none is present and never upgrades an already-installed one on later runs. To
-move a node to a newer version, pin that version in `ensure`.
+move a node to a newer version, pin that version in `ensure`. An interrupted
+install may leave an empty or partial version folder behind: such a folder
+does not count as installed (its `<modulename>.psd1` must exist and pass
+`Test-ModuleManifest`), so the next run reinstalls and repairs it.
 
 There is no `latest`. Resolving it means a `Find-Module` call on every Puppet
 run, and it lets two nodes drift onto different versions depending on the day

@@ -54,7 +54,13 @@ before it reaches PowerShell, so an attribute at the top would not sit before a
 scenario the way the provider does (script text on the stdin of
 `powershell.exe`): purge of side-by-side versions and its `unless` guard,
 manifest creation and update (checked with `Import-PowerShellDataFile` and a real
-`Import-Module`), `Unblock-File`, and `ensure => absent`. It is offline and
+`Import-Module`), `Unblock-File`, and `ensure => absent`. It also replays the
+repository install checks of the `external_from_repository` scenario (sibling
+folder from the same render run) against fixture trees, with only their
+`$moduleDir` assignment repointed so the real `AllUsers` directory is never
+touched: empty, partial (no manifest) and corrupt-manifest version folders
+must reinstall (exit 1), while a healthy `New-ModuleManifest` tree satisfies
+the check (exit 0). It is offline and
 removes the tree when done.
 
 ```powershell
@@ -109,8 +115,11 @@ real. The script builds a minimal `WpsRepoTest 1.0.0` module, registers a
 local file repository `WpsLocal` for the account running the script, publishes
 the module into it (`Publish-Module -Force`: without `-Force` the NuGet
 bootstrap prompt throws `ShouldContinue` when non-interactive), then applies
-`spec/integration/site_repository.pp` twice. The first run may change
-resources (exit 2); the second must change nothing (exit 0). Functional checks
+`spec/integration/site_repository.pp` twice. Before the first apply it seeds
+an empty `WpsRepoTest\1.0.0` version folder, the way an interrupted install
+leaves one behind (issue #106): the empty folder must not satisfy the install
+check, so the first run reinstalls it (exit 2) and the second changes nothing
+(exit 0). Functional checks
 verify `Get-InstalledModule`, the `AllUsers` layout and an `Import-Module`
 round-trip.
 

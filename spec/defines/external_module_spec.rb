@@ -58,6 +58,18 @@ describe 'windowspowershell::external_module' do
           expect(unless_of('windowspowershell install ExampleModule')).not_to match(%r{Get-Module -ListAvailable})
         end
 
+        # Issue #106: an interrupted install leaves an empty or partial version
+        # folder behind. The folder name alone must not satisfy the check: only
+        # a candidate whose <modulename>.psd1 passes Test-ModuleManifest counts.
+        it 'requires a valid manifest so a partial folder reinstalls' do
+          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$moduleName = 'ExampleModule'})
+          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{function Test-ModuleHealthy})
+          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{Join-Path -Path \$DirPath -ChildPath})
+          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{Test-Path -LiteralPath \$psd1})
+          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{Test-ModuleManifest -Path})
+          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{Where-Object \{ Test-ModuleHealthy})
+        end
+
         it 'treats a normalised folder as the pinned version' do
           expect(unless_of('windowspowershell install ExampleModule')).to match(%r{function Test-PinnedVersionMatch})
           expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$dirAs = Get-NormalizedVersion \$DirName})
@@ -88,6 +100,13 @@ describe 'windowspowershell::external_module' do
           it 'keeps the normalised folder instead of purging it' do
             expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$pinned = '2\.1'})
             expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{Test-IsExtraVersion})
+          end
+
+          it 'requires a valid manifest on the normalised folder too (issue #106)' do
+            expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$moduleName = 'ExampleModule'})
+            expect(unless_of('windowspowershell install ExampleModule')).to match(%r{Test-Path -LiteralPath \$psd1})
+            expect(unless_of('windowspowershell install ExampleModule')).to match(%r{Test-ModuleManifest -Path})
+            expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\.psd1})
           end
         end
 
@@ -336,6 +355,17 @@ describe 'windowspowershell::external_module' do
           expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$null -ne \(Get-NormalizedVersion})
         end
 
+        # Issue #106: same manifest gate as the pinned branch -- an empty or
+        # partial folder of any version must not satisfy ensure => present.
+        it 'requires a valid manifest so a partial folder still installs' do
+          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$moduleName = 'ExampleModule'})
+          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{function Test-ModuleHealthy})
+          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{Test-Path -LiteralPath \$psd1})
+          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{Test-ModuleManifest -Path})
+          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\.psd1})
+          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{Where-Object \{ Test-ModuleHealthy})
+        end
+
         it 'purges nothing, since no version is targeted' do
           is_expected.not_to contain_exec('windowspowershell purge other versions of ExampleModule')
         end
@@ -360,6 +390,12 @@ describe 'windowspowershell::external_module' do
           is_expected.to contain_exec('windowspowershell install ExampleModule').
             with_command(%r{Install-Module -Name 'Bracket`\[Beta`\]'}).
             with_command(%r{-RequiredVersion '2\.1\.0'})
+        end
+
+        it 'excludes wildcard names from the manifest parse but still requires the psd1 (issue #106)' do
+          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$moduleName = 'Bracket\[Beta\]'})
+          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{Test-Path -LiteralPath \$psd1})
+          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$moduleName -match})
         end
       end
 

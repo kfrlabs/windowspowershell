@@ -20,6 +20,14 @@
 #   short pin into a longer folder name (e.g. pin `2.1` installs under
 #   `2.1.0`); that normalised folder counts as the pinned version, so the
 #   install check stays idempotent and the purge keeps it.
+#   An interrupted install may leave an empty or partial version folder behind:
+#   a folder only counts as installed when `<modulename>.psd1` exists inside it
+#   and passes `Test-ModuleManifest`, so the next run reinstalls and repairs it
+#   instead of treating it as installed forever (issue #106). Names holding
+#   wildcard characters (`` ` ``, `*`, `?`, `[`, `]`) are excluded from the
+#   manifest parse -- `Test-ModuleManifest` rejects wildcards in
+#   `RootModule`/`ModuleToProcess`, which would reinstall a healthy wildcard
+#   module on every run -- so for those names the `.psd1` only has to exist.
 #   `absent` is refused for the protected system modules `PowerShellGet` and
 #   `PackageManagement` (issue #88): removing them breaks Install-Module for
 #   every later run.
@@ -186,6 +194,7 @@ define windowspowershell::external_module (
         }),
         unless      => epp('windowspowershell/check_psmodule.ps1.epp', {
             'module_dir' => $module_dir,
+            'modulename' => $modulename,
             'version'    => $module_version,
         }),
         provider    => powershell,

@@ -83,9 +83,18 @@ Assert-True ((Find-Module -Name WpsRepoTest -Repository WpsLocal).Version -eq '1
 # Start clean so the first apply really installs.
 try { Uninstall-Module -Name WpsRepoTest -AllVersions -Force -ErrorAction SilentlyContinue } catch {}
 
+# Issue #106: an interrupted install leaves an empty version folder behind,
+# which used to satisfy the install check forever. Seed one so the first
+# apply must reinstall it (exit 2); the second apply must then be clean
+# (exit 0). Whether Install-Module -Force repairs the seeded folder in place
+# is exactly what this run proves.
+$seedParent = 'C:\Program Files\WindowsPowerShell\Modules\WpsRepoTest'
+try { if (Test-Path -LiteralPath $seedParent) { Remove-Item -Recurse -Force -LiteralPath $seedParent } } catch {}
+New-Item -ItemType Directory -Path (Join-Path $seedParent '1.0.0') -Force | Out-Null
+
 $first = Invoke-PuppetApply 'first run'
 Assert-True (($first -band 1) -eq 0) ("first run succeeded (exit $first)")
-Assert-True (($first -eq 0) -or ($first -eq 2)) ("first run exit is 0 or 2 (got $first)")
+Assert-True ($first -eq 2) ("first run reinstalled the seeded empty folder (exit $first, expected 2)")
 
 $second = Invoke-PuppetApply 'second run'
 Assert-True (($second -band 1) -eq 0) ("second run succeeded (exit $second)")

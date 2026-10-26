@@ -1,9 +1,32 @@
 <%- | Stdlib::Windowspath  $module_dir,
+      Windowspowershell::Name $modulename,
       Optional[String[1]]  $version,
 | -%>
 $moduleDir = '<%= $module_dir %>'
+$moduleName = '<%= $modulename %>'
 
 if (-not (Test-Path -LiteralPath $moduleDir)) { exit 1 }
+
+# Issue #106: an interrupted install leaves an empty or partial version folder
+# behind, and the folder name alone must not satisfy the check forever. A
+# candidate only counts when <version>\<modulename>.psd1 exists and passes
+# Test-ModuleManifest (cheap Test-Path first, manifest test only if present).
+# Join-Path plus -LiteralPath keeps bracketed names literal; the -Path
+# argument of Test-ModuleManifest is wildcard-escaped at runtime. Offline:
+# no module-discovery cmdlets, no network.
+# Wildcard names (` * ? [ ] and backtick) are excluded from the manifest
+# parse: Test-ModuleManifest rejects wildcards in RootModule/ModuleToProcess,
+# so a healthy wildcard-named module would reinstall on every run. For those
+# names the .psd1 only has to exist, which still repairs empty folders and
+# folders without a manifest.
+function Test-ModuleHealthy {
+    param([string]$DirPath)
+    $psd1 = Join-Path -Path $DirPath -ChildPath "${moduleName}.psd1"
+    if (-not (Test-Path -LiteralPath $psd1)) { return $false }
+    if ($moduleName -match '[`*?\[\]]') { return $true }
+    $escaped = $psd1 -replace '([`*?\[\]])', '`$1'
+    return ($null -ne (Test-ModuleManifest -Path $escaped -ErrorAction SilentlyContinue))
+}
 
 <% if $version =~ NotUndef { -%>
 # Pinned check (issue #30): a literal folder match counts, otherwise the folder
@@ -12,12 +35,14 @@ if (-not (Test-Path -LiteralPath $moduleDir)) { exit 1 }
 # purge and purge-check scripts via _version_compare.ps1.epp (issue #52).
 <%= epp('windowspowershell/_version_compare.ps1.epp', { 'version' => $version }) -%>
 $found = Get-ChildItem -LiteralPath $moduleDir -Directory -ErrorAction SilentlyContinue |
-    Where-Object { Test-PinnedVersionMatch $_.Name }
+    Where-Object { Test-PinnedVersionMatch $_.Name } |
+    Where-Object { Test-ModuleHealthy $_.FullName }
 <% } else { -%>
 # No pin: any installed version satisfies the check, but only a folder that parses as a [version]
 # is a version. A stray folder (backup, temp, etc.) must not make the module look installed.
 <%= epp('windowspowershell/_version_compare.ps1.epp') -%>
 $found = Get-ChildItem -LiteralPath $moduleDir -Directory -ErrorAction SilentlyContinue |
-    Where-Object { $null -ne (Get-NormalizedVersion $_.Name) }
+    Where-Object { $null -ne (Get-NormalizedVersion $_.Name) } |
+    Where-Object { Test-ModuleHealthy $_.FullName }
 <% } -%>
 if ($found) { exit 0 } else { exit 1 }
