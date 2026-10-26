@@ -268,3 +268,29 @@ dependencies from the Forge (stdlib 9.7.0, concat 9.1.0, powershell 6.2.0).
    `windowspowershell::script` — first run creates the module tree, the
    `.manifest-params` witness and the manifest; second run applies the catalog
    with no resource changes.
+
+### Production rollout / profile rollback (issue #108, pending lab verification)
+
+Procedure to verify the [Production rollout](README.md#production-rollout)
+guide on a lab node (Puppet 8, run as a Scheduled Task as SYSTEM).
+Not yet run: no Windows node is reachable from this checkout, so the steps
+below are the procedure to run, not a report.
+
+1. Pre-flight: record the SHA-256 of each existing profile (when present)
+   and of the module root listing:
+   ```powershell
+   Get-FileHash C:\Windows\System32\WindowsPowerShell\v1.0\profile.ps1 -ErrorAction SilentlyContinue
+   Get-FileHash C:\Windows\SysWOW64\WindowsPowerShell\v1.0\profile.ps1 -ErrorAction SilentlyContinue
+   Get-FileHash 'C:\Program Files\PowerShell\7\profile.ps1' -ErrorAction SilentlyContinue
+   ```
+2. Apply the pilot catalogue (`manage_profiles => false`, the default)
+   twice with `puppet apply --detailed-exitcodes`: no profile/`concat`
+   resources change (overall second-run exit 0 on a converged node), and
+   the profile hashes from step 1 are unchanged.
+3. Opt in (`manage_profiles => true`) and apply twice: the first run exits
+   2 (profiles rebuilt from fragments), the second exits 0 (no changes).
+4. Roll back (`manage_profiles => false`) and apply once: no profile/`concat`
+   resources change (overall exit 0, no `concat` target declared), and each
+   `profile.ps1` hash matches the post-step-3 value -- the files stay as-last-written,
+   unmanaged. Clean up by hand-deleting the left-over files or by
+   re-managing (`manage_profiles => true`).

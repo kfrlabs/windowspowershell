@@ -47,6 +47,8 @@
 #   (after them); `00` is the header, `50` the in-house imports and `60` the
 #   external imports. Lines added by a GPO startup script or by hand are not
 #   preserved. See "Co-managing the profiles" in the README.
+#   See "Production rollout" in the README for the ring order, the pre-flight
+#   inventory and the rollback procedure (issue #108).
 # @param manage_pwsh_profile
 #   Whether to manage the PowerShell 7 profile. Left `undef`, it is managed
 #   only on nodes where PowerShell 7 is installed at its default location

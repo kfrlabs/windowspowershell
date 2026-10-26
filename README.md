@@ -64,6 +64,8 @@ Checklist when coming from 1.x (details in [CHANGELOG.md](CHANGELOG.md#200---202
 - `proxy` URLs with userinfo and `scriptname` ending in `.ps1`/`.psm1` fail
   on parameter typing (issues #57, #56): move credentials to
   `proxy_credential`.
+- Roll out in rings: pilot new nodes with the defaults before opting in
+  (see [Production rollout](#production-rollout)).
 
 ### In-house modules: `windowspowershell::module`
 
@@ -496,6 +498,76 @@ Keep these points in mind:
   profile, an administrator editing it) is **not** preserved and is removed
   without a backup from the first run. Move it into a
   fragment, or keep it out of these files.
+
+### Production rollout
+
+Roll out in rings (issue #108): pilot on Windows Server 2022 and 2025
+first, then the rest of the fleet. Windows Server 2019 and Windows 11 are
+supported but lab-unvalidated (issue #87, see the manual matrix in
+[TESTING.md](TESTING.md#manual-matrix)): treat them as their own later ring
+and verify the double-apply there before widening.
+
+Pilot with the safe defaults: keep `manage_profiles` at its `false`
+default, keep `import_in_profile => false` on every module, and review
+`purge_versions` (default `true`) only where side-by-side versions are
+genuinely needed:
+
+```yaml
+# Pilot ring: stay on the defaults, opt in per-module only where needed
+windowspowershell::manage_profiles: false
+```
+
+Opt in to managed profiles only after the pre-flight inventory below, one
+ring at a time (`windowspowershell::manage_profiles: true`).
+
+Pre-flight inventory, per node, before the first managed run. The module
+makes no backup: copy anything worth keeping off the node first.
+
+```powershell
+Get-Content C:\Windows\System32\WindowsPowerShell\v1.0\profile.ps1 -ErrorAction SilentlyContinue
+Get-Content C:\Windows\SysWOW64\WindowsPowerShell\v1.0\profile.ps1 -ErrorAction SilentlyContinue
+# Only where PowerShell 7 is installed at its default location:
+Get-Content 'C:\Program Files\PowerShell\7\profile.ps1' -ErrorAction SilentlyContinue
+Get-ChildItem 'C:\Program Files\WindowsPowerShell\Modules'
+```
+
+Move the profile content that must survive into a `concat::fragment`
+(see [Co-managing the profiles](#co-managing-the-profiles)) before opting
+in; content left outside a fragment is removed without a backup from the
+first managed run.
+
+To retire an in-house module safely, retire its scripts first, then the
+module (script first, then module -- reverse of display order above):
+
+```puppet
+windowspowershell::script { 'Get-OldThing':
+  modulename => 'Acme',
+  ensure     => absent,
+}
+
+windowspowershell::module { 'Acme':
+  ensure => absent,
+}
+```
+
+Retiring removes the module tree (every version folder) and drops its
+`Import-Module` line from the managed profiles on the next run. It does
+not restore anything: the previous profile content is not put back, and
+the removed version folders are not reinstalled. A `script` with
+`ensure => present` naming an absent module fails compilation (issue #88),
+so the catalogue tells you which scripts are left behind -- retire those
+first.
+
+Rollback of profile management: setting `manage_profiles` back to `false`
+declares no `concat` target at all (`$profile_paths` becomes empty in
+`init.pp`, and `windowspowershell::config` only declares the targets when
+it is `true`), so Puppet stops managing the files and leaves them on disk
+exactly as last written. To clean up, either delete the left-over
+`profile.ps1` files by hand (after backing up anything still needed) or
+set `manage_profiles => true` again to bring them back under management.
+If you added fragments with literal targets, remove or conditionalize them;
+the `$profile_paths.each` pattern above needs no change (it declares nothing
+when empty).
 
 ### Configuration
 

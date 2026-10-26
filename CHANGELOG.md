@@ -7,6 +7,14 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Added
+
+- Production rollout guide (issue #108): the README gains a `Production
+  rollout` section (rings, pilot settings, pre-flight inventory, safe
+  retire recipe and `manage_profiles` rollback) linked from the 2.0 upgrade
+  notes and the `manage_profiles` parameter docs, with the matching
+  verification procedure in `TESTING.md`. Docs/comment-only, no behavior or catalog change.
+
 ### Changed
 
 - **Behavior (issue #109):** `manage_profiles` now defaults to `false`
