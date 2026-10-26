@@ -637,6 +637,11 @@ describe 'windowspowershell::external_module' do
 
       context 'with import_in_profile => true' do
         let(:params) { { 'ensure' => '2.1.0', 'repository' => 'PSGallery', 'import_in_profile' => true } }
+        let(:pre_condition) do
+          super().dup << <<~PUPPET
+            class { 'windowspowershell': manage_profiles => true }
+          PUPPET
+        end
 
         it { is_expected.to compile.with_all_deps }
 
@@ -661,10 +666,30 @@ describe 'windowspowershell::external_module' do
         end
       end
 
+      context 'with import_in_profile => true and default class parameters' do
+        let(:params) { { 'ensure' => '2.1.0', 'repository' => 'PSGallery', 'import_in_profile' => true } }
+
+        it { is_expected.to compile.with_all_deps }
+
+        it 'declares no Import-Module fragment when profiles are not managed' do
+          [
+            'C:\Windows\System32\WindowsPowerShell\v1.0\profile.ps1',
+            'C:\Windows\SysWOW64\WindowsPowerShell\v1.0\profile.ps1',
+          ].each do |profile|
+            is_expected.not_to contain_concat_fragment("windowspowershell import external ExampleModule in #{profile}")
+          end
+        end
+      end
+
       # Import-Module reads -Name as a wildcard as well (issue #73), so the
       # profile fragment escapes a bracketed modulename literally.
       context 'with import_in_profile => true and a modulename holding wildcards' do
         let(:params) { { 'ensure' => '2.1.0', 'repository' => 'PSGallery', 'modulename' => 'Bracket[Beta]', 'import_in_profile' => true } }
+        let(:pre_condition) do
+          super().dup << <<~PUPPET
+            class { 'windowspowershell': manage_profiles => true }
+          PUPPET
+        end
 
         it { is_expected.to compile.with_all_deps }
 
@@ -680,6 +705,11 @@ describe 'windowspowershell::external_module' do
       context 'with PowerShell 7 installed and import_in_profile => true' do
         let(:facts) { os_facts.merge('powershell7' => { 'installed' => true, 'path' => 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' }) }
         let(:params) { { 'ensure' => '2.1.0', 'repository' => 'PSGallery', 'import_in_profile' => true } }
+        let(:pre_condition) do
+          super().dup << <<~PUPPET
+            class { 'windowspowershell': manage_profiles => true }
+          PUPPET
+        end
 
         it { is_expected.to compile.with_all_deps }
 
@@ -694,6 +724,11 @@ describe 'windowspowershell::external_module' do
 
       context 'with ensure => present and import_in_profile => true' do
         let(:params) { { 'ensure' => 'present', 'repository' => 'PSGallery', 'import_in_profile' => true } }
+        let(:pre_condition) do
+          super().dup << <<~PUPPET
+            class { 'windowspowershell': manage_profiles => true }
+          PUPPET
+        end
 
         it { is_expected.to compile.with_all_deps }
 
@@ -709,6 +744,11 @@ describe 'windowspowershell::external_module' do
 
       context 'with a single-component pinned version and import_in_profile => true' do
         let(:params) { { 'ensure' => '2', 'repository' => 'PSGallery', 'import_in_profile' => true } }
+        let(:pre_condition) do
+          super().dup << <<~PUPPET
+            class { 'windowspowershell': manage_profiles => true }
+          PUPPET
+        end
 
         it { is_expected.to compile.with_all_deps }
 
@@ -725,6 +765,7 @@ describe 'windowspowershell::external_module' do
         let(:params) { { 'ensure' => '2.1.0', 'repository' => 'PSGallery', 'modulename' => 'Acme', 'import_in_profile' => true } }
         let(:pre_condition) do
           super().dup << <<~PUPPET
+            class { 'windowspowershell': manage_profiles => true }
             windowspowershell::module { 'Acme':
               import_in_profile => true,
             }

@@ -330,6 +330,7 @@ describe 'windowspowershell::module' do
 
       context 'with import_in_profile => true' do
         let(:params) { { 'import_in_profile' => true } }
+        let(:pre_condition) { "class { 'windowspowershell': manage_profiles => true }" }
 
         it 'imports the module from the Windows PowerShell profiles' do
           [
@@ -355,6 +356,21 @@ describe 'windowspowershell::module' do
         end
       end
 
+      context 'with import_in_profile => true and default class parameters' do
+        let(:params) { { 'import_in_profile' => true } }
+
+        it { is_expected.to compile.with_all_deps }
+
+        it 'declares no Import-Module fragment when profiles are not managed' do
+          [
+            'C:\Windows\System32\WindowsPowerShell\v1.0\profile.ps1',
+            'C:\Windows\SysWOW64\WindowsPowerShell\v1.0\profile.ps1',
+          ].each do |profile|
+            is_expected.not_to contain_concat_fragment("windowspowershell import Acme in #{profile}")
+          end
+        end
+      end
+
       context 'with PowerShell 7 installed' do
         let(:facts) { os_facts.merge('powershell7' => { 'installed' => true, 'path' => 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' }) }
 
@@ -366,6 +382,7 @@ describe 'windowspowershell::module' do
       context 'with PowerShell 7 installed and import_in_profile => true' do
         let(:facts) { os_facts.merge('powershell7' => { 'installed' => true, 'path' => 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' }) }
         let(:params) { { 'import_in_profile' => true } }
+        let(:pre_condition) { "class { 'windowspowershell': manage_profiles => true }" }
 
         it 'adds an Import-Module fragment to the pwsh profile' do
           profile = 'C:\Program Files\PowerShell\7\profile.ps1'
@@ -466,6 +483,7 @@ describe 'windowspowershell::module' do
         # manifest path in the profile fragment escapes brackets literally.
         context 'with import_in_profile => true' do
           let(:params) { { 'import_in_profile' => true } }
+          let(:pre_condition) { "class { 'windowspowershell': manage_profiles => true }" }
 
           it { is_expected.to compile.with_all_deps }
 
@@ -537,7 +555,16 @@ describe 'windowspowershell::module' do
       end
 
       context 'with two modules declared, each one self-contained' do
-        let(:pre_condition) { "windowspowershell::module { 'OtherModule': import_in_profile => true }" }
+        let(:pre_condition) do
+          <<~PUPPET
+            class { 'windowspowershell':
+              manage_profiles => true,
+            }
+            windowspowershell::module { 'OtherModule':
+              import_in_profile => true,
+            }
+          PUPPET
+        end
         let(:params) { { 'import_in_profile' => true } }
 
         it { is_expected.to compile.with_all_deps }

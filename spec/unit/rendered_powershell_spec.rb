@@ -80,8 +80,8 @@ describe 'windowspowershell', type: :class do
 
   # Parameters of the `windowspowershell` class itself, per scenario.
   class_params = {
-    'in_house_module' => { 'manage_pwsh_profile' => true },
-    'external_from_repository' => { 'manage_pwsh_profile' => true },
+    'in_house_module' => { 'manage_profiles' => true, 'manage_pwsh_profile' => true },
+    'external_from_repository' => { 'manage_profiles' => true, 'manage_pwsh_profile' => true },
     'external_from_source' => { 'manage_profiles' => false },
     'proxy' => { 'proxy' => 'http://proxy.example.com:3128' },
     'proxy_credential' => {

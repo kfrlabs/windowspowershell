@@ -7,6 +7,21 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+### Changed
+
+- **Behavior (issue #109):** `manage_profiles` now defaults to `false`
+  instead of `true`. Profile management is opt-in: by default no profile is
+  managed and `$windowspowershell::profile_paths` is empty, so
+  `import_in_profile => true` on a module adds no `Import-Module` line
+  anywhere until the site opts in. Managing stays destructive by design
+  (issue #90): once enabled, each managed profile is rebuilt from its
+  fragments without a backup from the first run.
+  - Migration: sites that relied on the managed profiles must set
+    `manage_profiles => true` explicitly (e.g. in Hiera:
+    `windowspowershell::manage_profiles: true`) to keep the old behavior.
+    Sites that never opted in keep the default and manage the profiles from
+    their own code, or not at all.
+
 ### Fixed
 
 - Release gate (issue #105): `release.yml` no longer publishes a tag without
