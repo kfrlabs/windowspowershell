@@ -128,17 +128,20 @@ Default value: `'C:\Program Files\WindowsPowerShell\Modules'`
 
 Data type: `Boolean`
 
-Whether to manage the machine-wide PowerShell profiles. Each in-house
-module with `import_in_profile => true` adds its own
+Whether to manage the machine-wide PowerShell profiles. Defaults to
+`false` (opt-in, issue #109): no profile is managed and
+`$windowspowershell::profile_paths` is empty, so `import_in_profile => true`
+on a module adds no `Import-Module` line anywhere until this is set `true`.
+Each in-house module with `import_in_profile => true` adds its own
 `Import-Module` line to these profiles; `windowspowershell::external_module` does
 the same for a third-party module when `import_in_profile => true` is
 passed to it.
-Destructive by design (issue #90): defaults to `true`, and from the first
+Destructive by design (issue #90): set to `true`, and from the first
 run the profile files are rebuilt from their fragments without a backup:
 on every run, anything in them that does not come from a `concat::fragment`
 targeting them is removed. Inventory and back up any existing profile
-content before the first run, and pilot new nodes with
-`manage_profiles => false` before opting in. Other
+content before the first run, and pilot new nodes with the default
+`false` before opting in with `manage_profiles => true`. Other
 Puppet code can add its own content by declaring a `concat::fragment` with
 `target` set to a path in `$windowspowershell::profile_paths` and an
 `order` between `01` and `49` (before the module imports) or `70` and `99`
@@ -146,7 +149,7 @@ Puppet code can add its own content by declaring a `concat::fragment` with
 external imports. Lines added by a GPO startup script or by hand are not
 preserved. See "Co-managing the profiles" in the README.
 
-Default value: `true`
+Default value: `false`
 
 ##### <a name="-windowspowershell--manage_pwsh_profile"></a>`manage_pwsh_profile`
 

@@ -44,16 +44,30 @@ describe 'windowspowershell' do
         is_expected.not_to contain_exec('windowspowershell unblock-files')
       end
 
-      it 'declares a concat target and header fragment per Windows PowerShell profile' do
+      it 'manages no profile by default' do
         [
           'C:\Windows\System32\WindowsPowerShell\v1.0\profile.ps1',
           'C:\Windows\SysWOW64\WindowsPowerShell\v1.0\profile.ps1',
         ].each do |profile|
-          is_expected.to contain_concat(profile).with_ensure('present')
-          is_expected.to contain_concat_fragment("windowspowershell header #{profile}").
-            with_target(profile).
-            with_order('00').
-            with_content(%r{Managed by Puppet \(windowspowershell\)})
+          is_expected.not_to contain_concat(profile)
+          is_expected.not_to contain_concat_fragment("windowspowershell header #{profile}")
+        end
+      end
+
+      context 'with manage_profiles => true' do
+        let(:params) { { 'manage_profiles' => true } }
+
+        it 'declares a concat target and header fragment per Windows PowerShell profile' do
+          [
+            'C:\Windows\System32\WindowsPowerShell\v1.0\profile.ps1',
+            'C:\Windows\SysWOW64\WindowsPowerShell\v1.0\profile.ps1',
+          ].each do |profile|
+            is_expected.to contain_concat(profile).with_ensure('present')
+            is_expected.to contain_concat_fragment("windowspowershell header #{profile}").
+              with_target(profile).
+              with_order('00').
+              with_content(%r{Managed by Puppet \(windowspowershell\)})
+          end
         end
       end
 
@@ -200,6 +214,7 @@ describe 'windowspowershell' do
 
       context 'with PowerShell 7 installed' do
         let(:facts) { os_facts.merge('powershell7' => { 'installed' => true, 'path' => 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' }) }
+        let(:params) { { 'manage_profiles' => true } }
 
         it {
           is_expected.to contain_concat('C:\Program Files\PowerShell\7\profile.ps1').with_ensure('present')
@@ -220,7 +235,7 @@ describe 'windowspowershell' do
 
       context 'with PowerShell 7 installed but the profile opted out' do
         let(:facts) { os_facts.merge('powershell7' => { 'installed' => true, 'path' => 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' }) }
-        let(:params) { { 'manage_pwsh_profile' => false } }
+        let(:params) { { 'manage_profiles' => true, 'manage_pwsh_profile' => false } }
 
         it { is_expected.not_to contain_concat('C:\Program Files\PowerShell\7\profile.ps1') }
       end
@@ -229,7 +244,7 @@ describe 'windowspowershell' do
       # write into a directory that does not exist; the class fails early with a
       # clear message instead of letting the run blow up opaquely later.
       context 'with the pwsh profile forced on but PowerShell 7 absent' do
-        let(:params) { { 'manage_pwsh_profile' => true } }
+        let(:params) { { 'manage_profiles' => true, 'manage_pwsh_profile' => true } }
 
         it { is_expected.to compile.and_raise_error(%r{manage_pwsh_profile is true but PowerShell 7 was not detected at its default location}) }
       end
@@ -237,7 +252,7 @@ describe 'windowspowershell' do
       # Forced on and pwsh present: the profile is managed as expected.
       context 'with the pwsh profile forced on and PowerShell 7 present' do
         let(:facts) { os_facts.merge('powershell7' => { 'installed' => true, 'path' => 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' }) }
-        let(:params) { { 'manage_pwsh_profile' => true } }
+        let(:params) { { 'manage_profiles' => true, 'manage_pwsh_profile' => true } }
 
         it {
           is_expected.to contain_concat('C:\Program Files\PowerShell\7\profile.ps1').with_ensure('present')
@@ -370,6 +385,7 @@ describe 'windowspowershell' do
       end
 
       context 'with an in-house and an external module importing into the profile' do
+        let(:params) { { 'manage_profiles' => true } }
         let(:pre_condition) do
           <<~PUPPET
             windowspowershell::external_module { 'ExampleModule':
@@ -389,6 +405,7 @@ describe 'windowspowershell' do
       # Same pair declared in the reverse order (module first, external
       # second): declaration order must not change the fragment set.
       context 'with the same in-house and external modules declared in reverse order' do
+        let(:params) { { 'manage_profiles' => true } }
         let(:pre_condition) do
           <<~PUPPET
             windowspowershell::module { 'Acme':
@@ -411,6 +428,7 @@ describe 'windowspowershell' do
       # instead of being removed on the next run.
       context 'with an extra concat fragment from another module on the Windows PowerShell profile' do
         let(:profile) { 'C:\Windows\System32\WindowsPowerShell\v1.0\profile.ps1' }
+        let(:params) { { 'manage_profiles' => true } }
         let(:pre_condition) do
           <<~PUPPET
             windowspowershell::module { 'Acme':
@@ -476,7 +494,9 @@ describe 'windowspowershell' do
         let(:facts) { os_facts.merge('powershell7' => { 'installed' => true, 'path' => 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' }) }
         let(:pre_condition) do
           <<~PUPPET
-            include windowspowershell
+            class { 'windowspowershell':
+              manage_profiles => true,
+            }
 
             if $windowspowershell::supported {
               $windowspowershell::profile_paths.each |$profile_path| {
@@ -508,6 +528,7 @@ describe 'windowspowershell' do
 
       context 'with PowerShell 7 installed and mixed imports into the pwsh profile' do
         let(:facts) { os_facts.merge('powershell7' => { 'installed' => true, 'path' => 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' }) }
+        let(:params) { { 'manage_profiles' => true } }
         let(:pre_condition) do
           <<~PUPPET
             windowspowershell::module { 'Acme':

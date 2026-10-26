@@ -430,11 +430,12 @@ run (~0.6 s), whether or not anything is managed.
 
 ### Co-managing the profiles
 
-> Destructive by design (issue #90): `manage_profiles` defaults to `true`,
-> and from the first run each managed profile is rebuilt from its fragments
-> without a backup. Inventory and back up any existing profile content before
-> the first run, and pilot new nodes with `manage_profiles => false` before
-> opting in.
+> Opt-in (issue #109): `manage_profiles` defaults to `false`, so no profile
+> is managed until the site opts in with `manage_profiles => true`.
+> Managing is destructive by design (issue #90): from the first run each
+> managed profile is rebuilt from its fragments without a backup. Inventory
+> and back up any existing profile content before the first run, and pilot
+> new nodes with the default `false` before opting in.
 
 The machine-wide profiles (`System32`, `SysWOW64` and, when managed, PowerShell
 7) are `concat` resources owned by this module: on every run the file is
@@ -486,11 +487,11 @@ Keep these points in mind:
   path in the title when you declare one fragment per profile, as above.
 - Each fragment's `content` should end with a newline: `concat` joins
   fragments as they are.
-- To manage the profiles entirely from your own code instead, set
-  `manage_profiles => false`. The class then declares no profile at all and
+- To manage the profiles entirely from your own code instead, leave
+  `manage_profiles => false` (the default). The class then declares no profile at all and
   `profile_paths` is empty. This is also the recommended pilot path: start
-  with `false`, inventory existing profile content, move what must survive
-  into a fragment, then opt in.
+  with the default, inventory existing profile content, move what must survive
+  into a fragment, then opt in with `manage_profiles => true`.
 - Content that Puppet does not manage (a GPO startup script writing to the
   profile, an administrator editing it) is **not** preserved and is removed
   without a backup from the first run. Move it into a
@@ -513,6 +514,16 @@ the module would also be unreliable: `%{facts.agent_specified_environment}` is
 only set when the agent explicitly requests an environment (`environment=` in
 `puppet.conf` or `--environment`), so nodes classified by an ENC or by the
 server lack the fact and the override is silently ignored.
+
+Profile management itself is opt-in: `manage_profiles` defaults to `false`,
+so no profile is managed until the site opts in, e.g. in Hiera:
+
+```yaml
+windowspowershell::manage_profiles: true
+```
+
+`import_in_profile => true` on a module only adds its `Import-Module` line
+once profiles are managed.
 
 ### Facts
 
@@ -609,7 +620,9 @@ Contributions are welcome via GitHub issues and pull requests.
   sees PowerShell 7 at its default location
   (`C:\Program Files\PowerShell\7`); ZIP, Microsoft Store and 32-bit installs
   elsewhere get no managed pwsh profile.
-- The machine-wide profiles are replaced wholesale on each run: only content
+- The machine-wide profiles are managed only when `manage_profiles => true`
+  (default `false`, opt-in): each managed profile is replaced wholesale on
+  each run, and only content
   coming from a `concat::fragment` survives. Puppet code can add its own
   fragments (see [Co-managing the profiles](#co-managing-the-profiles)), but
   lines written by a GPO startup script, another tool or an administrator are
