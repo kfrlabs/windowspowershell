@@ -148,6 +148,8 @@ Puppet code can add its own content by declaring a `concat::fragment` with
 (after them); `00` is the header, `50` the in-house imports and `60` the
 external imports. Lines added by a GPO startup script or by hand are not
 preserved. See "Co-managing the profiles" in the README.
+See "Production rollout" in the README for the ring order, the pre-flight
+inventory and the rollback procedure (issue #108).
 
 Default value: `false`
 
