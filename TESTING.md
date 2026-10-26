@@ -60,7 +60,10 @@ folder from the same render run) against fixture trees, with only their
 `$moduleDir` assignment repointed so the real `AllUsers` directory is never
 touched: empty, partial (no manifest) and corrupt-manifest version folders
 must reinstall (exit 1), while a healthy `New-ModuleManifest` tree satisfies
-the check (exit 0). It is offline and
+the check (exit 0). A syntactically broken script in `Functions/` must fail
+the manifest build (exit non-zero, naming the file and line) while the
+`.psd1` stays byte-identical, and the build goes green again once the script
+is removed. It is offline and
 removes the tree when done.
 
 ```powershell

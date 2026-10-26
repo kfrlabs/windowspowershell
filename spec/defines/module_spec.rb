@@ -308,6 +308,17 @@ describe 'windowspowershell::module' do
           with_command(%r{-RootModule "\$\{moduleName\}\.psm1"})
       end
 
+      # A broken script must fail the manifest build without touching the
+      # existing .psd1 (fail closed, issue #107): every Functions/ script is
+      # parsed as UTF-8 before New-ModuleManifest runs. Both Execs share the
+      # same manifest command, so both carry the validation.
+      it 'parses every Functions script as UTF-8 before writing the manifest' do
+        ['windowspowershell create-manifest Acme', 'windowspowershell update-manifest Acme'].each do |exec_name|
+          is_expected.to contain_exec(exec_name).
+            with_command(%r{ReadAllText\(\$\w+\.FullName, \[System\.Text\.Encoding\]::UTF8\)[\s\S]*ParseInput[\s\S]*PARSE ERROR[\s\S]*exit 1[\s\S]*New-ModuleManifest})
+        end
+      end
+
       it 'adds no Import-Module fragment to the profiles by default' do
         [
           'C:\Windows\System32\WindowsPowerShell\v1.0\profile.ps1',
