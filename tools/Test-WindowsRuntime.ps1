@@ -9,6 +9,13 @@
     the `powershell` provider does: script text on stdin of Windows PowerShell.
     Everything is offline: no gallery access is needed.
 
+    It also replays the repository install checks of the
+    `external_from_repository` scenario (sibling folder from the same render
+    run, see -RepositoryRenderedPath) against fixture trees, with only their
+    $moduleDir assignment repointed so the real AllUsers directory is never
+    touched: empty, partial and corrupt version folders must reinstall
+    (exit 1), while a healthy manifest satisfies the check (exit 0).
+
     Run it from Windows PowerShell 5.1 on every supported Windows Server
     release. -RenderedPath points at the `runtime` folder produced with
     WPS_RENDER_DIR. See TESTING.md.
@@ -20,7 +27,11 @@ param(
 
     [string] $Root = 'C:\wps-ci\Modules',
 
-    [string] $RootModule
+    [string] $RootModule,
+
+    # Sibling of the runtime folder, written by the same
+    # spec/unit/rendered_powershell_spec.rb run (WPS_RENDER_DIR).
+    [string] $RepositoryRenderedPath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -31,6 +42,10 @@ if (-not $RootModule) {
     $RootModule = Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) '..\files\rootmodule.psm1'
 }
 $RenderedPath = (Resolve-Path -LiteralPath $RenderedPath).ProviderPath
+if (-not $RepositoryRenderedPath) {
+    $RepositoryRenderedPath = Join-Path (Split-Path -Parent $RenderedPath) 'external_from_repository'
+}
+$RepositoryRenderedPath = (Resolve-Path -LiteralPath $RepositoryRenderedPath).ProviderPath
 $failed = 0
 
 function Get-RenderedScriptPath([string] $Pattern) {
@@ -53,6 +68,34 @@ function Assert-True([bool] $Condition, [string] $Message) {
 
 function Assert-Exit([string] $Pattern, [int] $Expected, [string] $Message) {
     $actual = Invoke-Rendered $Pattern
+    Assert-True ($actual -eq $Expected) "$Message (exit $actual, expected $Expected)"
+}
+
+# Issue #106: the repository install check (external_from_repository scenario)
+# hardcodes the AllUsers module directory, which a throw-away tree must not
+# pollute, so the check runs with only its `$moduleDir = '...'` assignment
+# repointed at the fixture tree. Every other line runs exactly as rendered,
+# through powershell.exe on stdin like the provider does.
+function Get-RepositoryScriptPath([string] $Pattern) {
+    $hits = @(Get-ChildItem -LiteralPath $RepositoryRenderedPath -Filter $Pattern)
+    if ($hits.Count -ne 1) { throw "Expected exactly one rendered repository script for '$Pattern', found $($hits.Count)" }
+    $hits[0].FullName
+}
+
+function Invoke-RepositoryCheck([string] $Pattern, [string] $ModuleDir) {
+    $path = Get-RepositoryScriptPath $Pattern
+    $text = Get-Content -LiteralPath $path -Raw -Encoding UTF8
+    $pattern = '(?m)^' + [regex]::Escape('$moduleDir = ') + "'.*'\r?$"
+    # Escape $ as $$ so a $ in the directory (legal in Windows paths,
+    # e.g. C:\wps$ci) survives the -replace replacement as a literal.
+    $replacement = '$$moduleDir = ''{0}''' -f ($ModuleDir.Replace("'", "''") -replace '\$', '$$$$')
+    $repointed = $text -replace $pattern, $replacement
+    $repointed | & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command - | Out-Null
+    $LASTEXITCODE
+}
+
+function Assert-RepositoryExit([string] $Pattern, [string] $ModuleDir, [int] $Expected, [string] $Message) {
+    $actual = Invoke-RepositoryCheck $Pattern $ModuleDir
     Assert-True ($actual -eq $Expected) "$Message (exit $actual, expected $Expected)"
 }
 
@@ -114,6 +157,54 @@ try {
     Assert-Exit '*uninstall_WpsGone_command*' 0 'absent: uninstall runs'
     Assert-Exit '*uninstall_WpsGone_unless*' 0 'absent: uninstall is idempotent'
     Assert-True (-not (Test-Path -LiteralPath $gone)) 'absent: tree removed'
+
+    # Issue #106: an empty or partial version folder must not satisfy the
+    # repository install check. The fixtures replay the rendered Pinned
+    # (2.1.0) and Latest (ensure => present) checks with only $moduleDir
+    # repointed (see Invoke-RepositoryCheck). Offline: Test-Path plus
+    # Test-ModuleManifest, no gallery access.
+    $checkRoot = Join-Path $Root 'WpsCheck'
+    if (Test-Path -LiteralPath $checkRoot) { Remove-Item -LiteralPath $checkRoot -Recurse -Force }
+
+    $pinnedDir = Join-Path $checkRoot 'Pinned'
+    $pinnedVersion = Join-Path $pinnedDir '2.1.0'
+    New-Dir $pinnedVersion
+    Assert-RepositoryExit '*install_Pinned_unless*' $pinnedDir 1 'check: empty version folder reinstalls'
+    Set-Content -LiteralPath (Join-Path $pinnedVersion 'Pinned.psm1') -Value "function Get-Pinned { 'pinned' }`n"
+    Assert-RepositoryExit '*install_Pinned_unless*' $pinnedDir 1 'check: partial folder without a manifest reinstalls'
+    Set-Content -LiteralPath (Join-Path $pinnedVersion 'Pinned.psd1') -Value 'this is not a manifest'
+    Assert-RepositoryExit '*install_Pinned_unless*' $pinnedDir 1 'check: corrupt manifest reinstalls'
+    Remove-Item -LiteralPath (Join-Path $pinnedVersion 'Pinned.psd1') -Force
+    New-ModuleManifest -Path (Join-Path $pinnedVersion 'Pinned.psd1') `
+        -ModuleVersion '2.1.0' -GUID '22222222-3333-4444-5555-666666666666' `
+        -Author 'CI' -CompanyName 'CI' -Description 'Issue106 runtime fixture.' `
+        -RootModule 'Pinned.psm1' -FunctionsToExport @('Get-Pinned')
+    Assert-RepositoryExit '*install_Pinned_unless*' $pinnedDir 0 'check: healthy manifest satisfies the pin'
+
+    $latestDir = Join-Path $checkRoot 'Latest'
+    $latestVersion = Join-Path $latestDir '1.0'
+    New-Dir $latestVersion
+    Assert-RepositoryExit '*install_Latest_unless*' $latestDir 1 'check: empty folder does not satisfy present'
+    Set-Content -LiteralPath (Join-Path $latestVersion 'Latest.psm1') -Value "function Get-Latest { 'latest' }`n"
+    New-ModuleManifest -Path (Join-Path $latestVersion 'Latest.psd1') `
+        -ModuleVersion '1.0' -GUID '33333333-4444-5555-6666-777777777777' `
+        -Author 'CI' -CompanyName 'CI' -Description 'Issue106 runtime fixture.' `
+        -RootModule 'Latest.psm1' -FunctionsToExport @('Get-Latest')
+    Assert-RepositoryExit '*install_Latest_unless*' $latestDir 0 'check: healthy manifest satisfies present'
+
+    # Bracketed name: wildcard names are excluded from the Test-ModuleManifest
+    # parse (it rejects wildcards in RootModule, which would reinstall a
+    # healthy wildcard module on every run), so for those names the .psd1
+    # only has to exist. Uses the .NET API because New-Item has no
+    # -LiteralPath on 5.1 and New-ModuleManifest -Path rejects brackets.
+    $bracketDir = Join-Path $checkRoot 'Bracket[Beta]'
+    $bracketVersion = Join-Path $bracketDir '1.0.0'
+    [void][System.IO.Directory]::CreateDirectory($bracketVersion)
+    Assert-RepositoryExit '*install_Bracket*_unless*' $bracketDir 1 'check: empty bracketed version folder reinstalls'
+    Set-Content -LiteralPath (Join-Path $bracketVersion 'Bracket[Beta].psm1') -Value "function Get-BracketBeta { 'bracket' }`n"
+    Assert-RepositoryExit '*install_Bracket*_unless*' $bracketDir 1 'check: partial bracketed folder without a manifest reinstalls'
+    Set-Content -LiteralPath (Join-Path $bracketVersion 'Bracket[Beta].psd1') -Value "@{ ModuleVersion = '1.0.0' }`n"
+    Assert-RepositoryExit '*install_Bracket*_unless*' $bracketDir 0 'check: bracketed folder with a psd1 satisfies the pin (manifest parse excluded)'
 }
 finally {
     if (Test-Path -LiteralPath $Root) { Remove-Item -LiteralPath $Root -Recurse -Force }
