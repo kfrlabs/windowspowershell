@@ -622,3 +622,8 @@ Contributions are welcome via GitHub issues and pull requests.
   ASCII-only where 5.1 may run; files deployed from a `source` must be saved
   accordingly (UTF-8 with BOM also works, PowerShell 7 reads BOM-less UTF-8
   fine). Verified on Windows Server 2025, see `TESTING.md`.
+- A syntactically broken `Functions/` script fails the manifest build without
+  touching the existing `.psd1` (fail-closed, issue #107): every script is
+  parsed (syntax only, read as UTF-8) before `New-ModuleManifest` runs, and a
+  `PARSE ERROR <file>:<line>` names the culprit. Anything beyond syntax (a
+  missing command, a wrong export list) is not checked.

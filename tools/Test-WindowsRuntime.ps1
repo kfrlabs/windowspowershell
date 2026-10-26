@@ -71,6 +71,17 @@ function Assert-Exit([string] $Pattern, [int] $Expected, [string] $Message) {
     Assert-True ($actual -eq $Expected) "$Message (exit $actual, expected $Expected)"
 }
 
+# Issue #107: replays the manifest build and returns its merged output, so a
+# failed build can assert on the file-and-line message. $ErrorActionPreference
+# is 'Stop' in this script, which would turn the merged stderr records into a
+# terminating error here, so the preference is relaxed in this scope only.
+function Invoke-RenderedWithOutput([string] $Pattern) {
+    $ErrorActionPreference = 'Continue'
+    $path = Get-RenderedScriptPath $Pattern
+    Get-Content -LiteralPath $path -Raw -Encoding UTF8 |
+        & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command - 2>&1
+}
+
 # Issue #106: the repository install check (external_from_repository scenario)
 # hardcodes the AllUsers module directory, which a throw-away tree must not
 # pollute, so the check runs with only its `$moduleDir = '...'` assignment
@@ -135,6 +146,18 @@ try {
     $data = Import-PowerShellDataFile -LiteralPath $psd1
     Assert-True ($data.RootModule -eq 'WpsSmoke.psm1') 'manifest: root module declared as RootModule'
     Assert-True ((@($data.NestedModules) -join ',') -eq 'Functions\Get-WpsA.ps1,Functions\Sub\Get-WpsB.ps1') 'manifest: only Functions/ scripts are nested modules'
+    # Issue #107: a syntactically broken script fails the manifest build
+    # without touching the existing .psd1 (fail closed).
+    Set-Content -LiteralPath (Join-Path $smoke '1.4\Functions\Get-WpsBroken.ps1') -Value 'function Get-WpsBroken {'
+    $psd1Hash = (Get-FileHash -LiteralPath $psd1 -Algorithm SHA256).Hash
+    $brokenOutput = @(Invoke-RenderedWithOutput '*update-manifest_WpsSmoke_command*')
+    $brokenExit = $LASTEXITCODE
+    $brokenText = ($brokenOutput | ForEach-Object { "$_" }) -join "`n"
+    Assert-True ($brokenExit -ne 0) ("manifest: broken script fails the build (exit {0}, expected non-zero)" -f $brokenExit)
+    Assert-True ($brokenText -match 'PARSE ERROR' -and $brokenText -match 'Get-WpsBroken[^:\r\n]*:\d+') 'manifest: failure names the broken file and line'
+    Assert-True ((Get-FileHash -LiteralPath $psd1 -Algorithm SHA256).Hash -eq $psd1Hash) 'manifest: .psd1 byte-identical after the failed build'
+    Remove-Item -LiteralPath (Join-Path $smoke '1.4\Functions\Get-WpsBroken.ps1') -Force
+    Assert-Exit '*update-manifest_WpsSmoke_command*' 0 'manifest: build is green again once the broken script is gone'
     Assert-Exit '*unblock-files_WpsSmoke_command*' 0 'unblock-files runs'
 
     $env:PSModulePath = "$Root;$env:PSModulePath"
