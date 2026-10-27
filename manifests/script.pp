@@ -5,6 +5,13 @@
 # on the next PowerShell session. Removing it is the same resource with
 # `ensure => absent`.
 #
+# On nodes without long-path support the script path
+# (`<module_root>\<module>\<version>\Functions\<folder>\<script>.ps1`) must stay
+# under 260 characters (Windows `MAX_PATH`, terminating NUL included). With
+# `ensure => present`, a longer path logs a compile-time warning (not a
+# failure: a node may have long paths enabled, which the compiler cannot see)
+# naming `module_root`, the module, its version, `folder` and `scriptname`.
+#
 # @param modulename
 #   Name of the in-house module (a `windowspowershell::module`
 #   resource) this script is deployed into. Mandatory: there is no default
@@ -102,6 +109,18 @@ define windowspowershell::script (
     default => "${functions_path}\\${folder}",
   }
   $script_path = "${script_folder}\\${scriptname}.ps1"
+
+  # Issue #115: warn, rather than fail, when the script path exceeds Windows
+  # MAX_PATH (260 characters, terminating NUL included, hence 259). A node
+  # with long-path support is legitimate and the compiler cannot see it.
+  $script_path_length = $script_path.length
+  if $ensure == 'present' and $script_path_length > 259 {
+    $script_folder_label = $folder ? {
+      undef   => '(none)',
+      default => "'${folder}'",
+    }
+    warning("windowspowershell::script[${name}]: the script path is ${script_path_length} characters, over the 259-character Windows MAX_PATH limit (module_root '${windowspowershell::normalized_module_root}', modulename '${modulename}', version '${module_version}', folder ${script_folder_label}, scriptname '${scriptname}'). Without long-path support on the node, deploying it fails with an opaque path error. Shorten module_root, modulename, version, folder or scriptname, or enable long paths on the node (LongPathsEnabled).")
+  }
 
   if !$windowspowershell::supported {
     # No-op: the class declares nothing on this node, so there is no Functions

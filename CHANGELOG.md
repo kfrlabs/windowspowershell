@@ -9,6 +9,17 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ### Added
 
+- Path length (`MAX_PATH`) check at compile time (issue #115):
+  `windowspowershell::module` and `windowspowershell::script` with
+  `ensure => present` now log a Puppet **warning** when the longest path they
+  manage exceeds 259 characters (260 with the terminating NUL), the Windows
+  limit on nodes without long-path support. The warning names the length and
+  the parameters that build the path (`module_root`, module name, `version`,
+  `folder`, `scriptname`). Decision: a warning, not a hard failure, because
+  the compiler cannot see a node's `LongPathsEnabled` setting and a failure
+  would reject valid long-path setups; the catalogue is unchanged. Files
+  deployed in bulk through `source` are not checked. README (Limitations) and
+  the define docs record the caveat.
 - Custom `module_root` `PSModulePath` + ACL limitations documented
   (issue #110): a custom root is not on `PSModulePath` (auto-loading
   broken: `import_in_profile => true` with managed profiles, or explicit

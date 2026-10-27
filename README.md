@@ -758,6 +758,25 @@ Contributions are welcome via GitHub issues and pull requests.
   with a trailing-separator root regenerate their in-house manifests once
   (the witness hash follows the manifest command), with no content change
   beyond the path prefix.
+- Paths are limited to 259 characters (Windows `MAX_PATH` is 260 including
+  the terminating NUL) on nodes without long-path support (issue #115). The
+  longest paths this module writes are
+  `<module_root>\<module>\<version>\.manifest-params` (or the `.psm1` /
+  `.psd1`, whichever is longer) and
+  `<module_root>\<module>\<version>\Functions\<folder>\<script>.ps1`; past
+  the limit the apply fails with an opaque path error. The compiler logs a
+  **warning** (not a failure) naming the length, `module_root`, module,
+  version, folder and script when a `windowspowershell::module` or
+  `windowspowershell::script` with `ensure => present` crosses it. The
+  warning goes to the Puppet server log, not to the agent report. It is not
+  an error because a node may have long paths enabled
+  (`HKLM\SYSTEM\CurrentControlSet\Control\FileSystem\LongPathsEnabled`
+  set to 1, Windows 10 1607 and later), which the compiler cannot see, so a
+  hard failure would reject a valid setup. Shorten `module_root`, the names
+  or the version, or enable long paths on the node (not every tool there is
+  guaranteed to honor them). Files deployed in bulk through
+  `windowspowershell::module` `source` are not checked: their length
+  depends on the source tree, and each adds to the `Functions` path.
 - A custom `module_root` is not on `PSModulePath`, so module auto-loading
   is broken there (issue #110): the default root is discovered on first
   use, a custom root is not. Set `import_in_profile => true` with managed
