@@ -145,6 +145,58 @@ describe 'windowspowershell::script' do
         end
       end
 
+      # Issue #115: <functions>\<folder>\<script>.ps1 must fit in MAX_PATH, 259
+      # characters plus the terminating NUL. Over the limit it warns: a node
+      # with long-path support is legitimate and the compiler cannot see it.
+      describe 'MAX_PATH validation (issue #115)' do
+        def scriptname_for_path_length(length, folder: nil)
+          functions_dir = 'C:\Program Files\WindowsPowerShell\Modules\Acme\1.0\Functions'
+          prefix = folder ? "#{functions_dir}\\#{folder}\\" : "#{functions_dir}\\"
+          'a' * (length - prefix.length - '.ps1'.length)
+        end
+
+        context 'with the script path at 259 characters' do
+          let(:params) { { 'modulename' => 'Acme', 'scriptname' => scriptname_for_path_length(259), 'content' => 'x' } }
+
+          it 'logs no path length warning' do
+            warnings = captured_puppet_warnings { is_expected.to compile.with_all_deps }
+            expect(warnings.grep(%r{MAX_PATH})).to be_empty
+          end
+        end
+
+        context 'with the script path at 260 characters' do
+          let(:params) { { 'modulename' => 'Acme', 'scriptname' => scriptname_for_path_length(260), 'content' => 'x' } }
+
+          it 'warns, naming the length and the offending parameters' do
+            warnings = captured_puppet_warnings { is_expected.to compile.with_all_deps }
+            expect(warnings.grep(%r{MAX_PATH}).size).to eq(1)
+            expect(warnings.grep(%r{MAX_PATH}).first).to match(
+              %r{windowspowershell::script\[Get-Example\]: the script path is 260 characters.*modulename 'Acme', version '1\.0', folder \(none\), scriptname 'a{#{scriptname_for_path_length(260).length}}'}
+            )
+          end
+        end
+
+        context 'with a folder pushing the script path over the limit' do
+          let(:params) do
+            { 'modulename' => 'Acme', 'folder' => 'Deep', 'scriptname' => scriptname_for_path_length(261, folder: 'Deep'), 'content' => 'x' }
+          end
+
+          it 'warns and names the folder' do
+            warnings = captured_puppet_warnings { is_expected.to compile.with_all_deps }
+            expect(warnings.grep(%r{MAX_PATH}).first).to match(%r{the script path is 261 characters.*folder 'Deep'})
+          end
+        end
+
+        context 'with a path over the limit and ensure => absent' do
+          let(:params) { { 'modulename' => 'Acme', 'ensure' => 'absent', 'scriptname' => scriptname_for_path_length(262) } }
+
+          it 'logs no path length warning' do
+            warnings = captured_puppet_warnings { is_expected.to compile.with_all_deps }
+            expect(warnings.grep(%r{MAX_PATH})).to be_empty
+          end
+        end
+      end
+
       context 'with a source' do
         let(:params) { { 'modulename' => 'Acme', 'source' => 'puppet:///modules/profile/Get-Example.ps1' } }
 

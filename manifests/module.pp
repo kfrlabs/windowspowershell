@@ -29,6 +29,14 @@
 # genuine conflict and fails to compile like any other duplicate resource
 # declaration, rather than being silently merged.
 #
+# On nodes without long-path support the paths this resource manages must stay
+# under 260 characters (Windows `MAX_PATH`, terminating NUL included). With
+# `ensure => present`, a longer one logs a compile-time warning (not a
+# failure: a node may have long paths enabled, which the compiler cannot see)
+# naming `module_root`, the module name and `version`. Scripts under
+# `Functions` add their own length, and files deployed in bulk through
+# `source` are not checked.
+#
 # @param ensure
 #   Whether the in-house module should be present or absent. `absent` removes
 #   the whole module tree under the machine-wide module directory (every
@@ -157,6 +165,16 @@ define windowspowershell::module (
   $rootmodule_path        = "${module_path}\\${modulename}.psm1"
   $manifest_path          = "${module_path}\\${modulename}.psd1"
   $manifest_witness_path  = "${module_path}\\.manifest-params"
+
+  # Issue #115: the longest path this resource itself manages must fit in
+  # Windows MAX_PATH (260 characters, terminating NUL included, hence 259) on
+  # hosts without long-path support. The compiler cannot see a node's
+  # LongPathsEnabled setting, so this warns instead of failing the catalogue.
+  $managed_path_lengths = [$functions_path, $rootmodule_path, $manifest_path, $manifest_witness_path].map |$managed_path| { $managed_path.length }
+  $longest_managed_path = max(*$managed_path_lengths)
+  if $ensure == 'present' and $longest_managed_path > 259 {
+    warning("Windowspowershell::Module[${title}]: the longest managed path is ${longest_managed_path} characters, over the 259-character Windows MAX_PATH limit (module_root '${windowspowershell::normalized_module_root}', module '${modulename}', version '${version}'). Without long-path support on the node, applying this module fails with an opaque path error. Shorten module_root, the module name or version, or enable long paths on the node (LongPathsEnabled). Scripts under Functions are longer still.")
+  }
 
   # Deterministic manifest GUID. New-ModuleManifest invents a random GUID when
   # none is passed, so the .psd1 would get a new module identity on every

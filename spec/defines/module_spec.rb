@@ -649,6 +649,51 @@ describe 'windowspowershell::module' do
         end
       end
 
+      # Issue #115: the longest managed path (<root>\Acme\1.0\.manifest-params,
+      # 26 characters past the root) must fit in MAX_PATH, 259 characters plus the
+      # terminating NUL. Over the limit it warns: a node with long-path support
+      # is legitimate and the compiler cannot see it, so failing would be wrong.
+      describe 'MAX_PATH validation (issue #115)' do
+        def root_of_length(length)
+          "C:\\#{'r' * (length - 3)}"
+        end
+
+        def root_class(length)
+          "class { 'windowspowershell': module_root => '#{root_of_length(length).gsub('\\') { '\\\\' }}' }"
+        end
+
+        context 'with the longest managed path at 259 characters' do
+          let(:pre_condition) { root_class(233) }
+
+          it 'logs no path length warning' do
+            warnings = captured_puppet_warnings { is_expected.to compile.with_all_deps }
+            expect(warnings.grep(%r{MAX_PATH})).to be_empty
+          end
+        end
+
+        context 'with the longest managed path at 260 characters' do
+          let(:pre_condition) { root_class(234) }
+
+          it 'warns, naming the length and the offending parameters' do
+            warnings = captured_puppet_warnings { is_expected.to compile.with_all_deps }
+            expect(warnings.grep(%r{MAX_PATH}).size).to eq(1)
+            expect(warnings.grep(%r{MAX_PATH}).first).to match(
+              %r{Windowspowershell::Module\[Acme\]: the longest managed path is 260 characters.*module_root '#{Regexp.escape(root_of_length(234))}', module 'Acme', version '1\.0'}
+            )
+          end
+        end
+
+        context 'with a path over the limit and ensure => absent' do
+          let(:pre_condition) { root_class(250) }
+          let(:params) { { 'ensure' => 'absent' } }
+
+          it 'logs no path length warning' do
+            warnings = captured_puppet_warnings { is_expected.to compile.with_all_deps }
+            expect(warnings.grep(%r{MAX_PATH})).to be_empty
+          end
+        end
+      end
+
       context 'with a source: dynamic, directory-wide deployment' do
         let(:params) { { 'source' => 'puppet:///modules/profile/acme-scripts' } }
 

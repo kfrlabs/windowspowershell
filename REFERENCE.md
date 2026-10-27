@@ -407,6 +407,14 @@ directory are singletons, so declaring the same module name twice is a
 genuine conflict and fails to compile like any other duplicate resource
 declaration, rather than being silently merged.
 
+On nodes without long-path support the paths this resource manages must stay
+under 260 characters (Windows `MAX_PATH`, terminating NUL included). With
+`ensure => present`, a longer one logs a compile-time warning (not a
+failure: a node may have long paths enabled, which the compiler cannot see)
+naming `module_root`, the module name and `version`. Scripts under
+`Functions` add their own length, and files deployed in bulk through
+`source` are not checked.
+
 #### Examples
 
 ##### Declare a module with non-default identity, then deploy scripts into it
@@ -565,6 +573,13 @@ The script is written under the target module's `Functions` directory and
 notifies that module's shared manifest-regeneration Exec, so it is exported
 on the next PowerShell session. Removing it is the same resource with
 `ensure => absent`.
+
+On nodes without long-path support the script path
+(`<module_root>\<module>\<version>\Functions\<folder>\<script>.ps1`) must stay
+under 260 characters (Windows `MAX_PATH`, terminating NUL included). With
+`ensure => present`, a longer path logs a compile-time warning (not a
+failure: a node may have long paths enabled, which the compiler cannot see)
+naming `module_root`, the module, its version, `folder` and `scriptname`.
 
 #### Examples
 
