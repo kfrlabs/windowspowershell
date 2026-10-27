@@ -159,6 +159,23 @@ describe 'windowspowershell', type: :class do
         end
       end
 
+      # Issue #111: even with a trailing separator stripped at the catalogue
+      # level, the manifest template normalises the module prefix before the
+      # Replace, so NestedModules stay relative instead of absolute.
+      if scenario == 'in_house_module'
+        it 'normalises the module prefix before stripping it from NestedModules' do
+          updates = powershell_snippets.select do |label, _|
+            label.start_with?('windowspowershell update-manifest')
+          end.map(&:last)
+          expect(updates).not_to be_empty
+          updates.each do |cmd|
+            expect(cmd).to match(%r{\$modulePathNormalized = \$modulePath\.TrimEnd})
+            expect(cmd).to match(%r{Replace\("\$\{modulePathNormalized\}\\})
+            expect(cmd).not_to match(%r{Replace\("\$\{modulePath\}\\})
+          end
+        end
+      end
+
       # Issue #86: an old-but-present NuGet provider must not satisfy the
       # bootstrap guard, otherwise Install-PackageProvider never converges.
       if %w[external_from_repository proxy proxy_credential].include?(scenario)

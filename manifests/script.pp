@@ -95,7 +95,7 @@ define windowspowershell::script (
   if $module_ensure == 'absent' and $ensure == 'present' {
     fail("windowspowershell::script[${name}]: module '${modulename}' is absent (windowspowershell::module { '${modulename}': ensure => absent }): retire this script first (ensure => absent) or restore the module (ensure => present).")
   }
-  $functions_path = "${windowspowershell::module_root}\\${modulename}\\${module_version}\\Functions"
+  $functions_path = "${windowspowershell::normalized_module_root}\\${modulename}\\${module_version}\\Functions"
 
   $script_folder = $folder ? {
     undef   => $functions_path,

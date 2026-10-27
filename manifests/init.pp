@@ -26,6 +26,10 @@
 #   (issue #96) instead of the file provider's generic error. Create the
 #   parent on the node before the run, or fix the typo. See
 #   "Troubleshooting" in the README.
+#   Trailing separators are allowed and stripped for every derived path
+#   (`C:\Modules\` behaves like `C:\Modules`): the class exposes the
+#   stripped form as `$windowspowershell::normalized_module_root`, which
+#   every defined type builds its paths from (issue #111).
 #   A custom root is not on `PSModulePath` (auto-loading broken: use
 #   `import_in_profile => true` with managed profiles, or handle
 #   `PSModulePath` explicitly) and gets no ACL from this module (it
@@ -121,6 +125,25 @@ class windowspowershell (
   # does, so that node classification never has to filter on the operating
   # system.
   $supported = $facts['os']['family'] == 'windows'
+
+  # Issue #111: a trailing separator in module_root (allowed by
+  # Windowspowershell::Rootpath) used to leak a doubled separator into
+  # every derived path (C:\Modules\Acme\1.0 built as C:\Modules\\Acme\1.0),
+  # so the manifest template's Replace("${modulePath}\", '') missed and
+  # NestedModules stayed absolute. Strip trailing separators once here and
+  # build every path from the stripped form instead. Degenerate roots are
+  # preserved: a bare drive (C: stripped from C:\) is re-anchored to its
+  # root (C:\), an all-separator value falls back to module_root unchanged,
+  # and forward slashes elsewhere are left alone (only the trailing run is
+  # stripped).
+  $stripped_module_root = regsubst($module_root, /[\/\\]+$/, '')
+  $normalized_module_root = $stripped_module_root =~ /:$/ ? {
+    true    => "${stripped_module_root}\\",
+    default => $stripped_module_root == '' ? {
+      true    => $module_root,
+      default => $stripped_module_root,
+    },
+  }
 
   # Install-Module goes through .NET, whose default proxy is the *WinINET*
   # setting of the account running the agent. The agent runs as LocalSystem,

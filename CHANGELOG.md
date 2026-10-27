@@ -49,6 +49,25 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ### Fixed
 
+- Trailing separator in `module_root` no longer leaves absolute paths in
+  `NestedModules` (issue #111): `C:\Modules\` used to build the manifest
+  `module_path` with a doubled separator (`C:\Modules\\Acme\1.0`), so the
+  manifest template's prefix strip missed and the generated `.psd1` listed
+  absolute `NestedModules`. The class now strips trailing separators once
+  into `$windowspowershell::normalized_module_root`, which every defined
+  type builds its paths from, and the template trims the prefix before
+  stripping it as defense in depth. `NestedModules` stay relative with or
+  without a trailing separator, and no catalogue path carries `\\` from the
+  root. Degenerate roots are preserved (`C:\` stays `C:\`) and trailing
+  separators stay allowed by the type.
+  - Migration: nodes first converged with a trailing-separator root
+    regenerate their in-house manifests once (the witness hash follows the
+    manifest command, whose paths lose the doubled separator), with no
+    content change beyond the path prefix. The managed File title changes
+    to the stripped form once (e.g. File[C:\Modules\] -> File[C:\Modules]);
+    co-managing code must use the stripped spelling or
+    $windowspowershell::normalized_module_root, else it fails with a
+    duplicate-title error.
 - Release gate (issue #105): `release.yml` no longer publishes a tag without
   the Windows jobs being green. A read-only `verify_ci` job gates the Forge
   publish on the `Test suite` check from `ci.yml` being `completed` /

@@ -148,7 +148,10 @@ define windowspowershell::module (
 
   # Every path this module's identity needs, derived here once, the same way
   # the main class used to derive them for the single module it owned.
-  $module_dir             = "${windowspowershell::module_root}\\${modulename}"
+  # Built from the normalized root (issue #111 strips a trailing separator
+  # once in the main class), so C:\Modules\ never yields a doubled
+  # separator here.
+  $module_dir             = "${windowspowershell::normalized_module_root}\\${modulename}"
   $module_path            = "${module_dir}\\${version}"
   $functions_path         = "${module_path}\\Functions"
   $rootmodule_path        = "${module_path}\\${modulename}.psm1"
@@ -178,7 +181,7 @@ define windowspowershell::module (
     } else {
       file { $module_dir:
         ensure  => directory,
-        require => File[$windowspowershell::module_root],
+        require => File[$windowspowershell::normalized_module_root],
       }
 
       file { $module_path:

@@ -31,7 +31,12 @@ $moduleName    = '<%= $module_name %>'
 # `.ps1`/`.psm1` at any depth (the sub-folder layout is preserved on purpose).
 $functions     = @(Get-ChildItem -LiteralPath $functionsPath -Recurse -File |
     Where-Object { $_.Extension -in '.ps1', '.psm1' })
-$nestedModules = @($functions | ForEach-Object { $_.FullName.Replace("${modulePath}\", '') })
+# Defense in depth (issue #111): the manifest command is built from the
+# normalized root, but a trailing separator reaching $modulePath would make
+# the Replace below miss and leave absolute NestedModules. Trimming keeps
+# the prefix match exact on 5.1 (TrimEnd with a char array is 5.1-safe).
+$modulePathNormalized = $modulePath.TrimEnd('\','/')
+$nestedModules = @($functions | ForEach-Object { $_.FullName.Replace("${modulePathNormalized}\", '') })
 $functionNames = @($functions | ForEach-Object { $_.BaseName })
 
 # Fail closed on broken scripts (issue #107): parse every Functions/ script

@@ -157,6 +157,52 @@ describe 'windowspowershell' do
         end
       end
 
+      # Issue #111: a trailing separator is allowed by
+      # Windowspowershell::Rootpath and stripped once into
+      # $windowspowershell::normalized_module_root, so every derived path
+      # (and the manifest NestedModules built from it) keeps a single
+      # separator.
+      context 'with a module_root carrying a trailing backslash' do
+        let(:params) { { 'module_root' => 'C:\Modules\\' } }
+
+        it { is_expected.to compile.with_all_deps }
+
+        it 'manages the stripped directory, with no doubled separator' do
+          is_expected.to contain_file('C:\Modules').with_ensure('directory')
+          is_expected.not_to contain_file('C:\Modules\\')
+        end
+
+        it 'guards on the drive root and orders before the stripped directory' do
+          is_expected.to contain_exec('windowspowershell module_root parent exists').
+            with_unless(%r{Test-Path -LiteralPath 'C:\\'}).
+            with_before('File[C:\Modules]')
+        end
+      end
+
+      context 'with a module_root carrying a trailing forward slash' do
+        let(:params) { { 'module_root' => 'C:/Modules/' } }
+
+        it { is_expected.to compile.with_all_deps }
+
+        it 'manages the stripped directory, keeping the forward slashes' do
+          is_expected.to contain_file('C:/Modules').with_ensure('directory')
+        end
+
+        # rspec-puppet resolves a trailing '/' to the same File resource, so
+        # the absence of the unstripped form is checked on the title itself.
+        it 'leaves no trailing separator on any managed directory' do
+          titles = catalogue.resources.select { |r| r.type == 'File' }.map(&:title)
+          expect(titles).not_to be_empty
+          titles.each { |title| expect(title).not_to match(%r{[/\\]$}) }
+        end
+
+        it 'guards on the drive root and orders before the stripped directory' do
+          is_expected.to contain_exec('windowspowershell module_root parent exists').
+            with_unless(%r{Test-Path -LiteralPath 'C:\\'}).
+            with_before('File[C:/Modules]')
+        end
+      end
+
       context 'with a module_root directly under a drive root' do
         let(:params) { { 'module_root' => 'C:\Modules' } }
 
@@ -181,11 +227,14 @@ describe 'windowspowershell' do
       end
 
       # A bare drive root is its own parent: there is nothing to check.
+      # The stripped form ('C:' from 'C:\') must never become the managed
+      # title: normalization re-anchors it to the root ('C:\').
       context 'with a module_root that is a drive root' do
         let(:params) { { 'module_root' => 'C:\\' } }
 
         it { is_expected.to compile.with_all_deps }
         it { is_expected.to contain_file('C:\\').with_ensure('directory') }
+        it { is_expected.not_to contain_file('C:') }
         it { is_expected.not_to contain_exec('windowspowershell module_root parent exists') }
       end
 
@@ -199,12 +248,32 @@ describe 'windowspowershell' do
         it { is_expected.not_to contain_exec('windowspowershell module_root parent exists') }
       end
 
+      # A trailing separator on a bare share root strips to the share root,
+      # which still has no checkable parent.
+      context 'with a bare share root carrying a trailing separator' do
+        let(:params) { { 'module_root' => '\\\\server\\share\\' } }
+
+        it { is_expected.to compile.with_all_deps }
+        it { is_expected.to contain_file('\\\\server\\share').with_ensure('directory') }
+        it { is_expected.not_to contain_exec('windowspowershell module_root parent exists') }
+      end
+
       # The 5.1 provider behind Test-Path does not understand the '\\?\'
       # prefix: the check would fail closed on an existing directory.
       context 'with an extended-prefix module_root' do
         let(:params) { { 'module_root' => '\\\\?\\C:\\wps\\Modules' } }
 
         it { is_expected.to compile.with_all_deps }
+        it { is_expected.not_to contain_exec('windowspowershell module_root parent exists') }
+      end
+
+      # A trailing separator on an extended-prefix root strips to the
+      # unstripped-managed path, which still skips the guard.
+      context 'with an extended-prefix module_root carrying a trailing separator' do
+        let(:params) { { 'module_root' => '\\\\?\\C:\\Modules\\' } }
+
+        it { is_expected.to compile.with_all_deps }
+        it { is_expected.to contain_file('\\\\?\\C:\\Modules').with_ensure('directory') }
         it { is_expected.not_to contain_exec('windowspowershell module_root parent exists') }
       end
 

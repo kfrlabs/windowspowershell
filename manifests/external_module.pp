@@ -133,7 +133,7 @@ define windowspowershell::external_module (
     fail("windowspowershell::external_module[${name}]: refusing to remove protected system module '${modulename}' with ensure => absent: it breaks Install-Module for every later run. Remove the resource instead of declaring it absent.")
   }
 
-  $module_dir     = "${windowspowershell::module_root}\\${modulename}"
+  $module_dir     = "${windowspowershell::normalized_module_root}\\${modulename}"
   $module_version = $ensure ? {
     'present' => undef,
     'absent'  => undef,
@@ -149,7 +149,10 @@ define windowspowershell::external_module (
   # `module_root` and stays available for isolated roots (integration test,
   # smoke test).
   if $repository =~ NotUndef {
-    $normalized_root = regsubst(downcase($windowspowershell::module_root), '/', '\\', 'G')
+    # Compared on normalized forms (issue #111): slash-normalized,
+    # downcased and trailing-stripped, so a trailing separator on the
+    # default root neither bypasses nor falsely triggers the #85 guard.
+    $normalized_root = regsubst(regsubst(downcase($windowspowershell::normalized_module_root), '/', '\\', 'G'), /\\+$/, '')
     if $normalized_root != 'c:\\program files\\windowspowershell\\modules' {
       fail("windowspowershell::external_module[${name}]: 'repository' needs the default 'module_root' ('C:\\Program Files\\WindowsPowerShell\\Modules'): 'Install-Module -Scope AllUsers' always installs there and ignores a custom root, so the install check would miss the module and reinstall on every run. Keep the default root for repository-backed modules, or use 'source' for a custom root.")
     }
@@ -208,7 +211,7 @@ define windowspowershell::external_module (
       # Shared by every version of the same module, hence ensure_resource.
       ensure_resource('file', $module_dir, {
           'ensure'  => 'directory',
-          'require' => File[$windowspowershell::module_root],
+          'require' => File[$windowspowershell::normalized_module_root],
       })
 
       file { "${module_dir}\\${module_version}":
