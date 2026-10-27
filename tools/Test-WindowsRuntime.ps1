@@ -6,8 +6,9 @@
     Builds a throw-away module tree under C:\wps-ci\Modules (the module_root of
     the `runtime` scenario in spec/unit/rendered_powershell_spec.rb), then
     replays the rendered Exec commands and their unless/onlyif guards the way
-    the `powershell` provider does: script text on stdin of Windows PowerShell.
-    Everything is offline: no gallery access is needed.
+    the `powershell` provider does: script text on stdin of Windows PowerShell
+    (or of PowerShell 7 with `-Shell pwsh`, issue #112). Everything is
+    offline: no gallery access is needed.
 
     It also replays the repository install checks of the
     `external_from_repository` scenario (sibling folder from the same render
@@ -18,7 +19,10 @@
 
     Run it from Windows PowerShell 5.1 on every supported Windows Server
     release. -RenderedPath points at the `runtime` folder produced with
-    WPS_RENDER_DIR. See TESTING.md.
+    WPS_RENDER_DIR. -Shell replays the shared subset (purge, manifest,
+    unblock, absent, repository checks) through PowerShell 7 instead: the
+    provider itself only ever runs under 5.1, so 5.1 stays the primary leg.
+    See TESTING.md.
 #>
 [CmdletBinding()]
 param(
@@ -31,7 +35,15 @@ param(
 
     # Sibling of the runtime folder, written by the same
     # spec/unit/rendered_powershell_spec.rb run (WPS_RENDER_DIR).
-    [string] $RepositoryRenderedPath
+    [string] $RepositoryRenderedPath,
+
+    # Issue #112, Gap 3: engine replaying the rendered scripts. The
+    # `powershell` provider only ever runs under Windows PowerShell 5.1, so
+    # 'powershell' stays the primary leg; 'pwsh' replays the shared subset
+    # (purge, manifest, unblock, absent, repository checks) through
+    # PowerShell 7 to prove the rendered scripts are cross-edition clean.
+    [ValidateSet('powershell', 'pwsh')]
+    [string] $Shell = 'powershell'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -46,6 +58,7 @@ if (-not $RepositoryRenderedPath) {
     $RepositoryRenderedPath = Join-Path (Split-Path -Parent $RenderedPath) 'external_from_repository'
 }
 $RepositoryRenderedPath = (Resolve-Path -LiteralPath $RepositoryRenderedPath).ProviderPath
+$shellExe = if ($Shell -eq 'pwsh') { 'pwsh.exe' } else { 'powershell.exe' }
 $failed = 0
 
 function Get-RenderedScriptPath([string] $Pattern) {
@@ -54,11 +67,12 @@ function Get-RenderedScriptPath([string] $Pattern) {
     $hits[0].FullName
 }
 
-# Same contract as the provider: the script is fed to powershell.exe on stdin.
+# Same contract as the provider: the script is fed to the engine on stdin.
+# Under -Shell powershell that engine is exactly the provider's host.
 function Invoke-Rendered([string] $Pattern) {
     $path = Get-RenderedScriptPath $Pattern
     Get-Content -LiteralPath $path -Raw -Encoding UTF8 |
-        & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command - | Out-Null
+        & $shellExe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command - | Out-Null
     $LASTEXITCODE
 }
 
@@ -79,14 +93,14 @@ function Invoke-RenderedWithOutput([string] $Pattern) {
     $ErrorActionPreference = 'Continue'
     $path = Get-RenderedScriptPath $Pattern
     Get-Content -LiteralPath $path -Raw -Encoding UTF8 |
-        & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command - 2>&1
+        & $shellExe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command - 2>&1
 }
 
 # Issue #106: the repository install check (external_from_repository scenario)
 # hardcodes the AllUsers module directory, which a throw-away tree must not
 # pollute, so the check runs with only its `$moduleDir = '...'` assignment
 # repointed at the fixture tree. Every other line runs exactly as rendered,
-# through powershell.exe on stdin like the provider does.
+# on stdin like the provider does.
 function Get-RepositoryScriptPath([string] $Pattern) {
     $hits = @(Get-ChildItem -LiteralPath $RepositoryRenderedPath -Filter $Pattern)
     if ($hits.Count -ne 1) { throw "Expected exactly one rendered repository script for '$Pattern', found $($hits.Count)" }
@@ -101,7 +115,7 @@ function Invoke-RepositoryCheck([string] $Pattern, [string] $ModuleDir) {
     # e.g. C:\wps$ci) survives the -replace replacement as a literal.
     $replacement = '$$moduleDir = ''{0}''' -f ($ModuleDir.Replace("'", "''") -replace '\$', '$$$$')
     $repointed = $text -replace $pattern, $replacement
-    $repointed | & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command - | Out-Null
+    $repointed | & $shellExe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command - | Out-Null
     $LASTEXITCODE
 }
 
@@ -112,7 +126,7 @@ function Assert-RepositoryExit([string] $Pattern, [string] $ModuleDir, [int] $Ex
 
 function New-Dir([string] $Path) { New-Item -ItemType Directory -Path $Path -Force | Out-Null }
 
-Write-Host ("Host: Windows PowerShell {0} on {1}" -f $PSVersionTable.PSVersion, (Get-CimInstance Win32_OperatingSystem).Caption)
+Write-Host ("Host: PowerShell {0} ({1}); replay engine: {2} on {3}" -f $PSVersionTable.PSVersion, $PSVersionTable.PSEdition, $shellExe, (Get-CimInstance Win32_OperatingSystem).Caption)
 
 if (Test-Path -LiteralPath $Root) { Remove-Item -LiteralPath $Root -Recurse -Force }
 

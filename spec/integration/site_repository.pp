@@ -8,6 +8,11 @@
 # to `C:\Program Files\WindowsPowerShell\Modules` and ignores a custom root,
 # so a custom root with `repository` fails compilation (see
 # windowspowershell::external_module).
+#
+# Per-PR gate catalogue: WpsRepoTest only (proven path). The bracketed
+# variant lives in site_repository_brackets.pp and runs on the weekly
+# schedule with -IncludeBrackets (issue #112, Gap 2 review: the bracket
+# publish path has zero Windows evidence yet and must not break the PR gate).
 class { 'windowspowershell':
   module_root => 'C:\Program Files\WindowsPowerShell\Modules',
 }

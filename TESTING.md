@@ -1,14 +1,19 @@
 # Testing
 
-The module is tested at five levels. The first three run on every pull request
-(see `.github/workflows/ci.yml`); the last two need a Windows node.
+The module is tested at seven levels. The first three run on every pull request
+(see `.github/workflows/ci.yml`); the next two need a Windows node; the last
+two run on the weekly schedule only, so per-PR jobs stay offline.
 
 | Level | What it checks | Where |
 | --- | --- | --- |
 | rspec-puppet | The catalogue compiles, resources and parameters are right | Linux CI (`spec`) |
 | Rendered PowerShell | Every script the module sends to a node parses and passes PSScriptAnalyzer | Linux CI (`powershell`), Windows CI (`powershell_windows`) |
-| Runtime smoke test | The rendered scripts actually do what they say on a real Windows node | Windows CI (`powershell_windows`) |
+| Runtime smoke test | The rendered scripts actually do what they say on a real Windows node | Windows CI (`powershell_windows`, 5.1 and 7) |
 | Integration test | A real agent applies a catalogue twice; the second run changes nothing | Windows CI (`integration_windows`) |
+| Repository backend test | The `repository` backend installs for real from a local file repo | Windows CI (`integration_repository_windows`) |
+| Gallery backend test | The `repository` backend installs for real from the PowerShell Gallery | Weekly schedule (`integration_gallery_windows`), informational |
+| Upgrade scenario | A node converges from the previous release tag to the current code | Weekly schedule (`integration_upgrade_windows`), informational |
+| Bracketed repository test | The wildcard-escaped `Bracket[Beta]` path installs for real from a local file repo | Weekly schedule (`integration_repository_brackets_windows`), informational |
 | Manual matrix | Windows releases the CI does not offer | By hand, see below |
 
 ## Rendered PowerShell
@@ -70,6 +75,32 @@ removes the tree when done.
 .\tools\Test-WindowsRuntime.ps1 -RenderedPath .rendered-powershell\runtime
 ```
 
+### PowerShell 7 leg (issue #112, Gap 3)
+
+The same script replays the shared subset (purge, manifest, unblock,
+absent, repository checks) through PowerShell 7:
+
+```powershell
+.\tools\Test-WindowsRuntime.ps1 -RenderedPath .rendered-powershell\runtime -Shell pwsh
+```
+
+The CI `powershell_windows` job runs both legs on 2022 and 2025. The replay
+helpers (`Invoke-Rendered`, `Invoke-RenderedWithOutput`,
+`Invoke-RepositoryCheck`) take the engine from `-Shell`, so every assertion
+runs once per edition. Audit of the host-specific surface: `Get-CimInstance`
+(CimCmdlets ship in PowerShell 7 on Windows), `New-ModuleManifest` /
+`Test-ModuleManifest` / `Import-PowerShellDataFile`, `Get-ChildItem
+-LiteralPath`, the .NET directory APIs for bracketed trees and the
+`$moduleDir`-repointing `-replace` all behave the same on both editions, so
+no branch was needed beyond the engine executable.
+
+Non-shared parts (5.1-only, by design): the stdin contract belongs to the
+`powershell` Exec provider, which only ever launches `powershell.exe` — the
+pwsh leg proves the rendered scripts are cross-edition clean, not that the
+provider works under PowerShell 7. Explicit non-goals: running the agent or
+the provider under pwsh, and pwsh-specific module paths (the throw-away tree
+stays under `C:\wps-ci\Modules` on both legs).
+
 ## Integration test (Windows only, issue #84)
 
 `tools/Test-PuppetApply.ps1` is the real-agent counterpart of the offline
@@ -122,9 +153,27 @@ bootstrap prompt throws `ShouldContinue` when non-interactive), then applies
 an empty `WpsRepoTest\1.0.0` version folder, the way an interrupted install
 leaves one behind (issue #106): the empty folder must not satisfy the install
 check, so the first run reinstalls it (exit 2) and the second changes nothing
-(exit 0). Functional checks
+(exit 0). A third cycle then deletes the installed `.psd1` (files without a
+manifest, the other mid-`Save-Module` shape) and proves that partial install
+reinstalls for real too (exit 2, then exit 0). Functional checks
 verify `Get-InstalledModule`, the `AllUsers` layout and an `Import-Module`
-round-trip.
+round-trip. The installed versions are uninstalled, the `WpsLocal`
+registration dropped and the staging trees removed at the end, so the node is
+left as found.
+
+The same catalogue also installs a literal `Bracket[Beta] 1.0.0` module from
+the same file repository on the weekly schedule only (issue #112, Gap 2):
+`spec/integration/site_repository_brackets.pp` (both modules) with
+`Test-RepositoryBackend.ps1 -IncludeBrackets`. The Gallery has no bracketed
+names, so only a file repo can prove the wildcard-escaped install path
+converges for real. The fixture is published from a bracket-free staging
+directory (`New-ModuleManifest -Path` rejects brackets and `Publish-Module
+-Path` is a wildcard path); the install check only requires the `.psd1` to
+exist for wildcard names (see `templates/check_psmodule.ps1.epp`), which
+still repairs the seeded empty folder. Per-PR applies the brackets-free
+`site_repository.pp` (WpsRepoTest only): the bracket publish path has zero
+Windows evidence yet and stays out of the PR gate until the first scheduled
+green run.
 
 Two findings from the first SYSTEM run are now enforced or documented:
 
@@ -137,16 +186,104 @@ Two findings from the first SYSTEM run are now enforced or documented:
   compilation instead of reinstalling on every run.
 
 The CI `integration_repository_windows` job (Windows Server 2022 and 2025)
-runs:
+runs per-PR:
 
 ```powershell
 ./tools/Test-RepositoryBackend.ps1 -Site spec/integration/site_repository.pp -Modulepath 'C:\wps-int\modules'
 ```
 
-as SYSTEM (the job runs on the runner, whose default account sees the
-locally registered repository). To run it on a lab node, stage the checkout
-as for the integration test, then run the script as a Scheduled Task as
-SYSTEM.
+The CI `integration_repository_brackets_windows` job (same images) runs on
+the weekly schedule only:
+
+```powershell
+./tools/Test-RepositoryBackend.ps1 -Site spec/integration/site_repository_brackets.pp -Modulepath 'C:\wps-int\modules' -IncludeBrackets
+```
+
+Both run as SYSTEM (the job runs on the runner, whose default account sees
+the locally registered repository). To run either on a lab node, stage the
+checkout as for the integration test, then run the script as a Scheduled
+Task as SYSTEM. The third cycle deletes the installed `.psd1` only when it
+exists (guarded): a failed converge still reaches the fourth apply and the
+cleanup instead of terminating under `ErrorActionPreference Stop`.
+
+## Gallery backend test (Windows only, scheduled, issue #112 Gap 1)
+
+`tools/Test-GalleryBackend.ps1` is the scheduled counterpart of the
+repository backend test above: it applies
+`spec/integration/site_gallery.pp`, which installs the pinned
+`PSScriptAnalyzer 1.21.0` from the real PowerShell Gallery as SYSTEM. The
+first run installs it (exit 2); the second must change nothing (exit 0).
+Functional checks verify `Get-InstalledModule`, the `AllUsers` layout and an
+`Import-Module` round-trip. The pinned version is uninstalled before the
+first run (start clean, so the first run really installs) and again at the
+end (leave the node as found; only the pinned version is ever removed).
+
+Module choice: `PSScriptAnalyzer` is Microsoft-owned, its `1.21.0` version is
+already proven to exist by the proxy probe (`tools/Test-ProxyBackend.ps1`
+defaults), and it is small enough for a weekly run while still exercising
+the real `Install-Module` path, including the publisher-trust prompt
+suppression (`-Force -AllowClobber`) as SYSTEM.
+
+The CI `integration_gallery_windows` job (Windows Server 2022 and 2025)
+runs on the weekly schedule only (`schedule` cron in `ci.yml`, Monday 03:00
+UTC):
+
+```powershell
+./tools/Test-GalleryBackend.ps1 -Site spec/integration/site_gallery.pp -Modulepath 'C:\wps-int\modules'
+```
+
+It is informational: it stays out of the `tests` aggregator and the release
+gate, and it never runs on pull requests, so per-PR jobs stay offline. To
+run it on a lab node, stage the checkout as for the integration test (no
+fixture module needed), then run the script as a Scheduled Task as SYSTEM.
+
+## Upgrade scenario (Windows only, scheduled, issue #112 Gap 4)
+
+`tools/Test-Upgrade.ps1` proves a node converges from the previous release
+to the current code with a real agent. It checks out the previous tag into a
+temporary worktree (`git worktree`, removed at the end), stages that tree in
+place of this checkout on the modulepath, and applies the previous tag's own
+`spec/integration/site.pp` once (exit 2, converging with the old code and
+writing the manifest witness). It then swaps the current checkout back in
+and applies the current catalogue twice: the second run may change resources
+once (exit 2, the one-time manifest regeneration when the manifest command
+changed between the releases — the witness hash follows it) or be clean
+already (exit 0); the third run must change nothing (exit 0). When the second
+run reports changes, the script dumps the witness content and manifest GUID
+as a verbose marker (acceptance stays 0-or-2, but the log shows what moved).
+A stale `WpsInt\0.9` version folder seeded before the first run must be gone
+after the upgrade (purge path), the manifest GUID must be identical before
+and after (name-derived and stable since 2.0), and the witness, manifest
+version, nested modules, `Import-Module` round-trip and profile import line
+are verified as in the integration test. The previous tag defaults to the
+newest `v*` tag auto-derived at run time, so the schedule always spans the
+latest boundary without a hardcoded bump; pass `-PreviousTag` only to pin a
+boundary by hand.
+
+The CI `integration_upgrade_windows` job (Windows Server 2022 and 2025)
+runs on the weekly schedule only, with `fetch-depth: 0` plus `fetch-tags: true`
+so the tag list and previous catalogue are available:
+
+```powershell
+./tools/Test-Upgrade.ps1 -Site spec/integration/site.pp -Modulepath 'C:\wps-int\modules'
+```
+
+Like the Gallery job it is informational: out of the `tests` aggregator and
+the release gate, never on pull requests. To run it on a lab node, clone
+with tags (or `git fetch --tags origin`), stage as for the integration
+test, then run the script as a Scheduled Task as SYSTEM.
+
+## Test gaps closed (issue #112)
+
+Each gap below gets a test, or a documented reason it cannot be tested:
+
+| Gap | Disposition |
+| --- | --- |
+| 1. Scheduled Gallery e2e as SYSTEM | Tested: `integration_gallery_windows` (weekly) installs pinned `PSScriptAnalyzer 1.21.0` from the real Gallery as SYSTEM; see Gallery backend test above. |
+| 2. Bracketed runtime through a local repo | Tested (scheduled): `site_repository_brackets.pp` + `Test-RepositoryBackend.ps1 -IncludeBrackets` publish and install literal `Bracket[Beta]` 1.0.0 from `WpsLocal`, converging and idempotent; `.psd1`-exists degradation respected per `check_psmodule.ps1.epp:26`. Per-PR stays on the brackets-free `site_repository.pp` until the first scheduled green run. |
+| 3. pwsh leg | Tested: `Test-WindowsRuntime.ps1 -Shell pwsh` replays the shared subset under PowerShell 7 in CI; provider stdin wiring stays 5.1-only by design (non-goal: running the agent/provider under pwsh). |
+| 4. Upgrade scenario | Tested: `integration_upgrade_windows` (weekly) upgrades the previous tag to the current code; see Upgrade scenario above. |
+| 5. Interrupted install | Covered: `Test-WindowsRuntime.ps1` replays empty, partial and corrupt-manifest folders offline (all must reinstall); `Test-RepositoryBackend.ps1` proves the empty and partial shapes reinstall for real. The corrupt-manifest shape shares the same guard outcome (`Test-ModuleHealthy` `$false` → reinstall) with the proven partial shape, so no separate real-apply cycle was added for it. (Note: "see issue 2" in the original report is unrelated — repo issue #2 is a closed rename PR, not interrupted-install coverage, which lives under #106.) |
 
 ## Proxy test (Windows only, issue #85)
 
@@ -219,7 +356,10 @@ then the `verify_ci` gate, then the `forge` publish job.
 `verify_ci` does not re-run the Windows jobs. It queries the check-runs API
 for this exact commit and requires at least one `completed` / `success` run
 of the `Test suite` check from `ci.yml` (the aggregator over lint, spec,
-PowerShell, Windows runtime/integration and module build). In-progress,
+PowerShell, Windows runtime/integration and module build). The scheduled-only
+Gallery, upgrade and bracketed-repository jobs are informational and stay out
+of this aggregator,
+so they can never block (or green-light) a release. In-progress,
 cancelled or superseded runs fail closed and block the release; only a green
 `Test suite` lets the tag publish.
 
@@ -232,9 +372,17 @@ Run on each release, with Windows PowerShell 5.1 and PowerShell 7 installed
 (MSI, default location):
 
 1. `tools/Test-RenderedPowerShell.ps1` under `powershell.exe` and `pwsh.exe`.
-2. `tools/Test-WindowsRuntime.ps1` under `powershell.exe`.
+2. `tools/Test-WindowsRuntime.ps1` under `powershell.exe` (primary leg) and
+   `pwsh.exe` (`-Shell pwsh`, shared subset).
 3. `puppet agent -t` with a catalogue that uses `windowspowershell` once, then a
    second time: no resource may change on the second run.
+
+The weekly scheduled jobs (`integration_gallery_windows`,
+`integration_upgrade_windows`) report in CI and do not replace this matrix.
+First evidence for the new scripts below is still pending: no Windows node is
+reachable from this checkout, so the Gallery, bracketed-repository, pwsh-leg
+and upgrade runs are procedures until the schedule (or a lab run) reports.
+Record the first green runs here when they land.
 
 | Release | Parse + PSScriptAnalyzer | Runtime smoke | Integration (`apply` twice) | Notes |
 | --- | --- | --- | --- | --- |
