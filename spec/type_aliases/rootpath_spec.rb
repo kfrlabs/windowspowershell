@@ -3,6 +3,10 @@ require 'spec_helper'
 describe 'Windowspowershell::Rootpath' do
   it { is_expected.to allow_values('C:\\Program Files\\WindowsPowerShell\\Modules', '\\\\server\\share\\Modules', '\\\\?\\C:\\Modules') }
 
+  # Trailing separators stay allowed (issue #111): the class strips them
+  # once into $windowspowershell::normalized_module_root instead.
+  it { is_expected.to allow_values('C:\\Modules\\', 'C:\\Modules\\\\', 'C:/Modules/', '\\\\server\\share\\Modules\\') }
+
   it { is_expected.not_to allow_value('Modules') }
   it { is_expected.not_to allow_value("C:\\x'; calc.exe #") }
 

@@ -712,6 +712,13 @@ Contributions are welcome via GitHub issues and pull requests.
   turn into a green run deploying where PowerShell never looks). A missing
   parent fails the run early with an explicit message naming `module_root`
   and the parent (issue #96); see [Troubleshooting](#troubleshooting).
+- A trailing separator in `module_root` (`C:\Modules\`) is allowed and
+  stripped once for every derived path (issue #111): the class exposes the
+  stripped form as `$windowspowershell::normalized_module_root`, so manifests
+  list relative `NestedModules` with or without it. Nodes first converged
+  with a trailing-separator root regenerate their in-house manifests once
+  (the witness hash follows the manifest command), with no content change
+  beyond the path prefix.
 - A custom `module_root` is not on `PSModulePath`, so module auto-loading
   is broken there (issue #110): the default root is discovered on first
   use, a custom root is not. Set `import_in_profile => true` with managed

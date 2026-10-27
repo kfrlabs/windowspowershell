@@ -129,6 +129,22 @@ describe 'windowspowershell::script' do
         end
       end
 
+      context 'with a module_root carrying a trailing backslash (issue #111)' do
+        let(:pre_condition) do
+          <<~PUPPET
+            class { 'windowspowershell': module_root => 'C:\\\\Modules\\\\' }
+            windowspowershell::module { 'Acme': }
+          PUPPET
+        end
+
+        it { is_expected.to compile.with_all_deps }
+
+        it 'deploys under the stripped root, with no doubled separator' do
+          is_expected.to contain_file('C:\Modules\Acme\1.0\Functions\Get-Example.ps1')
+          is_expected.not_to contain_file('C:\Modules\\\\Acme')
+        end
+      end
+
       context 'with a source' do
         let(:params) { { 'modulename' => 'Acme', 'source' => 'puppet:///modules/profile/Get-Example.ps1' } }
 

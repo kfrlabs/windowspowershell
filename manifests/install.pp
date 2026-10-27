@@ -10,9 +10,9 @@ class windowspowershell::install {
   # module in the fleet manage the same directory without a duplicate
   # declaration, as long as both declare it identically. Every
   # windowspowershell::module and windowspowershell::external_module
-  # instance requires File[$windowspowershell::module_root],
+  # instance requires File[$windowspowershell::normalized_module_root],
   # declared exactly once here.
-  ensure_resource('file', $windowspowershell::module_root, {
+  ensure_resource('file', $windowspowershell::normalized_module_root, {
       'ensure' => 'directory',
   })
 
@@ -22,10 +22,12 @@ class windowspowershell::install {
   # every dependent resource was skipped in cascade (exit 4 with
   # --detailed-exitcodes). Whether the parent exists is node state,
   # unknowable at compile time, so this guard checks it at the start of the
-  # run, ordered before File[$module_root], and fails with a message naming
+  # run, ordered before File[$windowspowershell::normalized_module_root], and fails with a message naming
   # module_root and the missing parent instead.
   #
-  # The parent is derived with pure string operations so that a catalogue for
+  # The parent is derived from the normalized root (issue #111 strips a
+  # trailing separator in windowspowershell::normalized_module_root first),
+  # with pure string operations so that a catalogue for
   # Windows still compiles on a Linux master (Ruby's File.dirname follows the
   # platform separator, so on Linux it answers '.' for a backslashed path).
   # The patterns are regex literals with every '/' written '\/': the lexer
@@ -46,15 +48,15 @@ class windowspowershell::install {
   # fragile drive/UNC/extended-prefix surgery in the DSL for which Puppet
   # offers no primitive. A mkdir-style Exec would also add a PowerShell spawn
   # to every run (see 'Execution cost per run' in the README).
-  $stripped_root = regsubst($windowspowershell::module_root, /[\/\\]+$/, '')
+  $stripped_root = regsubst($windowspowershell::normalized_module_root, /[\/\\]+$/, '')
   $raw_parent = regsubst($stripped_root, /[\/\\][^\/\\]*$/, '')
   $full_parent = $raw_parent =~ /^[A-Za-z]:$/ ? {
     true    => "${raw_parent}\\",
     default => $raw_parent,
   }
-  $no_checkable_parent = $full_parent == '' or $full_parent == $stripped_root or $full_parent == $windowspowershell::module_root
+  $no_checkable_parent = $full_parent == '' or $full_parent == $stripped_root or $full_parent == $windowspowershell::normalized_module_root
   $bare_server_parent = $full_parent =~ /^[\/\\][\/\\][^\/\\]+$/
-  $extended_root = $windowspowershell::module_root =~ /^[\/\\][\/\\]\?/
+  $extended_root = $windowspowershell::normalized_module_root =~ /^[\/\\][\/\\]\?/
   $skip_guard = $no_checkable_parent or $bare_server_parent or $extended_root
   $parent_check = $skip_guard ? {
     true    => undef,
@@ -63,11 +65,11 @@ class windowspowershell::install {
 
   if $parent_check =~ NotUndef {
     exec { 'windowspowershell module_root parent exists':
-      command   => "throw 'windowspowershell: module_root ''${windowspowershell::module_root}'' was not created: parent directory ''${parent_check}'' does not exist. Create it on the node, or fix the typo in module_root: the file resource does not create missing parents.'",
+      command   => "throw 'windowspowershell: module_root ''${windowspowershell::module_root}'' (normalized ''${windowspowershell::normalized_module_root}'') was not created: parent directory ''${parent_check}'' does not exist. Create it on the node, or fix the typo in module_root: the file resource does not create missing parents.'",
       unless    => "if (-not (Test-Path -LiteralPath '${parent_check}')) { exit 1 }",
       provider  => powershell,
       logoutput => on_failure,
-      before    => File[$windowspowershell::module_root],
+      before    => File[$windowspowershell::normalized_module_root],
     }
   }
 }

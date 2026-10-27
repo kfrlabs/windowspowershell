@@ -618,6 +618,37 @@ describe 'windowspowershell::module' do
         end
       end
 
+      context 'with a module_root carrying a trailing backslash (issue #111)' do
+        let(:pre_condition) { "class { 'windowspowershell': module_root => 'C:\\\\Modules\\\\' }" }
+
+        it { is_expected.to compile.with_all_deps }
+
+        it 'builds every path from the stripped root, with no doubled separator' do
+          is_expected.to contain_file('C:\Modules\Acme').with_ensure('directory')
+          is_expected.to contain_file('C:\Modules\Acme\1.0').with_ensure('directory')
+          is_expected.to contain_file('C:\Modules\Acme\1.0\Functions').with_ensure('directory')
+          is_expected.not_to contain_file('C:\Modules\\\\Acme')
+        end
+
+        it 'renders the manifest command with a single-separator module prefix' do
+          is_expected.to contain_exec('windowspowershell update-manifest Acme').
+            with_command(%r{\$modulePath\s*=\s*'C:\\Modules\\Acme\\1\.0'}).
+            with_command(%r{\$functionsPath\s*=\s*'C:\\Modules\\Acme\\1\.0\\Functions'})
+        end
+
+        it 'carries no doubled separator in any rendered command or creates path' do
+          ['windowspowershell create-manifest Acme', 'windowspowershell update-manifest Acme'].each do |exec_name|
+            expect(catalogue.resource('Exec', exec_name)[:command]).not_to match(%r{\\\\})
+          end
+          expect(catalogue.resource('Exec', 'windowspowershell create-manifest Acme')[:creates]).to eq('C:\Modules\Acme\1.0\Acme.psd1')
+        end
+
+        it 'unblocks the stripped module tree with -LiteralPath' do
+          is_expected.to contain_exec('windowspowershell unblock-files Acme').
+            with_command(%r{Get-ChildItem -LiteralPath 'C:\\Modules\\Acme\\1\.0' -Recurse -File \| Unblock-File})
+        end
+      end
+
       context 'with a source: dynamic, directory-wide deployment' do
         let(:params) { { 'source' => 'puppet:///modules/profile/acme-scripts' } }
 

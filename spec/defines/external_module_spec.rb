@@ -463,6 +463,25 @@ describe 'windowspowershell::external_module' do
         end
       end
 
+      context 'from a source with a trailing-separator custom module_root (issue #111)' do
+        let(:params) { { 'ensure' => '2.1.0', 'source' => 'puppet:///modules/x/y/' } }
+        let(:pre_condition) { "class { 'windowspowershell': module_root => 'C:\\\\wps-custom\\\\Modules\\\\' }" }
+
+        it { is_expected.to compile.with_all_deps }
+
+        it 'copies into the stripped custom root, with no doubled separator' do
+          is_expected.to contain_file('C:\wps-custom\Modules\ExampleModule\2.1.0')
+          is_expected.not_to contain_file('C:\wps-custom\Modules\\\\ExampleModule')
+        end
+      end
+
+      context 'from a repository with a trailing separator on the default module_root (issue #111)' do
+        let(:params) { { 'ensure' => '2.1.0', 'repository' => 'PSGallery' } }
+        let(:pre_condition) { "class { 'windowspowershell': module_root => 'C:\\\\Program Files\\\\WindowsPowerShell\\\\Modules\\\\' }" }
+
+        it { is_expected.to compile.with_all_deps }
+      end
+
       context 'with ensure => absent' do
         let(:params) { { 'ensure' => 'absent' } }
 
