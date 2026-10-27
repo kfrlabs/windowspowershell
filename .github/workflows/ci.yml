@@ -6,6 +6,13 @@ on:
   push:
     branches:
       - main
+  schedule:
+    # Weekly Gallery + upgrade + bracketed-repository validation (issue
+    # #112): the only catalogue-apply runs allowed to reach the real
+    # PowerShell Gallery or to need tags. Per-PR and push runs stay offline
+    # apart from the PSScriptAnalyzer lint bootstrap (Install-Module in the
+    # powershell jobs) and skip the schedule-only jobs below.
+    - cron: '0 3 * * 1'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -128,6 +135,12 @@ jobs:
       - name: Runtime smoke test (Windows PowerShell 5.1)
         shell: powershell
         run: ./tools/Test-WindowsRuntime.ps1 -RenderedPath .rendered-powershell/runtime
+      - name: Runtime smoke test (PowerShell 7, shared subset)
+        # Issue #112, Gap 3: same offline replay through pwsh. The provider
+        # itself only runs under 5.1, so this leg only proves the rendered
+        # scripts are cross-edition clean (see TESTING.md).
+        shell: pwsh
+        run: ./tools/Test-WindowsRuntime.ps1 -RenderedPath .rendered-powershell/runtime -Shell pwsh
 
   integration_windows:
     name: 'Puppet apply on ${{ matrix.os }}'
@@ -206,6 +219,136 @@ jobs:
           Stop-Service puppet -ErrorAction SilentlyContinue
           ./tools/Test-RepositoryBackend.ps1 -Site spec/integration/site_repository.pp -Modulepath 'C:\wps-int\modules'
 
+  integration_repository_brackets_windows:
+    # Issue #112, Gap 2 review: the bracketed publish path has zero Windows
+    # evidence yet, so it stays out of the per-PR gate (and the `tests`
+    # aggregator and release gate) until the first green run. Weekly only.
+    name: 'Puppet apply (repository backend, brackets) on ${{ matrix.os }}'
+    if: github.event_name == 'schedule'
+    needs: powershell_windows
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - windows-2022
+          - windows-2025
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install Puppet agent 8
+        shell: powershell
+        run: |
+          # Pinned: metadata.json requires puppet >= 8 < 9, so this must stay
+          # on Puppet 8 even when the community feed offers a newer major.
+          choco install puppet-agent --version 8.10.0 -y --no-progress
+          'C:\Program Files\Puppet Labs\Puppet\bin' | Out-File -FilePath $env:GITHUB_PATH -Append
+      - name: Stage the test modules
+        shell: powershell
+        run: |
+          # Same staging as integration_repository_windows.
+          $staging = 'C:\wps-int\modules'
+          New-Item -ItemType Directory -Path 'C:\wps-int' -Force | Out-Null
+          New-Item -ItemType Directory -Path $staging -Force | Out-Null
+          Copy-Item -Recurse -Force "$env:GITHUB_WORKSPACE" "$staging\windowspowershell"
+          puppet module install puppetlabs-stdlib --version 9.7.0 --target-dir $staging
+          puppet module install puppetlabs-concat --version 9.1.0 --target-dir $staging
+          puppet module install puppetlabs-powershell --version 6.2.0 --target-dir $staging
+      - name: Repository backend with brackets apply twice (second run must be clean)
+        shell: powershell
+        run: |
+          Stop-Service puppet -ErrorAction SilentlyContinue
+          ./tools/Test-RepositoryBackend.ps1 -Site spec/integration/site_repository_brackets.pp -Modulepath 'C:\wps-int\modules' -IncludeBrackets
+
+  integration_gallery_windows:
+    # Issue #112, Gap 1: scheduled Gallery end-to-end test. Informational
+    # only: it stays out of the `tests` aggregator and the release gate, and
+    # it never runs on pull requests so per-PR jobs stay offline.
+    name: 'Gallery backend (scheduled) on ${{ matrix.os }}'
+    if: github.event_name == 'schedule'
+    needs: powershell_windows
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - windows-2022
+          - windows-2025
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install Puppet agent 8
+        shell: powershell
+        run: |
+          # Pinned: metadata.json requires puppet >= 8 < 9, so this must stay
+          # on Puppet 8 even when the community feed offers a newer major.
+          choco install puppet-agent --version 8.10.0 -y --no-progress
+          'C:\Program Files\Puppet Labs\Puppet\bin' | Out-File -FilePath $env:GITHUB_PATH -Append
+      - name: Stage the test modules
+        shell: powershell
+        run: |
+          # Same staging as integration_windows: the checkout under its module
+          # name next to the pinned Forge dependencies (see .fixtures.yml).
+          $staging = 'C:\wps-int\modules'
+          New-Item -ItemType Directory -Path 'C:\wps-int' -Force | Out-Null
+          New-Item -ItemType Directory -Path $staging -Force | Out-Null
+          Copy-Item -Recurse -Force "$env:GITHUB_WORKSPACE" "$staging\windowspowershell"
+          puppet module install puppetlabs-stdlib --version 9.7.0 --target-dir $staging
+          puppet module install puppetlabs-concat --version 9.1.0 --target-dir $staging
+          puppet module install puppetlabs-powershell --version 6.2.0 --target-dir $staging
+      - name: Gallery backend apply twice (second run must be clean)
+        shell: powershell
+        run: |
+          Stop-Service puppet -ErrorAction SilentlyContinue
+          ./tools/Test-GalleryBackend.ps1 -Site spec/integration/site_gallery.pp -Modulepath 'C:\wps-int\modules'
+
+  integration_upgrade_windows:
+    # Issue #112, Gap 4: scheduled upgrade scenario. Informational only: it
+    # stays out of the `tests` aggregator and the release gate, and it never
+    # runs on pull requests.
+    name: 'Upgrade scenario (scheduled) on ${{ matrix.os }}'
+    if: github.event_name == 'schedule'
+    needs: powershell_windows
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - windows-2022
+          - windows-2025
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The upgrade script checks out the previous tag and auto-derives
+          # the newest v* tag: full history plus tags (cheap on the weekly
+          # schedule).
+          fetch-depth: 0
+          fetch-tags: true
+      - name: Install Puppet agent 8
+        shell: powershell
+        run: |
+          # Pinned: metadata.json requires puppet >= 8 < 9, so this must stay
+          # on Puppet 8 even when the community feed offers a newer major.
+          choco install puppet-agent --version 8.10.0 -y --no-progress
+          'C:\Program Files\Puppet Labs\Puppet\bin' | Out-File -FilePath $env:GITHUB_PATH -Append
+      - name: Stage the test modules
+        shell: powershell
+        run: |
+          # Same staging as integration_windows: the checkout under its module
+          # name next to the pinned Forge dependencies (see .fixtures.yml) and
+          # the wps_integration fixture module carrying the file sources.
+          $staging = 'C:\wps-int\modules'
+          New-Item -ItemType Directory -Path 'C:\wps-int' -Force | Out-Null
+          New-Item -ItemType Directory -Path $staging -Force | Out-Null
+          Copy-Item -Recurse -Force "$env:GITHUB_WORKSPACE" "$staging\windowspowershell"
+          Copy-Item -Recurse -Force "$env:GITHUB_WORKSPACE\spec\integration\modules\wps_integration" "$staging\wps_integration"
+          puppet module install puppetlabs-stdlib --version 9.7.0 --target-dir $staging
+          puppet module install puppetlabs-concat --version 9.1.0 --target-dir $staging
+          puppet module install puppetlabs-powershell --version 6.2.0 --target-dir $staging
+      - name: Upgrade from the previous tag, then converge twice
+        shell: powershell
+        run: |
+          Stop-Service puppet -ErrorAction SilentlyContinue
+          ./tools/Test-Upgrade.ps1 -Site spec/integration/site.pp -Modulepath 'C:\wps-int\modules'
+
   module_build:
     name: 'puppet module build'
     needs: lint
@@ -272,6 +415,11 @@ jobs:
       - integration_windows
       - integration_repository_windows
       - module_build
+    # The scheduled-only jobs (integration_gallery_windows,
+    # integration_upgrade_windows, integration_repository_brackets_windows)
+    # are informational and stay out of this
+    # gate on purpose: they only run on the weekly schedule, and the release
+    # gate requires this `Test suite` check green on the tagged commit.
     runs-on: ubuntu-latest
     steps:
       - run: echo 'All CI jobs passed.'
