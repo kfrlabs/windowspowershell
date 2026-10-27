@@ -121,6 +121,14 @@ fails early with a message naming `module_root` and the missing parent
 (issue #96) instead of the file provider's generic error. Create the
 parent on the node before the run, or fix the typo. See
 "Troubleshooting" in the README.
+A custom root is not on `PSModulePath` (auto-loading broken: use
+`import_in_profile => true` with managed profiles, or handle
+`PSModulePath` explicitly) and gets no ACL from this module (it
+inherits the parent's: restrict to SYSTEM + Administrators Full and
+verify with `Get-Acl`). `import_in_profile => true` repairs in-house
+imports (absolute manifest path); external `source`-backend modules on
+a custom root still need explicit `PSModulePath` handling. See
+"Limitations" in the README (issue #110).
 
 Default value: `'C:\Program Files\WindowsPowerShell\Modules'`
 

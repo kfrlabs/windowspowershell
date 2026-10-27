@@ -9,6 +9,23 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ### Added
 
+- Custom `module_root` `PSModulePath` + ACL limitations documented
+  (issue #110): a custom root is not on `PSModulePath` (auto-loading
+  broken: `import_in_profile => true` with managed profiles, or explicit
+  `PSModulePath` handling required) and gets no ACL from this module (it
+  inherits the parent's: a non-administrator-writable root is a privilege
+  escalation path, so restrict to `SYSTEM` + `Administrators` Full and
+  verify with `Get-Acl`). `import_in_profile => true` repairs in-house
+  imports (absolute manifest path); external `source`-backend modules on
+  a custom root still need explicit `PSModulePath` handling. README (Limitations, profile import, external
+  modules, rollout, Troubleshooting), the `module_root` parameter docs
+  and the `TESTING.md` pre-flight now record this. Managing the
+  machine-wide `PSModulePath` and enforcing the ACL from the module were
+  considered and deferred: safe-default posture (machine
+  environment mutation is global, persistent and order-sensitive), ACL
+  enforcement needs a new ACL dependency or `icacls` as SYSTEM, is heavy,
+  and requires Windows validation. Docs warning only for now, no behavior
+  or catalog change.
 - Production rollout guide (issue #108): the README gains a `Production
   rollout` section (rings, pilot settings, pre-flight inventory, safe
   retire recipe and `manage_profiles` rollback) linked from the 2.0 upgrade

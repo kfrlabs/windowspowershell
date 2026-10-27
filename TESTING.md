@@ -276,13 +276,20 @@ guide on a lab node (Puppet 8, run as a Scheduled Task as SYSTEM).
 Not yet run: no Windows node is reachable from this checkout, so the steps
 below are the procedure to run, not a report.
 
-1. Pre-flight: record the SHA-256 of each existing profile (when present)
-   and of the module root listing:
+1. Pre-flight: record the SHA-256 of each existing profile (when present),
+   the `PSModulePath` entries, the ACL of the module root, and the module
+   root listing:
    ```powershell
    Get-FileHash C:\Windows\System32\WindowsPowerShell\v1.0\profile.ps1 -ErrorAction SilentlyContinue
    Get-FileHash C:\Windows\SysWOW64\WindowsPowerShell\v1.0\profile.ps1 -ErrorAction SilentlyContinue
    Get-FileHash 'C:\Program Files\PowerShell\7\profile.ps1' -ErrorAction SilentlyContinue
+   $env:PSModulePath -split ';'
+   (Get-Acl 'C:\Program Files\WindowsPowerShell\Modules').Access
+   Get-ChildItem 'C:\Program Files\WindowsPowerShell\Modules'
    ```
+   With a custom `module_root`, substitute that path for
+   `C:\Program Files\WindowsPowerShell\Modules` in the `Get-Acl` (and module
+   listing) commands above.
 2. Apply the pilot catalogue (`manage_profiles => false`, the default)
    twice with `puppet apply --detailed-exitcodes`: no profile/`concat`
    resources change (overall second-run exit 0 on a converged node), and
