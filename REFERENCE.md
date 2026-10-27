@@ -121,6 +121,10 @@ fails early with a message naming `module_root` and the missing parent
 (issue #96) instead of the file provider's generic error. Create the
 parent on the node before the run, or fix the typo. See
 "Troubleshooting" in the README.
+Trailing separators are allowed and stripped for every derived path
+(`C:\Modules\` behaves like `C:\Modules`): the class exposes the
+stripped form as `$windowspowershell::normalized_module_root`, which
+every defined type builds its paths from (issue #111).
 A custom root is not on `PSModulePath` (auto-loading broken: use
 `import_in_profile => true` with managed profiles, or handle
 `PSModulePath` explicitly) and gets no ACL from this module (it
