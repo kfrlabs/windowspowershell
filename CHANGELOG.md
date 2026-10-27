@@ -31,6 +31,17 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   retire recipe and `manage_profiles` rollback) linked from the 2.0 upgrade
   notes and the `manage_profiles` parameter docs, with the matching
   verification procedure in `TESTING.md`. Docs/comment-only, no behavior or catalog change.
+- Gallery supply-chain integrity check evaluated and rejected (issue #114):
+  optional `expected_hash`/`require_signature` parameters checked after
+  install were considered and rejected: post-install verification runs after
+  `Install-Module -Force -AllowClobber` already executed code as `SYSTEM`
+  (detective-only, TOCTOU), Gallery releases are largely unsigned, a hash
+  only duplicates the version pin, and re-checking on every run risks
+  idempotency churn and cost. The documented recommendation is an internal
+  mirror carrying only reviewed, Authenticode-signed modules (registered for
+  `SYSTEM`, `Trusted` policy rationale, pinned version + review, `source`
+  backend fallback for offline nodes) in README `Repository trust` and the
+  `repository` parameter docs. Docs/comment-only, no behavior or catalog change.
 
 ### Changed
 

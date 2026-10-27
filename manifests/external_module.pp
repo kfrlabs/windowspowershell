@@ -51,6 +51,11 @@
 #   suppresses the untrusted-repository prompt: the repository named here is
 #   trusted to execute code as `SYSTEM`, so prefer an internal mirror in
 #   production.
+#   Post-install `expected_hash`/`require_signature` checks were evaluated and
+#   rejected (issue #114): they run after `Install-Module` already executed
+#   code as `SYSTEM`, so they only detect a compromise after the fact
+#   (TOCTOU). Prefer an internal mirror carrying only reviewed, signed
+#   modules instead (see README `Repository trust`).
 #   Requires the default `module_root`
 #   (`C:\Program Files\WindowsPowerShell\Modules`):
 #   `Install-Module -Scope AllUsers` always installs there and ignores a

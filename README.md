@@ -387,6 +387,45 @@ control and that only carries reviewed modules, rather than at the public
 PowerShell Gallery. For nodes that cannot, or should not, reach any repository,
 use the `source` backend and ship the module files from your Puppet code.
 
+Optional `expected_hash`/`require_signature` parameters were evaluated and
+rejected (issue #114): a post-install hash or signature check runs after
+`Install-Module` has already executed code as `SYSTEM`, so it only detects a
+compromised module after the fact (TOCTOU) instead of preventing the install.
+Most Gallery releases are also unsigned, so a signature requirement would
+reject legitimate modules without making the feed trustworthy; a hash only
+duplicates the version pin, while re-verifying on every run risks idempotency
+churn and extra PowerShell spawns. The interrupted-install repair
+(folder counts only when `<modulename>.psd1` exists and passes
+`Test-ModuleManifest`, issue #106) proves completeness, not trust, and the
+absent guard for `PowerShellGet`/`PackageManagement` (issue #88) only keeps
+`Install-Module` working. The module therefore adds no integrity parameters
+and leaves `InstallationPolicy` alone: `-Force` suppresses the prompt without
+mutating machine-wide PowerShellGet configuration.
+
+Instead, curate an internal mirror with signing enforced:
+
+1. Publish only reviewed releases to an internal NuGet feed and
+   Authenticode-sign the payloads; keep a new upstream release out of the
+   feed until it has been reviewed.
+2. Register that feed for the `SYSTEM` account on every node before the first
+   agent run -- `Register-PSRepository` is per-user (issue #85), so register
+   it from a Scheduled Task as SYSTEM, not from an interactive session:
+
+   ```powershell
+   Register-PSRepository -Name 'InternalPS' `
+     -SourceLocation 'https://psfeed.example.net/nuget/v2' `
+     -InstallationPolicy Trusted
+   ```
+
+   `Trusted` avoids the prompt at the repository level; this module still
+   passes `-Force` and leaves the policy it finds in place.
+3. Pin the reviewed version in `ensure` and bump it through change control,
+   so an unreviewed release cannot flow to nodes on its own.
+4. For nodes that cannot, or should not, reach any repository, use the
+   `source` backend and ship the reviewed files from your Puppet code
+   (the default-`module_root` guard for `repository`, issue #85, still
+   applies).
+
 ### Manifest regeneration
 
 Manifest regeneration is centralized in one refresh-only `Exec` **per in-house
