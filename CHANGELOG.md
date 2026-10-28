@@ -5,7 +5,7 @@ All notable changes to this module are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.2.0] - 2026-10-28
 
 ### Added
 
@@ -90,6 +90,29 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
     co-managing code must use the stripped spelling or
     $windowspowershell::normalized_module_root, else it fails with a
     duplicate-title error.
+- Manifest generation now fails closed on syntax errors (issue #107):
+  `update_manifest.ps1.epp` parses every `Functions/` script (read as UTF-8,
+  reached through `.FullName` so bracketed paths stay literal) with
+  `Parser::ParseInput` before `New-ModuleManifest`. On a syntax error it
+  prints `PARSE ERROR <file>:<line>` lines and exits 1, leaving the existing
+  `.psd1` untouched instead of shipping a manifest that lists a function
+  PowerShell cannot load. An empty `Functions/` is a no-op. `Write-Error`
+  plus `exit 1` is used instead of `throw`: Windows PowerShell 5.1 fed via
+  stdin swallows a `throw` inside a multi-line block and keeps running
+  (exit 0).
+  - Migration: nodes with a broken script now fail the run instead of
+    converging green with a broken module; fix the script, the next run
+    rewrites the manifest.
+- Repository install check now requires a valid manifest (issue #106): a
+  version folder only counts as installed when `<modulename>.psd1` exists
+  inside it and passes `Test-ModuleManifest`, so an empty, partial or corrupt
+  folder left by an interrupted install reinstalls on the next run instead of
+  satisfying the check forever. Names holding wildcard characters
+  (`` ` ``, `*`, `?`, `[`, `]`) are excluded from the manifest parse --
+  `Test-ModuleManifest` rejects wildcards in `RootModule`/`ModuleToProcess`,
+  which would reinstall a healthy wildcard-named module on every run -- so
+  for those names the `.psd1` only has to exist.
+  - Migration: affected nodes reinstall once, then converge cleanly.
 - Release gate (issue #105): `release.yml` no longer publishes a tag without
   the Windows jobs being green. A read-only `verify_ci` job gates the Forge
   publish on the `Test suite` check from `ci.yml` being `completed` /
