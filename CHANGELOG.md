@@ -5,6 +5,24 @@ All notable changes to this module are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Opt-in ACL hardening of a custom `module_root` (issue #133): with
+  `manage_module_root_acl => true`, an enforceable custom root is
+  restricted to `SYSTEM` + `Administrators` Full control (by SID,
+  locale-independent), inheritance disabled, through one apply `Exec` with
+  an `unless` guard in `windowspowershell::install` (ordered after the root
+  directory, before the first module content, so later content inherits the
+  entries). A converged node changes nothing. An opted-out custom root logs
+  a compile-time warning naming the root and the parameter. The default root
+  is never modified. UNC, extended-prefix (`\\?\`) and drive roots are never
+  enforced (warning, restrict by hand). README (Limitations, profile import,
+  external modules, rollout, Troubleshooting, per-run cost), the parameter
+  docs (REFERENCE.md), the `TESTING.md` manual matrix and the Windows runtime
+  smoke test record the behavior.
+
 ## [2.2.0] - 2026-10-28
 
 ### Added

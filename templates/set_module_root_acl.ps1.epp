@@ -1,0 +1,18 @@
+<%- | Stdlib::Windowspath $module_root | -%>
+$ErrorActionPreference = 'Stop'
+$aclRoot = '<%= $module_root %>'
+
+# SIDs, not names: locale-independent (a French or German node has no
+# 'Administrators' group name to resolve). SYSTEM first, then Administrators.
+$acl = Get-Acl -LiteralPath $aclRoot
+$acl.SetAccessRuleProtection($true, $false)
+foreach ($rule in @($acl.Access)) {
+    [void]$acl.RemoveAccessRule($rule)
+}
+foreach ($sid in @('S-1-5-18', 'S-1-5-32-544')) {
+    $identity = New-Object System.Security.Principal.SecurityIdentifier($sid)
+    $ace = New-Object System.Security.AccessControl.FileSystemAccessRule(
+        $identity, 'FullControl', 'ContainerInherit, ObjectInherit', 'None', 'Allow')
+    [void]$acl.AddAccessRule($ace)
+}
+Set-Acl -LiteralPath $aclRoot -AclObject $acl

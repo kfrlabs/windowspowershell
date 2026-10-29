@@ -76,6 +76,13 @@ describe 'windowspowershell', type: :class do
       windowspowershell::external_module { 'WpsFloating': ensure => '1.0.0', source => 'puppet:///modules/profile/floating' }
       windowspowershell::external_module { 'WpsGone': ensure => absent }
     PUPPET
+    # Issue #133: opt-in ACL hardening of a custom root. Renders the ACL
+    # guard and apply scripts (templates coverage hook below) and feeds the
+    # Windows runtime smoke test (tools/Test-WindowsRuntime.ps1), which
+    # replays them against a throw-away directory.
+    'module_root_acl' => <<~PUPPET,
+      windowspowershell::module { 'AclSmoke': version => '1.0', author => 'CI', companyname => 'CI', import_in_profile => false }
+    PUPPET
   }
 
   # Parameters of the `windowspowershell` class itself, per scenario.
@@ -89,6 +96,7 @@ describe 'windowspowershell', type: :class do
       'proxy_credential' => { 'username' => 'svc-proxy', 'password' => 'not-a-real-secret' },
     },
     'runtime' => { 'module_root' => runtime_root, 'manage_pwsh_profile' => false },
+    'module_root_acl' => { 'module_root' => 'C:\\wps-acl\\Modules', 'manage_module_root_acl' => true, 'manage_pwsh_profile' => false },
   }
 
   powershell7_facts = { 'powershell7' => { 'installed' => true, 'path' => 'C:\\Program Files\\PowerShell\\7\\pwsh.exe' } }
@@ -186,6 +194,31 @@ describe 'windowspowershell', type: :class do
           expect(guards.size).to eq(1)
           expect(guards.first).to match(%r{Get-PackageProvider -Name NuGet})
           expect(guards.first).to match(%r{\[version\]'2\.8\.5\.201'})
+        end
+      end
+
+      # Issue #133: the ACL guard only converges on exactly SYSTEM and
+      # Administrators FullControl, and the apply disables inheritance.
+      if scenario == 'module_root_acl'
+        it 'guards on exactly SYSTEM and Administrators FullControl' do
+          guards = powershell_snippets.select do |label, _|
+            label == 'windowspowershell manage module_root acl (unless)'
+          end.map(&:last)
+          expect(guards.size).to eq(1)
+          expect(guards.first).to match(%r{S-1-5-18})
+          expect(guards.first).to match(%r{S-1-5-32-544})
+          expect(guards.first).to match(%r{AreAccessRulesProtected})
+          expect(guards.first).to match(%r{\$aclRoot = 'C:\\wps-acl\\Modules'})
+        end
+
+        it 'applies by disabling inheritance and writing the two entries' do
+          applies = powershell_snippets.select do |label, _|
+            label == 'windowspowershell manage module_root acl (command)'
+          end.map(&:last)
+          expect(applies.size).to eq(1)
+          expect(applies.first).to match(%r{SetAccessRuleProtection\(\$true, \$false\)})
+          expect(applies.first).to match(%r{S-1-5-18})
+          expect(applies.first).to match(%r{S-1-5-32-544})
         end
       end
 

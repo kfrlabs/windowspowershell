@@ -463,6 +463,24 @@ describe 'windowspowershell::external_module' do
         end
       end
 
+      # Issue #133: with manage_module_root_acl => true the source-backend
+      # module directory lands after the ACL Exec, so the copied tree
+      # inherits the hardened entries.
+      context 'from a source with an opted-in custom module_root' do
+        let(:params) { { 'ensure' => '3.0.1', 'source' => 'puppet:///modules/x/y/' } }
+        let(:pre_condition) do
+          "class { 'windowspowershell': module_root => 'C:\\wps-srcacl\\Modules', manage_module_root_acl => true }"
+        end
+
+        it { is_expected.to compile.with_all_deps }
+
+        it 'requires the ACL Exec on the module directory' do
+          is_expected.to contain_file('C:\wps-srcacl\Modules\\ExampleModule').
+            with_ensure('directory').
+            that_requires('Exec[windowspowershell manage module_root acl]')
+        end
+      end
+
       context 'from a source with a trailing-separator custom module_root (issue #111)' do
         let(:params) { { 'ensure' => '2.1.0', 'source' => 'puppet:///modules/x/y/' } }
         let(:pre_condition) { "class { 'windowspowershell': module_root => 'C:\\\\wps-custom\\\\Modules\\\\' }" }

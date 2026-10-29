@@ -214,9 +214,16 @@ define windowspowershell::external_module (
       $installed_by = Exec["windowspowershell install ${name}"]
     } else {
       # Shared by every version of the same module, hence ensure_resource.
+      # Issue #133: with manage_module_root_acl => true the ACL Exec in
+      # windowspowershell::install hardens the root first, so content
+      # deployed later inherits the two entries.
+      $acl_content_require = $windowspowershell::manage_acl_effective ? {
+        true    => [File[$windowspowershell::normalized_module_root], Exec['windowspowershell manage module_root acl']],
+        default => File[$windowspowershell::normalized_module_root],
+      }
       ensure_resource('file', $module_dir, {
           'ensure'  => 'directory',
-          'require' => File[$windowspowershell::normalized_module_root],
+          'require' => $acl_content_require,
       })
 
       file { "${module_dir}\\${module_version}":

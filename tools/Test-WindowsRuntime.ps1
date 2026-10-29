@@ -37,6 +37,10 @@ param(
     # spec/unit/rendered_powershell_spec.rb run (WPS_RENDER_DIR).
     [string] $RepositoryRenderedPath,
 
+    # Sibling of the runtime folder, written by the same
+    # spec/unit/rendered_powershell_spec.rb run (WPS_RENDER_DIR).
+    [string] $AclRenderedPath,
+
     # Issue #112, Gap 3: engine replaying the rendered scripts. The
     # `powershell` provider only ever runs under Windows PowerShell 5.1, so
     # 'powershell' stays the primary leg; 'pwsh' replays the shared subset
@@ -58,6 +62,10 @@ if (-not $RepositoryRenderedPath) {
     $RepositoryRenderedPath = Join-Path (Split-Path -Parent $RenderedPath) 'external_from_repository'
 }
 $RepositoryRenderedPath = (Resolve-Path -LiteralPath $RepositoryRenderedPath).ProviderPath
+if (-not $AclRenderedPath) {
+    $AclRenderedPath = Join-Path (Split-Path -Parent $RenderedPath) 'module_root_acl'
+}
+$AclRenderedPath = (Resolve-Path -LiteralPath $AclRenderedPath).ProviderPath
 $shellExe = if ($Shell -eq 'pwsh') { 'pwsh.exe' } else { 'powershell.exe' }
 $failed = 0
 
@@ -121,6 +129,31 @@ function Invoke-RepositoryCheck([string] $Pattern, [string] $ModuleDir) {
 
 function Assert-RepositoryExit([string] $Pattern, [string] $ModuleDir, [int] $Expected, [string] $Message) {
     $actual = Invoke-RepositoryCheck $Pattern $ModuleDir
+    Assert-True ($actual -eq $Expected) "$Message (exit $actual, expected $Expected)"
+}
+
+# Issue #133: the rendered ACL scripts hardcode C:\wps-acl\Modules, which a
+# throw-away replay must not touch, so they run with only their
+# `$aclRoot = '...'` assignment repointed (same technique as
+# Invoke-RepositoryCheck). Every other line runs exactly as rendered.
+function Get-AclScriptPath([string] $Pattern) {
+    $hits = @(Get-ChildItem -LiteralPath $AclRenderedPath -Filter $Pattern)
+    if ($hits.Count -ne 1) { throw "Expected exactly one rendered ACL script for '$Pattern', found $($hits.Count)" }
+    $hits[0].FullName
+}
+
+function Invoke-AclScript([string] $Pattern, [string] $AclRoot) {
+    $path = Get-AclScriptPath $Pattern
+    $text = Get-Content -LiteralPath $path -Raw -Encoding UTF8
+    $pattern = '(?m)^' + [regex]::Escape('$aclRoot = ') + "'.*'\r?$"
+    $replacement = '$$aclRoot = ''{0}''' -f ($AclRoot.Replace("'", "''") -replace '\$', '$$$$')
+    $repointed = $text -replace $pattern, $replacement
+    $repointed | & $shellExe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command - | Out-Null
+    $LASTEXITCODE
+}
+
+function Assert-AclExit([string] $Pattern, [string] $AclRoot, [int] $Expected, [string] $Message) {
+    $actual = Invoke-AclScript $Pattern $AclRoot
     Assert-True ($actual -eq $Expected) "$Message (exit $actual, expected $Expected)"
 }
 
@@ -242,6 +275,45 @@ try {
     Assert-RepositoryExit '*install_Bracket*_unless*' $bracketDir 1 'check: partial bracketed folder without a manifest reinstalls'
     Set-Content -LiteralPath (Join-Path $bracketVersion 'Bracket[Beta].psd1') -Value "@{ ModuleVersion = '1.0.0' }`n"
     Assert-RepositoryExit '*install_Bracket*_unless*' $bracketDir 0 'check: bracketed folder with a psd1 satisfies the pin (manifest parse excluded)'
+
+    # Issue #133: opt-in ACL hardening replay on a throw-away directory.
+    # Needs an elevated host: Set-Acl requires a privilege the suite
+    # already assumes everywhere else.
+    $aclRoot = Join-Path $Root 'AclRoot'
+    if (Test-Path -LiteralPath $aclRoot) { Remove-Item -LiteralPath $aclRoot -Recurse -Force }
+    New-Dir $aclRoot
+    Assert-AclExit '*manage_module_root_acl_unless*' $aclRoot 1 'acl: loose inherited ACL is drift'
+    Assert-AclExit '*manage_module_root_acl_command*' $aclRoot 0 'acl: apply runs'
+    Assert-AclExit '*manage_module_root_acl_unless*' $aclRoot 0 'acl: apply is idempotent'
+    $acl = Get-Acl -LiteralPath $aclRoot
+    Assert-True ($acl.AreAccessRulesProtected) 'acl: inheritance is disabled'
+    Assert-True ($acl.Access.Count -eq 2) 'acl: no entry besides the two enforced ones'
+    $aclSids = @($acl.Access | ForEach-Object {
+        $_.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value
+    } | Sort-Object)
+    Assert-True (($aclSids -join ',') -eq 'S-1-5-18,S-1-5-32-544') 'acl: exactly SYSTEM and Administrators FullControl'
+    Assert-True ((@($acl.Access | Where-Object {
+        $_.AccessControlType -eq 'Allow' -and $_.FileSystemRights -eq 'FullControl'
+    }).Count -eq 2) 'acl: both entries are Allow FullControl')
+
+    # Content deployed after the hardened run inherits the two entries.
+    $aclChild = Join-Path $aclRoot 'probe.txt'
+    Set-Content -LiteralPath $aclChild -Value 'probe'
+    $childSids = @((Get-Acl -LiteralPath $aclChild).Access | ForEach-Object {
+        $_.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value
+    } | Sort-Object)
+    Assert-True (($childSids -join ',') -eq 'S-1-5-18,S-1-5-32-544') 'acl: later content inherits the two entries'
+
+    # Drift (an extra explicit entry) is detected and restored.
+    $drift = Get-Acl -LiteralPath $aclRoot
+    $users = New-Object System.Security.Principal.SecurityIdentifier('S-1-5-32-545')
+    $driftRule = New-Object System.Security.AccessControl.FileSystemAccessRule(
+        $users, 'ReadAndExecute', 'ContainerInherit,ObjectInherit', 'None', 'Allow')
+    $drift.AddAccessRule($driftRule)
+    Set-Acl -LiteralPath $aclRoot -AclObject $drift
+    Assert-AclExit '*manage_module_root_acl_unless*' $aclRoot 1 'acl: extra entry is drift'
+    Assert-AclExit '*manage_module_root_acl_command*' $aclRoot 0 'acl: apply restores the two entries'
+    Assert-AclExit '*manage_module_root_acl_unless*' $aclRoot 0 'acl: restored state is idempotent'
 }
 finally {
     if (Test-Path -LiteralPath $Root) { Remove-Item -LiteralPath $Root -Recurse -Force }

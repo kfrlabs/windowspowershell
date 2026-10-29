@@ -83,6 +83,34 @@ describe 'windowspowershell::module' do
         it { is_expected.not_to contain_exec('windowspowershell purge other in-house versions of Acme') }
       end
 
+      # Issue #133: with manage_module_root_acl => true on a custom root,
+      # the module directory lands after the ACL Exec, so the content
+      # inherits the hardened entries.
+      context 'with an opted-in custom module_root' do
+        let(:pre_condition) do
+          <<~PUPPET
+            class { 'windowspowershell':
+              module_root            => 'C:\\wps-optin\\Modules',
+              manage_module_root_acl => true,
+            }
+          PUPPET
+        end
+
+        it { is_expected.to compile.with_all_deps }
+
+        it 'declares the ACL Exec for the custom root' do
+          is_expected.to contain_exec('windowspowershell manage module_root acl').
+            with_provider('powershell').
+            with_require('File[C:\wps-optin\Modules]')
+        end
+
+        it 'requires the ACL Exec on the module directory' do
+          is_expected.to contain_file('C:\wps-optin\Modules\\Acme').
+            with_ensure('directory').
+            that_requires('Exec[windowspowershell manage module_root acl]')
+        end
+      end
+
       # Issue #88: removing an in-house module from Puppet left its tree on
       # the nodes. ensure => absent removes the whole module directory.
       context 'with ensure => absent' do
