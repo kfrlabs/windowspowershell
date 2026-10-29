@@ -23,6 +23,14 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   docs (REFERENCE.md), the `TESTING.md` manual matrix and the Windows runtime
   smoke test record the behavior.
 
+### Fixed
+
+- Narrow the claimed OS support matrix to the validated releases
+  (issues #113, #131): `metadata.json` now claims Windows Server 2022 and
+  2025 only. Windows Server 2019 and Windows 11 are expected to work but
+  unverified; re-add them once a dated double-apply run is recorded.
+  No behavior or catalog change.
+
 ## [2.2.0] - 2026-10-28
 
 ### Added

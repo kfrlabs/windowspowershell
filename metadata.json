@@ -26,10 +26,8 @@
     {
       "operatingsystem": "windows",
       "operatingsystemrelease": [
-        "2019",
         "2022",
-        "2025",
-        "11"
+        "2025"
       ]
     }
   ],
