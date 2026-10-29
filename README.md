@@ -7,7 +7,7 @@
 [![License: Apache-2.0](https://img.shields.io/github/license/kfrlabs/windowspowershell.svg)](LICENSE)
 [![Puppet >= 8.0, < 9.0](https://img.shields.io/badge/puppet-%3E%3D8.0_%3C9.0-blue.svg)](metadata.json)
 [![PDK 3.4.0](https://img.shields.io/badge/PDK-3.4.0-orange.svg)](https://puppet.com/docs/pdk/latest/pdk.html)
-[![Windows 2019–2025, 11](https://img.shields.io/badge/windows-2019--2025_%7C_11-0078D6.svg?logo=windows)](metadata.json)
+[![Windows 2022, 2025](https://img.shields.io/badge/windows-2022_%7C_2025-0078D6.svg?logo=windows)](metadata.json)
 
 ## Table of Contents
 
@@ -563,10 +563,11 @@ Keep these points in mind:
 ### Production rollout
 
 Roll out in rings (issue #108): pilot on Windows Server 2022 and 2025
-first, then the rest of the fleet. Windows Server 2019 and Windows 11 are
-supported but lab-unvalidated (issue #87, see the manual matrix in
-[TESTING.md](TESTING.md#manual-matrix)): treat them as their own later ring
-and verify the double-apply there before widening.
+first, then the rest of the fleet. Only Windows Server 2022 and 2025 are
+validated (see the manual matrix in
+[TESTING.md](TESTING.md#manual-matrix)). Windows Server 2019 and Windows 11
+are expected to work but unverified: treat them as their own later ring
+and verify the double-apply there before widening (issues #113, #131).
 
 Pilot with the safe defaults: keep `manage_profiles` at its `false`
 default, keep `import_in_profile => false` on every module, and review
@@ -745,9 +746,11 @@ Contributions are welcome via GitHub issues and pull requests.
 
 ## Limitations
 
-- Supported releases are Windows Server 2019–2025 and Windows 11 (see
+- Supported releases are Windows Server 2022 and 2025 (see
   `metadata.json`). Windows Server 2016 is not supported. Windows Server 2019
-  is claimed but still to be tested/confirmed (issue #87); see `TESTING.md`.
+  and Windows 11 are expected to work but unverified
+  (issues #113, #131); re-add once a dated double-apply run is recorded.
+  See `TESTING.md`.
 - Windows only. On any other operating system the class **and every defined
   type** are a no-op, so nodes can be classified without filtering on the
   operating system. Parameter validation still runs everywhere, so a bad
