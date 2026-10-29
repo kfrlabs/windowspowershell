@@ -277,6 +277,122 @@ describe 'windowspowershell' do
         it { is_expected.not_to contain_exec('windowspowershell module_root parent exists') }
       end
 
+      # Issue #133: opt-in ACL hardening of a custom module_root. The
+      # default root is never modified and never warns, even opted in.
+      context 'with manage_module_root_acl => true and the default root' do
+        let(:params) { { 'manage_module_root_acl' => true } }
+
+        it 'declares no ACL Exec and logs no ACL warning' do
+          warnings = captured_puppet_warnings { is_expected.to compile.with_all_deps }
+          expect(warnings.grep(%r{manage_module_root_acl})).to be_empty
+          is_expected.not_to contain_exec('windowspowershell manage module_root acl')
+        end
+      end
+
+      # An opted-out custom root compiles without ACL resources and warns
+      # once, naming the root and the opt-in parameter (issue #133).
+      context 'with a custom module_root and manage_module_root_acl => false' do
+        let(:params) { { 'module_root' => 'C:\\wps-acl\\Modules' } }
+
+        it 'warns once and declares no ACL Exec' do
+          warnings = captured_puppet_warnings { is_expected.to compile.with_all_deps }
+          expect(warnings.grep(%r{manage_module_root_acl}).size).to eq(1)
+          expect(warnings.grep(%r{manage_module_root_acl}).first).to match(
+            %r{custom module_root 'C:\\wps-acl\\Modules'.*SYSTEM.*issue #133}
+          )
+          is_expected.not_to contain_exec('windowspowershell manage module_root acl')
+        end
+      end
+
+      # Opted in on an enforceable custom root: one apply Exec with an
+      # unless guard, ordered after the root directory.
+      context 'with a custom module_root and manage_module_root_acl => true' do
+        let(:params) { { 'module_root' => 'C:\\wps-optin\\Modules', 'manage_module_root_acl' => true } }
+
+        it { is_expected.to compile.with_all_deps }
+
+        it 'declares the ACL Exec after the root directory' do
+          is_expected.to contain_exec('windowspowershell manage module_root acl').
+            with_provider('powershell').
+            with_require('File[C:\wps-optin\Modules]')
+        end
+
+        it 'guards on SYSTEM and Administrators FullControl' do
+          is_expected.to contain_exec('windowspowershell manage module_root acl').
+            with_unless(%r{S-1-5-18}).
+            with_unless(%r{S-1-5-32-544}).
+            with_unless(%r{AreAccessRulesProtected}).
+            with_unless(%r{\$aclRoot = 'C:\\wps-optin\\Modules'})
+        end
+
+        it 'applies by disabling inheritance and writing the two entries' do
+          is_expected.to contain_exec('windowspowershell manage module_root acl').
+            with_command(%r{SetAccessRuleProtection\(\$true, \$false\)}).
+            with_command(%r{S-1-5-18}).
+            with_command(%r{S-1-5-32-544})
+        end
+      end
+
+      # The opted-in run itself warns nothing (unique root: no earlier
+      # example compiles this input, so the capture is genuine).
+      context 'with an opted-in custom module_root and no skip condition' do
+        let(:params) { { 'module_root' => 'C:\\wps-quiet\\Modules', 'manage_module_root_acl' => true } }
+
+        it 'logs no ACL warning' do
+          warnings = captured_puppet_warnings { is_expected.to compile.with_all_deps }
+          expect(warnings.grep(%r{manage_module_root_acl})).to be_empty
+        end
+      end
+
+      # A trailing separator strips before the Exec titles (issue #111), so
+      # the ACL scripts target the normalized root with no doubled separator.
+      context 'with an opted-in custom module_root carrying a trailing separator' do
+        let(:params) { { 'module_root' => 'C:\\wps-trail\\Modules\\', 'manage_module_root_acl' => true } }
+
+        it { is_expected.to compile.with_all_deps }
+
+        it 'targets the stripped root in both scripts' do
+          is_expected.to contain_exec('windowspowershell manage module_root acl').
+            with_unless(%r{\$aclRoot = 'C:\\wps-trail\\Modules'}).
+            with_command(%r{\$aclRoot = 'C:\\wps-trail\\Modules'})
+          is_expected.not_to contain_exec('windowspowershell manage module_root acl').
+            with_unless(%r{Modules\\'}).
+            with_command(%r{Modules\\'})
+        end
+      end
+
+      # UNC, extended-prefix and drive roots are never enforced (issue
+      # #133): the catalogue compiles without ACL resources and warns that
+      # the operator must restrict the directory by hand.
+      context 'with an opted-in UNC module_root' do
+        let(:params) { { 'module_root' => '\\\\serveur\\partage\\Modules', 'manage_module_root_acl' => true } }
+
+        it 'warns once and declares no ACL Exec' do
+          warnings = captured_puppet_warnings { is_expected.to compile.with_all_deps }
+          expect(warnings.grep(%r{manage_module_root_acl}).size).to eq(1)
+          expect(warnings.grep(%r{manage_module_root_acl}).first).to match(%r{never enforced})
+          is_expected.not_to contain_exec('windowspowershell manage module_root acl')
+        end
+      end
+
+      context 'with an opted-in extended-prefix module_root' do
+        let(:params) { { 'module_root' => '\\\\?\\C:\\wps\\Modules', 'manage_module_root_acl' => true } }
+
+        it 'warns once and declares no ACL Exec' do
+          warnings = captured_puppet_warnings { is_expected.to compile.with_all_deps }
+          expect(warnings.grep(%r{manage_module_root_acl}).size).to eq(1)
+          expect(warnings.grep(%r{manage_module_root_acl}).first).to match(%r{never enforced})
+          is_expected.not_to contain_exec('windowspowershell manage module_root acl')
+        end
+      end
+
+      context 'with an opted-in drive root module_root' do
+        let(:params) { { 'module_root' => 'C:\\', 'manage_module_root_acl' => true } }
+
+        it { is_expected.to compile.with_all_deps }
+        it { is_expected.not_to contain_exec('windowspowershell manage module_root acl') }
+      end
+
       context 'without PowerShell 7' do
         it { is_expected.not_to contain_concat('C:\Program Files\PowerShell\7\profile.ps1') }
       end

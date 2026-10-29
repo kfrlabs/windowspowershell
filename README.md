@@ -252,8 +252,9 @@ explicit version, since it has to know which directory to populate.
 > `C:\Program Files\WindowsPowerShell\Modules` and ignores a custom root,
 > so combining `repository` with a custom `module_root` fails compilation
 > instead of reinstalling on every run. Use the `source` backend for a
-> custom root. A custom root is also off `PSModulePath` and gets no ACL
-> from this module (see [Limitations](#limitations), issue #110).
+> custom root. A custom root is also off `PSModulePath` and only gets an
+> ACL from this module with `manage_module_root_acl => true` (opt-in,
+> issue #133; see [Limitations](#limitations)).
 
 A custom repository must be registered for the `SYSTEM` account (issue #85):
 `Register-PSRepository` is per-user, so a repository registered in an
@@ -294,8 +295,9 @@ applications). Such a copy neither satisfies the check nor gets purged.
 These paths describe the default root: with a custom `module_root` the
 `source` backend acts on that root instead, which is not on `PSModulePath`
 (auto-loading broken unless `import_in_profile => true` with managed
-profiles, or explicit `PSModulePath` handling) and gets no ACL from this
-module (see [Limitations](#limitations), issue #110). `import_in_profile
+profiles, or explicit `PSModulePath` handling) and only gets an ACL from
+this module with `manage_module_root_acl => true` (opt-in, issue #133;
+see [Limitations](#limitations)). `import_in_profile
 => true` repairs in-house imports (absolute manifest path); external
 `source`-backend modules on a custom root still need explicit
 `PSModulePath` handling.
@@ -483,9 +485,11 @@ are guaranteed unique (a single `external_module` per name, no side-by-side
 copies), `purge_versions => false` drops its per-run cost to zero. On top of
 the per-module checks, every run also evaluates the `module_root` parent
 guard of `windowspowershell::install` (issue #96): one `unless` spawn per
-run (~0.6 s), whether or not anything is managed. With a custom
-`module_root`, see also the `PSModulePath`/ACL caveats in
-[Limitations](#limitations) (issue #110).
+run (~0.6 s), whether or not anything is managed. With
+`manage_module_root_acl => true` on a custom `module_root` (issue #133),
+the ACL `unless` guard adds one more spawn per run (~0.6 s) once converged.
+With a custom `module_root`, see also the `PSModulePath`/ACL caveats in
+[Limitations](#limitations).
 
 ### Co-managing the profiles
 
@@ -591,8 +595,9 @@ Get-ChildItem 'C:\Program Files\WindowsPowerShell\Modules'
 With a custom `module_root`, inventory that directory instead of the
 default path above. It is not on `PSModulePath` (auto-loading broken
 unless `import_in_profile => true` with managed profiles, or explicit
-`PSModulePath` handling) and it gets no ACL from this module (see
-[Limitations](#limitations), issue #110). `import_in_profile => true`
+`PSModulePath` handling) and it only gets an ACL from this module with
+`manage_module_root_acl => true` (opt-in, issue #133; see
+[Limitations](#limitations)). `import_in_profile => true`
 repairs in-house imports (absolute manifest path); external
 `source`-backend modules on a custom root still need explicit
 `PSModulePath` handling.
@@ -714,9 +719,10 @@ PowerShell never looks.
 
 A custom `module_root` that does exist is still not on `PSModulePath`
 (auto-loading broken: use `import_in_profile => true` with managed
-profiles, or handle `PSModulePath` explicitly) and gets no ACL from this
-module (it inherits the parent's; see [Limitations](#limitations),
-issue #110). `import_in_profile => true` repairs in-house imports
+profiles, or handle `PSModulePath` explicitly) and only gets an ACL from
+this module with `manage_module_root_acl => true` (opt-in, issue #133;
+otherwise it inherits the parent's; see [Limitations](#limitations)).
+`import_in_profile => true` repairs in-house imports
 (absolute manifest path); external `source`-backend modules on a custom
 root still need explicit `PSModulePath` handling.
 
@@ -787,14 +793,20 @@ Contributions are welcome via GitHub issues and pull requests.
   `PSModulePath` from the module was considered and deferred: it mutates
   machine environment persistently, globally and order-sensitively, which
   does not fit this module's safe-default posture.
-- The module applies no ACL to `module_root`: the directory inherits its
-  parent's ACL, so a custom root writable by non-administrators lets any
-  writer plant code the agent then runs as SYSTEM (privilege escalation,
-  issue #110). Restrict the directory to `SYSTEM` and `Administrators`
-  with Full control and verify with `Get-Acl`. Enforcing the ACL from the
-  module was considered and deferred: it needs a new ACL dependency (or
-  `icacls` as SYSTEM), is heavy, and requires Windows validation -- docs
-  warning only for now.
+- The module applies an ACL to `module_root` only for an enforceable
+  custom root with `manage_module_root_acl => true` (opt-in, issue #133):
+  the root is restricted to `SYSTEM` + `Administrators` Full control (by
+  SID, locale-independent), inheritance disabled; a converged node costs
+  one `unless` PowerShell spawn per run (~0.6 s, see "Execution cost per
+  run" below) and never rewrites the ACL. An opted-out custom root inherits
+  its parent's ACL, so a root writable by non-administrators lets any
+  writer plant code the agent then runs as SYSTEM (privilege escalation):
+  restrict it to `SYSTEM` + `Administrators` Full and verify with `Get-Acl`,
+  or opt in. The default root is never modified. UNC,
+  extended-prefix (`\\?\`) and drive roots are never enforced: restrict
+  those by hand. Pre-existing content under an opted-in root keeps its old
+  entries until recreated; content deployed after the first hardened run
+  inherits the two entries.
 - Requires `puppetlabs/powershell` for the `powershell` Exec provider,
   `puppetlabs/stdlib`, and `puppetlabs/concat` for the profile fragments.
 - Version purging (`windowspowershell::external_module`) works on the versioned

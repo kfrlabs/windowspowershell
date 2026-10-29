@@ -437,7 +437,12 @@ below are the procedure to run, not a report.
    ```
    With a custom `module_root`, substitute that path for
    `C:\Program Files\WindowsPowerShell\Modules` in the `Get-Acl` (and module
-   listing) commands above.
+   listing) commands above. With `manage_module_root_acl => true` (issue
+   #133), the `Get-Acl` output must instead show `AreAccessRulesProtected`
+   `True` with exactly the `S-1-5-18` (SYSTEM) and `S-1-5-32-544`
+   (Administrators) Allow FullControl entries after the first run, and a
+   second apply must change nothing; UNC, extended-prefix (`\\?\`) and drive
+   roots are never enforced (restrict those by hand).
 2. Apply the pilot catalogue (`manage_profiles => false`, the default)
    twice with `puppet apply --detailed-exitcodes`: no profile/`concat`
    resources change (overall second-run exit 0 on a converged node), and

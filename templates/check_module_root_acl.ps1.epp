@@ -1,0 +1,34 @@
+<%- | Stdlib::Windowspath $module_root | -%>
+$ErrorActionPreference = 'Stop'
+$aclRoot = '<%= $module_root %>'
+
+# Not converged when the directory is missing: the apply runs (and fails
+# closed naming the real cause) instead of the run going green silently.
+if (-not (Test-Path -LiteralPath $aclRoot)) { exit 1 }
+
+$acl = Get-Acl -LiteralPath $aclRoot
+if (-not $acl.AreAccessRulesProtected) { exit 1 }
+
+# Exactly SYSTEM and Administrators, Allow, FullControl, inheritable to
+# children: the converged state the apply script writes. Anything else
+# (deny entries, extra accounts, narrower rights, non-inheritable entries)
+# counts as drift so the apply restores the two entries.
+$wantSids = @('S-1-5-18', 'S-1-5-32-544')
+$actualSids = @()
+foreach ($rule in $acl.Access) {
+    if ($rule.AccessControlType.ToString() -ne 'Allow') { exit 1 }
+    if ($rule.FileSystemRights.ToString() -ne 'FullControl') { exit 1 }
+    if ($rule.InheritanceFlags.ToString() -ne 'ContainerInherit, ObjectInherit') { exit 1 }
+    if ($rule.PropagationFlags.ToString() -ne 'None') { exit 1 }
+    try {
+        $actualSids += $rule.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value
+    } catch {
+        # Orphaned or untranslatable SID: not the converged state.
+        exit 1
+    }
+}
+if ($actualSids.Count -ne $wantSids.Count) { exit 1 }
+foreach ($sid in $wantSids) {
+    if ($actualSids -notcontains $sid) { exit 1 }
+}
+exit 0

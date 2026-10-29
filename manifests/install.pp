@@ -72,4 +72,30 @@ class windowspowershell::install {
       before    => File[$windowspowershell::normalized_module_root],
     }
   }
+
+  # Issue #133: opt-in ACL hardening of a custom module_root (the effective
+  # flag is computed in the windowspowershell class from the normalized
+  # root). The agent runs as SYSTEM and loads code from this directory, so
+  # with manage_module_root_acl => true the root is restricted to SYSTEM +
+  # Administrators Full control (by SID, locale-independent), inheritance
+  # disabled. The unless guard exits 0 only when the ACL already holds
+  # exactly those two inheritable Allow FullControl entries, so a converged
+  # node costs one PowerShell spawn per run and never rewrites the ACL.
+  # Ordered after File[root] (the directory must exist before Set-Acl can
+  # run) and before the first module content (windowspowershell::module and
+  # the source backend of windowspowershell::external_module require it),
+  # so children deployed later inherit the hardened entries.
+  if $windowspowershell::manage_acl_effective {
+    exec { 'windowspowershell manage module_root acl':
+      command   => epp('windowspowershell/set_module_root_acl.ps1.epp', {
+          'module_root' => $windowspowershell::normalized_module_root,
+      }),
+      unless    => epp('windowspowershell/check_module_root_acl.ps1.epp', {
+          'module_root' => $windowspowershell::normalized_module_root,
+      }),
+      provider  => powershell,
+      logoutput => on_failure,
+      require   => File[$windowspowershell::normalized_module_root],
+    }
+  }
 }

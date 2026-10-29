@@ -14,8 +14,14 @@
 # module_root would leave absolute paths in the manifest. Backslashes keep the
 # entries relative (Functions\...), like the runtime smoke test's root.
 class { 'windowspowershell':
-  module_root     => 'C:\wps-int\Modules',
-  manage_profiles => true,
+  module_root            => 'C:\wps-int\Modules',
+  manage_profiles        => true,
+  # Issue #133: exercise the opt-in ACL hardening end to end (a custom root
+  # without it would log a compile-time warning, which the apply harness
+  # treats as a failure): the first run restricts the root to SYSTEM +
+  # Administrators Full control before the module content lands, the second
+  # run must report no changes.
+  manage_module_root_acl => true,
 }
 
 # In-house module deployed by bulk copy (`source`): covers the recursive

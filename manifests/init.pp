@@ -36,8 +36,11 @@
 #   inherits the parent's: restrict to SYSTEM + Administrators Full and
 #   verify with `Get-Acl`). `import_in_profile => true` repairs in-house
 #   imports (absolute manifest path); external `source`-backend modules on
-#   a custom root still need explicit `PSModulePath` handling. See
-#   "Limitations" in the README (issue #110).
+#   a custom root still need explicit `PSModulePath` handling. With
+#   `manage_module_root_acl => true` the module restricts a custom root to
+#   `SYSTEM` + `Administrators` Full control instead of inheriting the
+#   parent's ACL (opt-in, issue #133). See "Limitations" in the README
+#   (issue #110).
 # @param manage_profiles
 #   Whether to manage the machine-wide PowerShell profiles. Defaults to
 #   `false` (opt-in, issue #109): no profile is managed and
@@ -80,6 +83,23 @@
 #   `Install-Module` and `Install-PackageProvider` through `-ProxyCredential`;
 #   the secret travels in the Exec `environment` (redacted from reports and
 #   logs) and never appears in the Exec `command` or `unless` text.
+# @param manage_module_root_acl
+#   Whether to harden a custom `module_root`'s ACL from this module
+#   (opt-in, issue #133). The agent runs as SYSTEM and loads code from
+#   `module_root`, so a custom root inheriting a parent ACL writable by
+#   non-administrators is a privilege escalation path. With `true`, an
+#   enforceable custom root is restricted to `SYSTEM` + `Administrators`
+#   Full control (by SID, locale-independent), inheritance disabled; a
+#   converged node changes nothing (one `unless` PowerShell spawn per run,
+#   ~0.6 s, see "Execution cost per run" in the README). Defaults to
+#   `false`: an opted-out custom root logs a compile-time warning naming
+#   the root and this parameter instead (the warning goes to the Puppet
+#   server log, not to the agent report). The default root is never
+#   modified and never warns. UNC, extended-prefix (`\\?\`) and drive
+#   roots are never enforced (setting `true` there logs a warning and
+#   compiles without ACL resources): restrict those by hand. Pre-existing
+#   content under the root keeps its old entries until recreated; content
+#   deployed after the first hardened run inherits the two entries.
 #
 # @example Build an in-house module and deploy a script into it
 #   include windowspowershell
@@ -118,6 +138,7 @@ class windowspowershell (
         username => String[1],
         password => Sensitive[String[1]],
   }]] $proxy_credential = undef,
+  Boolean $manage_module_root_acl = false,
 ) {
   # Whether this node gets any resources at all. Read by
   # windowspowershell::script, windowspowershell::module and
@@ -143,6 +164,28 @@ class windowspowershell (
       true    => $module_root,
       default => $stripped_module_root,
     },
+  }
+
+  # Issue #133: opt-in ACL hardening of a custom module_root. Compared on
+  # normalized forms (issue #111): slash-normalized, downcased and
+  # trailing-stripped, so a trailing separator or a different case on the
+  # default root neither enforces nor warns spuriously (same normalization
+  # as the #85 guard in windowspowershell::external_module).
+  $normalized_root_check = regsubst(regsubst(downcase($normalized_module_root), '/', '\\', 'G'), /\\+$/, '')
+  $is_custom_root = $normalized_root_check != 'c:\\program files\\windowspowershell\\modules'
+  # UNC roots (bare share roots included), extended-prefix ('\\?\') roots
+  # and drive roots are never enforced: Test-Path in the 5.1 provider does
+  # not understand the extended prefix (same reason the #96 guard skips
+  # them), a bare share parent is not a checkable directory, and rewriting
+  # the ACL of a whole drive would be destructive.
+  $skip_module_root_acl = $normalized_module_root =~ /^[\/\\][\/\\]/ or $normalized_module_root =~ /^[A-Za-z]:[\/\\]?$/
+  $manage_acl_effective = $manage_module_root_acl and $is_custom_root and !$skip_module_root_acl
+
+  if $is_custom_root and !$manage_module_root_acl {
+    warning("windowspowershell: custom module_root '${module_root}' (normalized '${normalized_module_root}') gets no ACL from this module: it inherits its parent's ACL, so a parent writable by non-administrators lets any writer plant code the agent then runs as SYSTEM (privilege escalation, issue #133). Restrict it to SYSTEM and Administrators Full control and verify with Get-Acl, or set manage_module_root_acl => true to enforce that from this module (UNC, extended-prefix and drive roots are never enforced: restrict those by hand).")
+  }
+  if $is_custom_root and $manage_module_root_acl and $skip_module_root_acl {
+    warning("windowspowershell: manage_module_root_acl => true has no effect on module_root '${module_root}' (normalized '${normalized_module_root}'): UNC, extended-prefix ('\\\\?\\') and drive roots are never enforced by this module (issue #133). Restrict the directory to SYSTEM and Administrators Full control by hand and verify with Get-Acl.")
   }
 
   # Install-Module goes through .NET, whose default proxy is the *WinINET*

@@ -103,6 +103,7 @@ The following parameters are available in the `windowspowershell` class:
 * [`manage_pwsh_profile`](#-windowspowershell--manage_pwsh_profile)
 * [`proxy`](#-windowspowershell--proxy)
 * [`proxy_credential`](#-windowspowershell--proxy_credential)
+* [`manage_module_root_acl`](#-windowspowershell--manage_module_root_acl)
 
 ##### <a name="-windowspowershell--module_root"></a>`module_root`
 
@@ -131,8 +132,11 @@ A custom root is not on `PSModulePath` (auto-loading broken: use
 inherits the parent's: restrict to SYSTEM + Administrators Full and
 verify with `Get-Acl`). `import_in_profile => true` repairs in-house
 imports (absolute manifest path); external `source`-backend modules on
-a custom root still need explicit `PSModulePath` handling. See
-"Limitations" in the README (issue #110).
+a custom root still need explicit `PSModulePath` handling. With
+`manage_module_root_acl => true` the module restricts a custom root to
+`SYSTEM` + `Administrators` Full control instead of inheriting the
+parent's ACL (opt-in, issue #133). See "Limitations" in the README
+(issue #110).
 
 Default value: `'C:\Program Files\WindowsPowerShell\Modules'`
 
@@ -208,6 +212,29 @@ the secret travels in the Exec `environment` (redacted from reports and
 logs) and never appears in the Exec `command` or `unless` text.
 
 Default value: `undef`
+
+##### <a name="-windowspowershell--manage_module_root_acl"></a>`manage_module_root_acl`
+
+Data type: `Boolean`
+
+Whether to harden a custom `module_root`'s ACL from this module
+(opt-in, issue #133). The agent runs as SYSTEM and loads code from
+`module_root`, so a custom root inheriting a parent ACL writable by
+non-administrators is a privilege escalation path. With `true`, an
+enforceable custom root is restricted to `SYSTEM` + `Administrators`
+Full control (by SID, locale-independent), inheritance disabled; a
+converged node changes nothing (one `unless` PowerShell spawn per run,
+~0.6 s, see "Execution cost per run" in the README). Defaults to
+`false`: an opted-out custom root logs a compile-time warning naming
+the root and this parameter instead (the warning goes to the Puppet
+server log, not to the agent report). The default root is never
+modified and never warns. UNC, extended-prefix (`\\?\`) and drive
+roots are never enforced (setting `true` there logs a warning and
+compiles without ACL resources): restrict those by hand. Pre-existing
+content under the root keeps its old entries until recreated; content
+deployed after the first hardened run inherits the two entries.
+
+Default value: `false`
 
 ## Defined types
 
