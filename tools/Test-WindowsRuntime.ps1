@@ -292,9 +292,10 @@ try {
         $_.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value
     } | Sort-Object)
     Assert-True (($aclSids -join ',') -eq 'S-1-5-18,S-1-5-32-544') 'acl: exactly SYSTEM and Administrators FullControl'
-    Assert-True ((@($acl.Access | Where-Object {
+    $allowFull = @($acl.Access | Where-Object {
         $_.AccessControlType -eq 'Allow' -and $_.FileSystemRights -eq 'FullControl'
-    }).Count -eq 2) 'acl: both entries are Allow FullControl')
+    })
+    Assert-True ($allowFull.Count -eq 2) 'acl: both entries are Allow FullControl'
 
     # Content deployed after the hardened run inherits the two entries.
     $aclChild = Join-Path $aclRoot 'probe.txt'
