@@ -18,7 +18,7 @@ echo "Tarball: ${tarball}"
 contents=$(tar -tzf "${tarball}")
 echo "${contents}"
 
-for banned in 'tools/' 'TESTING.md' '.rendered-powershell' 'spec/fixtures' \
+for banned in 'tools/' 'TESTING.md' 'CONTRIBUTING.md' 'CODE_OF_CONDUCT.md' '.rendered-powershell' 'spec/fixtures' \
     '/pkg/' '/coverage/' '.vendor/' '/vendor/' '.bundle/' '.git/'; do
   if echo "${contents}" | grep -q "${banned}"; then
     echo "::error::Forbidden path in tarball ${tarball}: ${banned}" >&2

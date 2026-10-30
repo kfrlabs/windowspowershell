@@ -18,6 +18,8 @@ spec/fixtures/
 .rendered-powershell/
 tools/
 TESTING.md
+CONTRIBUTING.md
+CODE_OF_CONDUCT.md
 .vendor/
 vendor/
 .bundle/
