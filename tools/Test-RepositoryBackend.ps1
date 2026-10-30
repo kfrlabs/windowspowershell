@@ -216,6 +216,9 @@ Write-Host ("dbg bracket dir exists: {0}" -f (Test-Path -LiteralPath $bbDbgDir))
 Get-ChildItem -LiteralPath $bbDbgDir -Directory -ErrorAction SilentlyContinue | ForEach-Object { Write-Host ("dbg bracket child: {0}" -f $_.Name) }
 $bbDbgPsd1 = Join-Path (Join-Path $bbDbgDir '1.0.0') 'Bracket[Beta].psd1'
 Write-Host ("dbg bracket psd1 exists: {0}" -f (Test-Path -LiteralPath $bbDbgPsd1))
+# Full installed tree via .NET (no wildcard layer at all): shows whether
+# Install-Module laid down the psd1/psm1 or left the seeded dir behind.
+[System.IO.Directory]::EnumerateFileSystemEntries($bbDbgDir, '*', [System.IO.SearchOption]::AllDirectories) | ForEach-Object { Write-Host ("dbg bracket tree: {0}" -f $_) }
 
 try {
     $installed = Get-InstalledModule -Name WpsRepoTest -AllVersions -ErrorAction Stop
