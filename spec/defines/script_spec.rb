@@ -212,7 +212,7 @@ describe 'windowspowershell::script' do
         it { is_expected.to compile.with_all_deps }
 
         it 'prefixes a single UTF-8 BOM' do
-          is_expected.to contain_file("#{functions}\\Get-Example.ps1").with_content(/\A\uFEFFWrite-Output 'ex\u00E4mple'\n/)
+          is_expected.to contain_file("#{functions}\\Get-Example.ps1").with_content(%r{\A\uFEFFWrite-Output 'ex\u00E4mple'\n})
         end
       end
 
@@ -228,7 +228,7 @@ describe 'windowspowershell::script' do
 
       context 'with ASCII-only content and the default bom' do
         it 'leaves the content without a BOM' do
-          is_expected.to contain_file("#{functions}\\Get-Example.ps1").with_content(/\AWrite-Output 'example'\n/)
+          is_expected.to contain_file("#{functions}\\Get-Example.ps1").with_content(%r{\AWrite-Output 'example'\n})
         end
       end
 
@@ -238,7 +238,7 @@ describe 'windowspowershell::script' do
         it { is_expected.to compile.with_all_deps }
 
         it 'prefixes a UTF-8 BOM' do
-          is_expected.to contain_file("#{functions}\\Get-Example.ps1").with_content(/\A\uFEFFWrite-Output 'example'\n/)
+          is_expected.to contain_file("#{functions}\\Get-Example.ps1").with_content(%r{\A\uFEFFWrite-Output 'example'\n})
         end
       end
 
