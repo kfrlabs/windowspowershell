@@ -390,7 +390,7 @@ on demand via workflow_dispatch (Actions -> CI -> Run workflow).
 
 | Job | Runner images | First green run date | Run URL |
 | --- | --- | --- | --- |
-| `integration_repository_brackets_windows` | windows-2022, windows-2025 | TBD | TBD |
+| `integration_repository_brackets_windows` | windows-2022, windows-2025 | 2026-10-30 | https://github.com/kfrlabs/windowspowershell/actions/runs/41075637719 (dispatch; asserts the compile-time wildcard refusal is loud and deterministic — no converging install to promote, so the job stays scheduled by design, issue #132) |
 | `integration_gallery_windows` | windows-2022, windows-2025 | 2026-10-30 | https://github.com/kfrlabs/windowspowershell/actions/runs/41052437564 (dispatch; green on both images, repeated on later dispatch runs) |
 | `integration_upgrade_windows` | windows-2022, windows-2025 | 2026-10-30 | https://github.com/kfrlabs/windowspowershell/actions/runs/41052437564 (dispatch; green on both images after the `git archive` fix) |
 
