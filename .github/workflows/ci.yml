@@ -6,6 +6,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch: {}
   schedule:
     # Weekly Gallery + upgrade + bracketed-repository validation (issue
     # #112): the only catalogue-apply runs allowed to reach the real
@@ -222,9 +223,9 @@ jobs:
   integration_repository_brackets_windows:
     # Issue #112, Gap 2 review: the bracketed publish path has zero Windows
     # evidence yet, so it stays out of the per-PR gate (and the `tests`
-    # aggregator and release gate) until the first green run. Weekly only.
+    # aggregator and release gate) until the first green run. Weekly + manual dispatch only.
     name: 'Puppet apply (repository backend, brackets) on ${{ matrix.os }}'
-    if: github.event_name == 'schedule'
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     needs: powershell_windows
     runs-on: ${{ matrix.os }}
     strategy:
@@ -260,11 +261,12 @@ jobs:
           ./tools/Test-RepositoryBackend.ps1 -Site spec/integration/site_repository_brackets.pp -Modulepath 'C:\wps-int\modules' -IncludeBrackets
 
   integration_gallery_windows:
-    # Issue #112, Gap 1: scheduled Gallery end-to-end test. Informational
+    # Issue #112, Gap 1: Gallery end-to-end test. Informational
     # only: it stays out of the `tests` aggregator and the release gate, and
     # it never runs on pull requests so per-PR jobs stay offline.
-    name: 'Gallery backend (scheduled) on ${{ matrix.os }}'
-    if: github.event_name == 'schedule'
+    # Weekly + manual dispatch only.
+    name: 'Gallery backend on ${{ matrix.os }}'
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     needs: powershell_windows
     runs-on: ${{ matrix.os }}
     strategy:
@@ -301,11 +303,11 @@ jobs:
           ./tools/Test-GalleryBackend.ps1 -Site spec/integration/site_gallery.pp -Modulepath 'C:\wps-int\modules'
 
   integration_upgrade_windows:
-    # Issue #112, Gap 4: scheduled upgrade scenario. Informational only: it
+    # Issue #112, Gap 4: upgrade scenario. Informational only: it
     # stays out of the `tests` aggregator and the release gate, and it never
-    # runs on pull requests.
-    name: 'Upgrade scenario (scheduled) on ${{ matrix.os }}'
-    if: github.event_name == 'schedule'
+    # runs on pull requests. Weekly + manual dispatch only.
+    name: 'Upgrade scenario on ${{ matrix.os }}'
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     needs: powershell_windows
     runs-on: ${{ matrix.os }}
     strategy:
@@ -418,8 +420,35 @@ jobs:
     # The scheduled-only jobs (integration_gallery_windows,
     # integration_upgrade_windows, integration_repository_brackets_windows)
     # are informational and stay out of this
-    # gate on purpose: they only run on the weekly schedule, and the release
+    # gate on purpose: they only run on the schedule or manual dispatch, and the release
     # gate requires this `Test suite` check green on the tagged commit.
     runs-on: ubuntu-latest
     steps:
       - run: echo 'All CI jobs passed.'
+
+  scheduled_failure_alert:
+    name: 'Scheduled validation failure alert'
+    needs:
+      - powershell_windows
+      - integration_repository_brackets_windows
+      - integration_gallery_windows
+      - integration_upgrade_windows
+    # Manual workflow_dispatch failures do not alert by design (schedule-only alerting).
+    if: always() && github.event_name == 'schedule' && (needs.powershell_windows.result == 'failure' || needs.powershell_windows.result == 'cancelled' || needs.integration_repository_brackets_windows.result == 'failure' || needs.integration_repository_brackets_windows.result == 'cancelled' || needs.integration_gallery_windows.result == 'failure' || needs.integration_gallery_windows.result == 'cancelled' || needs.integration_upgrade_windows.result == 'failure' || needs.integration_upgrade_windows.result == 'cancelled')
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    steps:
+      - name: Open or update scheduled failure tracking issue
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TITLE='Scheduled Windows validation failed'
+          BODY="The weekly scheduled Windows validation failed for run ${{ github.run_id }} (${{ github.sha }}). See https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}."
+          EXISTING=$(gh issue list --label ci --state open --search "$TITLE in:title" --json number --jq '.[0].number // empty')
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body "$BODY"
+          else
+            gh issue create --title "$TITLE" --body "$BODY" --label ci
+          fi

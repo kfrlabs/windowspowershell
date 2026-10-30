@@ -378,11 +378,23 @@ Run on each release, with Windows PowerShell 5.1 and PowerShell 7 installed
    second time: no resource may change on the second run.
 
 The weekly scheduled jobs (`integration_gallery_windows`,
-`integration_upgrade_windows`) report in CI and do not replace this matrix.
+`integration_upgrade_windows`, `integration_repository_brackets_windows`)
+report in CI and do not replace this matrix.
 First evidence for the new scripts below is still pending: no Windows node is
 reachable from this checkout, so the Gallery, bracketed-repository, pwsh-leg
 and upgrade runs are procedures until the schedule (or a lab run) reports.
-Record the first green runs here when they land.
+Record the first green runs here when they land. The scheduled jobs also run
+on demand via workflow_dispatch (Actions -> CI -> Run workflow).
+
+| Job | Runner images | First green run date | Run URL |
+| --- | --- | --- | --- |
+| `integration_repository_brackets_windows` | windows-2022, windows-2025 | TBD | TBD |
+| `integration_gallery_windows` | windows-2022, windows-2025 | TBD | TBD |
+| `integration_upgrade_windows` | windows-2022, windows-2025 | TBD | TBD |
+
+The pwsh leg already runs per-PR in `powershell_windows`
+(windows-2022 + windows-2025); find a green per-PR run under
+Actions -> CI -> the `PowerShell on ...` jobs.
 
 | Release | Parse + PSScriptAnalyzer | Runtime smoke | Integration (`apply` twice) | Notes |
 | --- | --- | --- | --- | --- |
