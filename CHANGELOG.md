@@ -310,6 +310,12 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   step from the 1.2.0 migration note is no longer needed on nodes that run
   this version. Set `purge_versions => false` to keep old versions side by
   side.
+- Forge discoverability and repository hygiene (issue #73):
+  `metadata.json` carries Forge tags, the README hygiene is fixed, and the
+  repository gains a `SECURITY.md` policy with issue/PR templates and a
+  Dependabot configuration watching the GitHub Actions. None of this ships
+  in the Forge tarball (`SECURITY.md` stays on GitHub only, like
+  `TESTING.md`).
 
 ### Changed
 
@@ -405,12 +411,6 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 - `data/common.yaml` is now an explicit empty hash instead of a comments-only
   document. It still ships no override, but Puppet no longer logs `file does
   not contain a valid yaml hash` on every catalogue compile.
-- Forge discoverability and repository hygiene (issue #73):
-  `metadata.json` carries Forge tags, the README hygiene is fixed, and the
-  repository gains a `SECURITY.md` policy with issue/PR templates and a
-  Dependabot configuration watching the GitHub Actions. None of this ships
-  in the Forge tarball (`SECURITY.md` stays on GitHub only, like
-  `TESTING.md`).
 
 - The unreliable `OSVersion.Major -ge 10` gate of the pwsh profile was removed
   (issue #58, closes #67): `[Environment]::OSVersion` can report 6.x without an
