@@ -183,10 +183,17 @@ class windowspowershell (
   # Issue #133: opt-in ACL hardening of a custom module_root. Compared on
   # normalized forms (issue #111): slash-normalized, downcased and
   # trailing-stripped, so a trailing separator or a different case on the
-  # default root neither enforces nor warns spuriously (same normalization
-  # as the #85 guard in windowspowershell::external_module).
+  # default root neither enforces nor warns spuriously. The #85 guard in
+  # windowspowershell::external_module reuses the $is_default_module_root
+  # flag below instead of repeating this comparison, so the two checks
+  # cannot drift apart.
   $normalized_root_check = regsubst(regsubst(downcase($normalized_module_root), '/', '\\', 'G'), /\\+$/, '')
   $is_custom_root = $normalized_root_check != 'c:\\program files\\windowspowershell\\modules'
+  # Issue #136: the #96 parent guard in windowspowershell::install is
+  # custom-root-only (the default root ships with Windows), so expose the
+  # same normalized comparison the other way round for the guard and the
+  # #85 check to share.
+  $is_default_module_root = !$is_custom_root
   # UNC roots (bare share roots included), extended-prefix ('\\?\') roots
   # and drive roots are never enforced: Test-Path in the 5.1 provider does
   # not understand the extended prefix (same reason the #96 guard skips

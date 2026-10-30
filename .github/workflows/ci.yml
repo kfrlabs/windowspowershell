@@ -359,7 +359,10 @@ jobs:
   module_build:
     name: 'puppet module build'
     needs: lint
-    runs-on: ubuntu-latest
+    # Pinned to 24.04: ubuntu-latest moved to 26.04, for which apt.puppet.com
+    # publishes no repository, so the PDK install below 404s there. Revisit
+    # once Puppet ships a 26.04 repo (or the PDK install stops needing apt).
+    runs-on: ubuntu-24.04
     env:
       PUPPET_GEM_VERSION: '~> 8.0'
     steps:

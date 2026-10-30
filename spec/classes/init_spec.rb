@@ -111,21 +111,46 @@ describe 'windowspowershell' do
       # dependent resource was skipped in cascade (exit 4). The install class
       # now checks the parent first, ordered before File[$module_root], and
       # fails with a message naming module_root and the missing parent.
+      # Issue #136: the default root ships with Windows, so the guard is
+      # custom-root-only and no Exec is declared for the default root.
       context 'with the default module_root' do
-        it 'checks the parent before creating the directory' do
-          is_expected.to contain_exec('windowspowershell module_root parent exists').
-            with_provider('powershell').
-            with_before('File[C:\Program Files\WindowsPowerShell\Modules]')
-        end
+        it { is_expected.to compile.with_all_deps }
 
-        it 'names the missing parent in the guard' do
-          is_expected.to contain_exec('windowspowershell module_root parent exists').
-            with_unless(%r{Test-Path -LiteralPath 'C:\\Program Files\\WindowsPowerShell'})
+        it 'declares no parent guard for the default root' do
+          is_expected.not_to contain_exec('windowspowershell module_root parent exists')
         end
+      end
 
-        it 'names module_root and the parent in the failure message' do
-          is_expected.to contain_exec('windowspowershell module_root parent exists').
-            with_command(%r{module_root.*C:\\Program Files\\WindowsPowerShell\\Modules.*parent directory.*C:\\Program Files\\WindowsPowerShell})
+      # The shared default-root flag compares normalized forms (issue
+      # #111): case, forward slashes and a trailing separator still count
+      # as the default root and declare no guard.
+      context 'with the default module_root in a different case' do
+        let(:params) { { 'module_root' => 'c:\\program files\\windowspowershell\\modules' } }
+
+        it { is_expected.to compile.with_all_deps }
+
+        it 'declares no parent guard' do
+          is_expected.not_to contain_exec('windowspowershell module_root parent exists')
+        end
+      end
+
+      context 'with the default module_root with forward slashes' do
+        let(:params) { { 'module_root' => 'C:/Program Files/WindowsPowerShell/Modules' } }
+
+        it { is_expected.to compile.with_all_deps }
+
+        it 'declares no parent guard' do
+          is_expected.not_to contain_exec('windowspowershell module_root parent exists')
+        end
+      end
+
+      context 'with the default module_root carrying a trailing separator' do
+        let(:params) { { 'module_root' => 'C:\\Program Files\\WindowsPowerShell\\Modules\\' } }
+
+        it { is_expected.to compile.with_all_deps }
+
+        it 'declares no parent guard' do
+          is_expected.not_to contain_exec('windowspowershell module_root parent exists')
         end
       end
 

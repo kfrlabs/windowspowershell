@@ -178,14 +178,12 @@ define windowspowershell::external_module (
   # compile time instead of converging never. The `source` backend honours
   # `module_root` and stays available for isolated roots (integration test,
   # smoke test).
-  if $repository =~ NotUndef {
-    # Compared on normalized forms (issue #111): slash-normalized,
-    # downcased and trailing-stripped, so a trailing separator on the
-    # default root neither bypasses nor falsely triggers the #85 guard.
-    $normalized_root = regsubst(regsubst(downcase($windowspowershell::normalized_module_root), '/', '\\', 'G'), /\\+$/, '')
-    if $normalized_root != 'c:\\program files\\windowspowershell\\modules' {
-      fail("windowspowershell::external_module[${name}]: 'repository' needs the default 'module_root' ('C:\\Program Files\\WindowsPowerShell\\Modules'): 'Install-Module -Scope AllUsers' always installs there and ignores a custom root, so the install check would miss the module and reinstall on every run. Keep the default root for repository-backed modules, or use 'source' for a custom root.")
-    }
+  if $repository =~ NotUndef and !$windowspowershell::is_default_module_root {
+    # Compared on normalized forms in windowspowershell (issue #111): the
+    # shared flag is downcased, slash-normalized and trailing-stripped, so a
+    # trailing separator on the default root neither bypasses nor falsely
+    # triggers the #85 guard.
+    fail("windowspowershell::external_module[${name}]: 'repository' needs the default 'module_root' ('C:\\Program Files\\WindowsPowerShell\\Modules'): 'Install-Module -Scope AllUsers' always installs there and ignores a custom root, so the install check would miss the module and reinstall on every run. Keep the default root for repository-backed modules, or use 'source' for a custom root.")
   }
 
   if !$windowspowershell::supported {
