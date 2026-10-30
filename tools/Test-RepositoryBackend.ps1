@@ -208,6 +208,15 @@ $second = Invoke-PuppetApply 'second run'
 Assert-True (($second -band 1) -eq 0) ("second run succeeded (exit $second)")
 Assert-True ($second -eq 0) ("second run changed nothing (exit $second, expected 0)")
 
+# Gap-2 diagnostics (issue #132): the bracketed resource reinstalls every run
+# while the plain one converges. Evaluate each install-check link literally
+# so the log shows which one fails for bracketed names.
+$bbDbgDir = 'C:\Program Files\WindowsPowerShell\Modules\Bracket[Beta]'
+Write-Host ("dbg bracket dir exists: {0}" -f (Test-Path -LiteralPath $bbDbgDir))
+Get-ChildItem -LiteralPath $bbDbgDir -Directory -ErrorAction SilentlyContinue | ForEach-Object { Write-Host ("dbg bracket child: {0}" -f $_.Name) }
+$bbDbgPsd1 = Join-Path (Join-Path $bbDbgDir '1.0.0') 'Bracket[Beta].psd1'
+Write-Host ("dbg bracket psd1 exists: {0}" -f (Test-Path -LiteralPath $bbDbgPsd1))
+
 try {
     $installed = Get-InstalledModule -Name WpsRepoTest -AllVersions -ErrorAction Stop
     Assert-True (($installed.Version -join ',') -eq '1.0.0') 'repository: pinned 1.0.0 installed'
