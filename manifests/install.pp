@@ -41,6 +41,9 @@ class windowspowershell::install {
   # '\\server' is not a directory Test-Path can check). A '\\?\' root skips
   # it too: the 5.1 provider behind Test-Path does not understand the
   # extended prefix, so the check would fail closed on an existing directory.
+  # The default root skips it as well (issue #136): it ships with Windows,
+  # so checking its parent would spend one PowerShell spawn per run (~0.6 s)
+  # to prove what the OS guarantees.
   #
   # Deliberately not auto-creation: silently growing an arbitrary tree as
   # SYSTEM would turn a typo in module_root into a green run deploying
@@ -57,7 +60,7 @@ class windowspowershell::install {
   $no_checkable_parent = $full_parent == '' or $full_parent == $stripped_root or $full_parent == $windowspowershell::normalized_module_root
   $bare_server_parent = $full_parent =~ /^[\/\\][\/\\][^\/\\]+$/
   $extended_root = $windowspowershell::normalized_module_root =~ /^[\/\\][\/\\]\?/
-  $skip_guard = $no_checkable_parent or $bare_server_parent or $extended_root
+  $skip_guard = $windowspowershell::is_default_module_root or $no_checkable_parent or $bare_server_parent or $extended_root
   $parent_check = $skip_guard ? {
     true    => undef,
     default => $full_parent,

@@ -483,9 +483,11 @@ module: up to about fifteen modules the extra cost disappears in the noise.
 Past that, budget roughly 0.65 s per module per run. If a module's versions
 are guaranteed unique (a single `external_module` per name, no side-by-side
 copies), `purge_versions => false` drops its per-run cost to zero. On top of
-the per-module checks, every run also evaluates the `module_root` parent
-guard of `windowspowershell::install` (issue #96): one `unless` spawn per
-run (~0.6 s), whether or not anything is managed. With
+the per-module checks, every run with a custom `module_root` also evaluates
+the `module_root` parent guard of `windowspowershell::install` (issue #96):
+one `unless` spawn per run (~0.6 s), whether or not anything is managed.
+The default root ships with Windows, so default-root runs declare no guard
+and save that spawn (issue #136). With
 `manage_module_root_acl => true` on a custom `module_root` (issue #133),
 the ACL `unless` guard adds one more spawn per run (~0.6 s) once converged.
 With a custom `module_root`, see also the `PSModulePath`/ACL caveats in
@@ -716,7 +718,9 @@ Fix: create the parent on the node (`New-Item -ItemType Directory -Path
 C:\wps-perf`), or fix the typo in `module_root`. The module deliberately
 does not create missing parents: silently growing an arbitrary tree as
 SYSTEM would turn a typo into a green run deploying modules where
-PowerShell never looks.
+PowerShell never looks. The default `module_root` ships with Windows, so
+no guard is declared for it and default-root runs save that spawn (issue
+#136).
 
 A custom `module_root` that does exist is still not on `PSModulePath`
 (auto-loading broken: use `import_in_profile => true` with managed
