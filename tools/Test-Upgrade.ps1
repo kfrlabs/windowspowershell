@@ -55,8 +55,13 @@ function Invoke-PuppetApply([string] $Label, [string] $ApplySite = $Site) {
     Write-Host "--- $Label : puppet apply $ApplySite"
     $envArgs = @()
     if ($Environment -ne '') { $envArgs = @('--environment', $Environment) }
+    # Puppet failures are data, not script bugs: relax the preference for the
+    # call only (see Test-RepositoryBackend.ps1), so the exit code decides.
+    $oldEAP = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
     $output = & puppet apply --detailed-exitcodes @envArgs --modulepath $Modulepath --verbose $ApplySite 2>&1
     $code = $LASTEXITCODE
+    $ErrorActionPreference = $oldEAP
     $output | ForEach-Object { Write-Host $_ }
     Write-Host ("exit code: {0}" -f $code)
     $code
@@ -72,7 +77,10 @@ if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
     throw 'git is not on PATH (needed to check out the previous tag).'
 }
 
+$oldEAP0 = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
 $RepoRoot = (git rev-parse --show-toplevel 2>&1 | Select-Object -First 1).Trim()
+$ErrorActionPreference = $oldEAP0
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $RepoRoot)) {
     throw 'Not inside a git repository (git rev-parse --show-toplevel failed).'
 }
@@ -80,8 +88,11 @@ Write-Host ("Repository root: {0}" -f $RepoRoot)
 if ([string]::IsNullOrWhiteSpace($PreviousTag)) {
     # Dispatch checkouts may lack tags: fetch best-effort so auto-derive sees them.
     # Offline lab clones must still work, so a failed fetch never fails this script.
-    # Assignment pattern: native stderr piped straight to the host would throw
-    # NativeCommandError under 'Stop', so capture first and log second.
+    # Native stderr throws NativeCommandError under 'Stop', so relax the
+    # preference for these calls (same pattern as Invoke-PuppetApply in
+    # Test-RepositoryBackend.ps1) and gate on LASTEXITCODE instead.
+    $oldEAP = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
     $fetchOut = git -C $RepoRoot fetch --tags origin 2>&1
     $fetchOut | ForEach-Object { Write-Host $_ }
     # Lightweight robust fix for the hardcoded-tag drift (issue #112 review):
@@ -97,6 +108,7 @@ if ([string]::IsNullOrWhiteSpace($PreviousTag)) {
         git -C $RepoRoot rev-parse --verify "refs/tags/$name" 2>&1 | Out-Null
         if ($LASTEXITCODE -eq 0) { $PreviousTag = $name; break }
     }
+    $ErrorActionPreference = $oldEAP
     if ([string]::IsNullOrWhiteSpace($PreviousTag)) {
         throw "No verifiable v* tag found (listed $($tags.Count)). Fetch tags first (git fetch --tags origin)."
     }
@@ -105,7 +117,10 @@ if ([string]::IsNullOrWhiteSpace($PreviousTag)) {
 # Display-only resolve: the loop above already verified the tag. A failed
 # resolve never throws here; the `git archive` below is the real gate and
 # reports git's own error (avoids double-resolution races, issue #132).
+$oldEAP3 = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
 $tagRef = (git -C $RepoRoot rev-parse --verify "refs/tags/$PreviousTag" 2>&1 | Select-Object -First 1).Trim()
+$ErrorActionPreference = $oldEAP3
 Write-Host ("Previous tag: {0} ({1})" -f $PreviousTag, $tagRef)
 
 $staged = Join-Path $Modulepath 'windowspowershell'
@@ -125,13 +140,15 @@ try {
     git -C $RepoRoot worktree prune 2>$null
     if (Test-Path -LiteralPath $prevWorktree) { Remove-Item -Recurse -Force -LiteralPath $prevWorktree }
     if (Test-Path -LiteralPath $prevZip) { Remove-Item -Force -LiteralPath $prevZip }
-    # Assignment pattern (not a direct pipeline to Write-Host): with
-    # $ErrorActionPreference 'Stop', native stderr reaching the host throws
-    # NativeCommandError, so capture first, log second, gate on LASTEXITCODE.
+    # Native stderr throws NativeCommandError under 'Stop' (see above), so
+    # relax the preference for the archive call and gate on LASTEXITCODE.
     # No PowerShell pipeline between git and Expand-Archive: the archive is
     # binary and a PowerShell pipeline would corrupt it.
+    $oldEAP2 = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
     $arcOut = git -C $RepoRoot archive --format=zip --output=$prevZip $PreviousTag 2>&1
     $arcOut | ForEach-Object { Write-Host $_ }
+    $ErrorActionPreference = $oldEAP2
     if ($LASTEXITCODE -ne 0) { throw "git archive $PreviousTag failed." }
     New-Item -ItemType Directory -Path $prevWorktree -Force | Out-Null
     Expand-Archive -Path $prevZip -DestinationPath $prevWorktree -Force
