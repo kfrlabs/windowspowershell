@@ -204,6 +204,64 @@ describe 'windowspowershell::script' do
         it { is_expected.to contain_file("#{functions}\\Get-Example.ps1").with_source('puppet:///modules/profile/Get-Example.ps1') }
       end
 
+      # Issue #134: Windows PowerShell 5.1 decodes a BOM-less script as ANSI,
+      # so non-ASCII content needs a UTF-8 BOM to survive deployment.
+      context 'with non-ASCII content and the default bom' do
+        let(:params) { { 'modulename' => 'Acme', 'content' => "Write-Output 'ex\u00E4mple'\n" } }
+
+        it { is_expected.to compile.with_all_deps }
+
+        it 'prefixes a single UTF-8 BOM' do
+          is_expected.to contain_file("#{functions}\\Get-Example.ps1").with_content(/\A\uFEFFWrite-Output 'ex\u00E4mple'\n/)
+        end
+      end
+
+      context 'with non-ASCII content already starting with a BOM' do
+        let(:params) { { 'modulename' => 'Acme', 'content' => "\uFEFFWrite-Output 'ex\u00E4mple'\n" } }
+
+        it { is_expected.to compile.with_all_deps }
+
+        it 'does not double the BOM' do
+          is_expected.to contain_file("#{functions}\\Get-Example.ps1").with_content("\uFEFFWrite-Output 'ex\u00E4mple'\n")
+        end
+      end
+
+      context 'with ASCII-only content and the default bom' do
+        it 'leaves the content without a BOM' do
+          is_expected.to contain_file("#{functions}\\Get-Example.ps1").with_content(/\AWrite-Output 'example'\n/)
+        end
+      end
+
+      context 'with ASCII-only content and bom => always' do
+        let(:params) { { 'modulename' => 'Acme', 'content' => "Write-Output 'example'\n", 'bom' => 'always' } }
+
+        it { is_expected.to compile.with_all_deps }
+
+        it 'prefixes a UTF-8 BOM' do
+          is_expected.to contain_file("#{functions}\\Get-Example.ps1").with_content(/\A\uFEFFWrite-Output 'example'\n/)
+        end
+      end
+
+      context 'with content already starting with a BOM and bom => always' do
+        let(:params) { { 'modulename' => 'Acme', 'content' => "\uFEFFWrite-Output 'example'\n", 'bom' => 'always' } }
+
+        it { is_expected.to compile.with_all_deps }
+
+        it 'does not double the BOM' do
+          is_expected.to contain_file("#{functions}\\Get-Example.ps1").with_content("\uFEFFWrite-Output 'example'\n")
+        end
+      end
+
+      context 'with non-ASCII content and bom => never' do
+        let(:params) { { 'modulename' => 'Acme', 'content' => "Write-Output 'ex\u00E4mple'\n", 'bom' => 'never' } }
+
+        it { is_expected.to compile.with_all_deps }
+
+        it 'leaves the content without a BOM' do
+          is_expected.to contain_file("#{functions}\\Get-Example.ps1").with_content("Write-Output 'ex\u00E4mple'\n")
+        end
+      end
+
       context 'with a scriptname that differs from the title' do
         let(:params) { { 'modulename' => 'Acme', 'scriptname' => 'Get-Other', 'content' => 'x' } }
 

@@ -54,8 +54,15 @@ function Invoke-PuppetApply([string] $Label) {
     Write-Host "--- $Label : puppet apply $Site"
     $envArgs = @()
     if ($Environment -ne '') { $envArgs = @('--environment', $Environment) }
+    # Puppet failures are data, not script bugs: a failing catalogue writes
+    # to stderr, which would throw NativeCommandError under 'Stop' before the
+    # exit code is even read. Relax the preference for the call only, so the
+    # exit code decides the asserts below.
+    $oldEAP = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
     $output = & puppet apply --detailed-exitcodes @envArgs --modulepath $Modulepath --verbose $Site 2>&1
     $code = $LASTEXITCODE
+    $ErrorActionPreference = $oldEAP
     $output | ForEach-Object { Write-Host $_ }
     Write-Host ("exit code: {0}" -f $code)
     $code
@@ -95,6 +102,20 @@ try {
     Assert-True ((Get-WpsIntHello) -eq 'hello') 'in-house: content-deployed script runs'
     Assert-True ((Get-WpsIntFromSource) -eq 'from-source') 'in-house: source-deployed script runs'
     Remove-Module WpsInt -Force -ErrorAction SilentlyContinue
+
+    # Non-ASCII content (issue #134): the File resource must carry a UTF-8
+    # BOM so Windows PowerShell 5.1 decodes it instead of ANSI. The expected
+    # output is built from char codes so this script stays pure ASCII
+    # itself: 5.1 would otherwise decode this very file as ANSI. Names are
+    # ASCII on purpose (non-ASCII names stay out of contract, see README).
+    $cafeExpected = 'caf' + [char]0xE9 + ' ' + [char]0xE8 + [char]0xE8 + ' ' + [char]0xFC
+    $cafeScript = Join-Path $ModuleRoot 'CafeTools\1.0\Functions\Get-CafeTest.ps1'
+    Assert-True (Test-Path -LiteralPath $cafeScript) 'non-ascii: script deployed'
+    $cafeBytes = [System.IO.File]::ReadAllBytes($cafeScript)
+    Assert-True (($cafeBytes.Length -ge 3) -and ($cafeBytes[0] -eq 0xEF) -and ($cafeBytes[1] -eq 0xBB) -and ($cafeBytes[2] -eq 0xBF)) 'non-ascii: UTF-8 BOM present'
+    Import-Module CafeTools -Force -ErrorAction Stop
+    Assert-True ((Get-CafeTest) -eq $cafeExpected) 'non-ascii: body decoded correctly'
+    Remove-Module CafeTools -Force -ErrorAction SilentlyContinue
 
     $copied = Join-Path $ModuleRoot 'WpsIntCopied\1.2.3\WpsIntCopied.psm1'
     Assert-True (Test-Path -LiteralPath $copied) 'external: file-copy backend deployed the pinned version'

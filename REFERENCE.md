@@ -661,6 +661,7 @@ The following parameters are available in the `windowspowershell::script` define
 * [`folder`](#-windowspowershell--script--folder)
 * [`content`](#-windowspowershell--script--content)
 * [`source`](#-windowspowershell--script--source)
+* [`bom`](#-windowspowershell--script--bom)
 
 ##### <a name="-windowspowershell--script--modulename"></a>`modulename`
 
@@ -728,6 +729,17 @@ Data type: `Optional[String[1]]`
 Puppet file source for the script. Mutually exclusive with `content`.
 
 Default value: `undef`
+
+##### <a name="-windowspowershell--script--bom"></a>`bom`
+
+Data type: `Enum['auto', 'always', 'never']`
+
+UTF-8 BOM handling for `content`. `auto` (default) prefixes U+FEFF only
+when the content holds non-ASCII characters and has no BOM yet; `always`
+prefixes U+FEFF whenever content is given and has no BOM yet; `never`
+leaves the content untouched. Content read from `source` is never altered.
+
+Default value: `'auto'`
 
 ## Data types
 

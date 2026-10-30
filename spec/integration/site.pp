@@ -42,6 +42,19 @@ windowspowershell::script { 'Get-WpsIntHello':
   content    => "function Get-WpsIntHello { 'hello' }\n",
 }
 
+# Non-ASCII script content (issue #134): deployed with a UTF-8 BOM by default
+# (`bom => auto`), so Windows PowerShell 5.1 decodes it as UTF-8 instead of
+# ANSI. tools/Test-PuppetApply.ps1 asserts the BOM bytes on disk and an
+# `Import-Module` round-trip whose output proves the body decoded correctly.
+# Names stay ASCII-only on purpose: non-ASCII module/script names remain
+# out of contract (see README), so the canary isolates content decoding.
+windowspowershell::module { 'CafeTools': }
+
+windowspowershell::script { 'Get-CafeTest':
+  modulename => 'CafeTools',
+  content    => "function Get-CafeTest { 'café èè ü' }\n",
+}
+
 # Third-party module deployed by file copy (`source` backend): covers the
 # versioned File copy and the purge of side-by-side versions without touching
 # PowerShellGet, NuGet or any repository.
