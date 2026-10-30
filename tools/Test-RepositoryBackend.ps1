@@ -98,10 +98,11 @@ Assert-True ((Find-Module -Name WpsRepoTest -Repository WpsLocal).Version -eq '1
 # Issue #112, Gap 2: the Gallery has no bracketed names, so only this local
 # repo can prove the wildcard-escaped install path converges for real.
 # Scheduled-only until the first Windows green run (see -IncludeBrackets):
-# New-ModuleManifest -Path rejects brackets and Publish-Module -Path is a
-# wildcard path, so the manifest is built under a bracket-free staging
-# directory (files already carrying their final Bracket[Beta] names) and only
-# the staging directory path — never a bracketed one — reaches Publish-Module.
+# Publish-Module cannot publish a bracketed manifest: it runs
+# Test-ModuleManifest internally, which rejects the wildcard RootModule
+# 'Bracket[Beta].psm1'. The fixture nupkg is therefore packed by hand with
+# the .NET zip API (same layout Publish-Module would emit); the
+# install/apply path under test is unchanged.
 if ($IncludeBrackets) {
 $bbStage = Join-Path $env:TEMP 'wpsrepotest\src\BracketStage\1.0.0'
 if (Test-Path $bbStage) { Remove-Item -Recurse -Force $bbStage }
@@ -114,7 +115,45 @@ New-ModuleManifest -Path (Join-Path $bbStage 'BracketStage.psd1') `
 [void][System.IO.File]::Move(
     (Join-Path $bbStage 'BracketStage.psd1'),
     (Join-Path $bbStage 'Bracket[Beta].psd1'))
-Publish-Module -Path $bbStage -Repository WpsLocal -Force
+$bbNuspec = Join-Path $bbStage 'BracketStage.nuspec'
+Set-Content -LiteralPath $bbNuspec -Value @"
+<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
+  <metadata>
+    <id>Bracket[Beta]</id>
+    <version>1.0.0</version>
+    <authors>CI</authors>
+    <owners>CI</owners>
+    <description>Issue #112 bracketed local repository fixture.</description>
+    <tags>PSModule PSFunction_Get-BracketBeta PSIncludes_Function</tags>
+  </metadata>
+</package>
+"@ -Encoding UTF8
+# NuGet readers open the nupkg as an OPC package, so ship the minimal
+# package parts alongside the module files. The nuspec filename stays
+# bracket-free (only the <id> inside keeps Bracket[Beta]) so the
+# relationship target needs no URI escaping.
+Set-Content -LiteralPath (Join-Path $bbStage '[Content_Types].xml') -Value @"
+<?xml version="1.0" encoding="utf-8"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="nuspec" ContentType="application/octet" />
+  <Default Extension="psd1" ContentType="application/octet" />
+  <Default Extension="psm1" ContentType="application/octet" />
+  <Default Extension="rels" ContentType="application/octet" />
+</Types>
+"@ -Encoding UTF8
+$bbRelsDir = Join-Path $bbStage '_rels'
+New-Item -ItemType Directory -Path $bbRelsDir -Force | Out-Null
+Set-Content -LiteralPath (Join-Path $bbRelsDir '.rels') -Value @"
+<?xml version="1.0" encoding="utf-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Type="http://schemas.microsoft.com/packaging/2010/07/manifest" Target="/BracketStage.nuspec" Id="rId1" />
+</Relationships>
+"@ -Encoding UTF8
+$bbNupkg = Join-Path $RepoDir 'Bracket[Beta].1.0.0.nupkg'
+if (Test-Path -LiteralPath $bbNupkg) { Remove-Item -Force -LiteralPath $bbNupkg }
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+[System.IO.Compression.ZipFile]::CreateFromDirectory($bbStage, $bbNupkg)
 Write-Host "Published Bracket[Beta] 1.0.0 to $RepoDir"
 Assert-True ((Find-Module -Name 'Bracket`[Beta`]' -Repository WpsLocal).Version -eq '1.0.0') 'local repo serves Bracket[Beta] 1.0.0'
 }

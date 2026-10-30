@@ -78,6 +78,9 @@ if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $RepoRoot)) {
 }
 Write-Host ("Repository root: {0}" -f $RepoRoot)
 if ([string]::IsNullOrWhiteSpace($PreviousTag)) {
+    # Dispatch checkouts may lack tags: fetch best-effort so auto-derive sees them.
+    # Offline lab clones must still work, so a failed fetch never fails this script.
+    try { git -C $RepoRoot fetch --tags origin 2>&1 | ForEach-Object { Write-Host $_ } } catch {}
     # Lightweight robust fix for the hardcoded-tag drift (issue #112 review):
     # pick the newest v* tag at run time. Needs full history + tags
     # (ci.yml uses fetch-depth: 0 with fetch-tags: true; lab clones need
