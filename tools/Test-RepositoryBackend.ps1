@@ -116,7 +116,7 @@ New-ModuleManifest -Path (Join-Path $bbStage 'BracketStage.psd1') `
 [void][System.IO.File]::Move(
     (Join-Path $bbStage 'BracketStage.psd1'),
     (Join-Path $bbStage 'Bracket[Beta].psd1'))
-$bbNuspec = Join-Path $bbStage 'BracketStage.nuspec'
+$bbNuspec = Join-Path $bbStage 'Bracket[Beta].nuspec'
 Set-Content -LiteralPath $bbNuspec -Value @"
 <?xml version="1.0" encoding="utf-8"?>
 <package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">
@@ -131,9 +131,11 @@ Set-Content -LiteralPath $bbNuspec -Value @"
 </package>
 "@ -Encoding UTF8
 # NuGet readers open the nupkg as an OPC package, so ship the minimal
-# package parts alongside the module files. The nuspec filename stays
-# bracket-free (only the <id> inside keeps Bracket[Beta]) so the
-# relationship target needs no URI escaping.
+# package parts alongside the module files. The nuspec entry keeps the
+# bracketed name to match the package id (readers look up <id>.nuspec);
+# entry names inside the zip are literal, so no wildcard is involved.
+# The nupkg filename keeps the brackets too: the provider keys packages on
+# the filename id.
 Set-Content -LiteralPath (Join-Path $bbStage '[Content_Types].xml') -Value @"
 <?xml version="1.0" encoding="utf-8"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
@@ -148,13 +150,24 @@ New-Item -ItemType Directory -Path $bbRelsDir -Force | Out-Null
 Set-Content -LiteralPath (Join-Path $bbRelsDir '.rels') -Value @"
 <?xml version="1.0" encoding="utf-8"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
-  <Relationship Type="http://schemas.microsoft.com/packaging/2010/07/manifest" Target="/BracketStage.nuspec" Id="rId1" />
+  <Relationship Type="http://schemas.microsoft.com/packaging/2010/07/manifest" Target="/Bracket[Beta].nuspec" Id="rId1" />
 </Relationships>
 "@ -Encoding UTF8
 $bbNupkg = Join-Path $RepoDir 'Bracket[Beta].1.0.0.nupkg'
 if (Test-Path -LiteralPath $bbNupkg) { Remove-Item -Force -LiteralPath $bbNupkg }
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 [System.IO.Compression.ZipFile]::CreateFromDirectory($bbStage, $bbNupkg)
+# Diagnostics stay in the log: entry names of the hand-packed nupkg next to
+# the Publish-Module one, plus the unfiltered provider view of the repo.
+Write-Host "--- repo files:"; Get-ChildItem -LiteralPath $RepoDir | ForEach-Object { Write-Host ("repo file: {0}" -f $_.Name) }
+$bbZip = [System.IO.Compression.ZipFile]::OpenRead($bbNupkg)
+$bbZip.Entries | ForEach-Object { Write-Host ("bracketed nupkg entry: {0}" -f $_.FullName) }
+$bbZip.Dispose()
+$goodNupkg = Join-Path $RepoDir 'WpsRepoTest.1.0.0.nupkg'
+$goodZip = [System.IO.Compression.ZipFile]::OpenRead($goodNupkg)
+$goodZip.Entries | ForEach-Object { Write-Host ("reference nupkg entry: {0}" -f $_.FullName) }
+$goodZip.Dispose()
+Find-Package -Source WpsLocal | ForEach-Object { Write-Host ("repo package: {0} {1}" -f $_.Name, $_.Version) }
 Write-Host "Published Bracket[Beta] 1.0.0 to $RepoDir (nupkg filename carries the brackets: the provider keys packages on filename id)"
 Assert-True ((Find-Module -Name 'Bracket`[Beta`]' -Repository WpsLocal).Version -eq '1.0.0') 'local repo serves Bracket[Beta] 1.0.0'
 }

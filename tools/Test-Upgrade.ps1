@@ -80,7 +80,10 @@ Write-Host ("Repository root: {0}" -f $RepoRoot)
 if ([string]::IsNullOrWhiteSpace($PreviousTag)) {
     # Dispatch checkouts may lack tags: fetch best-effort so auto-derive sees them.
     # Offline lab clones must still work, so a failed fetch never fails this script.
-    try { git -C $RepoRoot fetch --tags origin 2>&1 | ForEach-Object { Write-Host $_ } } catch {}
+    # Assignment pattern: native stderr piped straight to the host would throw
+    # NativeCommandError under 'Stop', so capture first and log second.
+    $fetchOut = git -C $RepoRoot fetch --tags origin 2>&1
+    $fetchOut | ForEach-Object { Write-Host $_ }
     # Lightweight robust fix for the hardcoded-tag drift (issue #112 review):
     # pick the newest v* tag at run time. Needs full history + tags
     # (ci.yml uses fetch-depth: 0 with fetch-tags: true; lab clones need
@@ -114,8 +117,17 @@ $prevWorktree = Join-Path $env:TEMP 'wps-prev-tag'
 try {
     # Check out the previous tag next to this checkout, then swap the staged
     # copy: the agent under test always sees a plain modulepath entry.
-    git worktree remove --force $prevWorktree 2>$null
-    git -C $RepoRoot worktree add --detach $prevWorktree $PreviousTag 2>&1 | ForEach-Object { Write-Host $_ }
+    # Prune stale metadata and remove a leftover directory first: a previous
+    # failed run can leave a registered-but-broken worktree behind, and
+    # `worktree add` refuses to reuse it ("is not a working tree").
+    git -C $RepoRoot worktree remove --force $prevWorktree 2>$null
+    git -C $RepoRoot worktree prune 2>$null
+    if (Test-Path -LiteralPath $prevWorktree) { Remove-Item -Recurse -Force -LiteralPath $prevWorktree }
+    # Assignment pattern (not a direct pipeline to Write-Host): with
+    # $ErrorActionPreference 'Stop', native stderr reaching the host throws
+    # NativeCommandError, so capture first, log second, gate on LASTEXITCODE.
+    $wtOut = git -C $RepoRoot worktree add --detach $prevWorktree $PreviousTag 2>&1
+    $wtOut | ForEach-Object { Write-Host $_ }
     if ($LASTEXITCODE -ne 0) { throw "git worktree add $PreviousTag failed." }
 
     if (Test-Path -LiteralPath $staged) { Remove-Item -Recurse -Force -LiteralPath $staged }
