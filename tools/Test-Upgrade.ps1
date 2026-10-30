@@ -86,10 +86,17 @@ if ([string]::IsNullOrWhiteSpace($PreviousTag)) {
     # (ci.yml uses fetch-depth: 0 with fetch-tags: true; lab clones need
     # `git fetch --tags origin`).
     $tags = @(git -C $RepoRoot tag --list 'v*' --sort=-v:refname 2>&1)
-    if ($LASTEXITCODE -ne 0 -or $tags.Count -eq 0 -or [string]::IsNullOrWhiteSpace($tags[0])) {
-        throw "No v* tags found. Fetch tags first (git fetch --tags origin)."
+    # Newest-first: keep the first listed tag that rev-parse can verify.
+    $PreviousTag = ''
+    foreach ($candidate in $tags) {
+        $name = "$candidate".Trim()
+        if ([string]::IsNullOrWhiteSpace($name)) { continue }
+        git -C $RepoRoot rev-parse --verify "refs/tags/$name" 2>&1 | Out-Null
+        if ($LASTEXITCODE -eq 0) { $PreviousTag = $name; break }
     }
-    $PreviousTag = $tags[0].Trim()
+    if ([string]::IsNullOrWhiteSpace($PreviousTag)) {
+        throw "No verifiable v* tag found (listed $($tags.Count)). Fetch tags first (git fetch --tags origin)."
+    }
     Write-Host ("Auto-derived previous tag: {0}" -f $PreviousTag)
 }
 $tagRef = (git rev-parse --verify "refs/tags/$PreviousTag" 2>&1 | Select-Object -First 1)

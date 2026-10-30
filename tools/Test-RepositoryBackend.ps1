@@ -150,11 +150,11 @@ Set-Content -LiteralPath (Join-Path $bbRelsDir '.rels') -Value @"
   <Relationship Type="http://schemas.microsoft.com/packaging/2010/07/manifest" Target="/BracketStage.nuspec" Id="rId1" />
 </Relationships>
 "@ -Encoding UTF8
-$bbNupkg = Join-Path $RepoDir 'Bracket[Beta].1.0.0.nupkg'
+$bbNupkg = Join-Path $RepoDir 'BracketStage.1.0.0.nupkg'
 if (Test-Path -LiteralPath $bbNupkg) { Remove-Item -Force -LiteralPath $bbNupkg }
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 [System.IO.Compression.ZipFile]::CreateFromDirectory($bbStage, $bbNupkg)
-Write-Host "Published Bracket[Beta] 1.0.0 to $RepoDir"
+Write-Host "Published Bracket[Beta] 1.0.0 (packed as BracketStage.1.0.0.nupkg) to $RepoDir"
 Assert-True ((Find-Module -Name 'Bracket`[Beta`]' -Repository WpsLocal).Version -eq '1.0.0') 'local repo serves Bracket[Beta] 1.0.0'
 }
 
