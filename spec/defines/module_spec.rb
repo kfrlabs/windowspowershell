@@ -711,6 +711,10 @@ describe 'windowspowershell::module' do
           "class { 'windowspowershell': module_root => '#{root_of_length(length).gsub('\\') { '\\\\' }}' }"
         end
 
+        def root_class_with_policy(length, policy)
+          "class { 'windowspowershell': module_root => '#{root_of_length(length).gsub('\\') { '\\\\' }}', path_length_policy => '#{policy}' }"
+        end
+
         context 'with the longest managed path at 259 characters' do
           let(:pre_condition) { root_class(233) }
 
@@ -729,6 +733,46 @@ describe 'windowspowershell::module' do
             expect(warnings.grep(%r{MAX_PATH}).first).to match(
               %r{Windowspowershell::Module\[Acme\]: the longest managed path is 260 characters.*module_root '#{Regexp.escape(root_of_length(234))}', module 'Acme', version '1\.0'}
             )
+          end
+        end
+
+        context 'with the longest managed path at 260 characters and long paths enabled on the node' do
+          let(:pre_condition) { root_class(234) }
+          let(:facts) { os_facts.merge('long_paths_enabled' => true) }
+
+          it 'logs no path length warning' do
+            warnings = captured_puppet_warnings { is_expected.to compile.with_all_deps }
+            expect(warnings.grep(%r{MAX_PATH})).to be_empty
+          end
+        end
+
+        context 'with the longest managed path at 260 characters and path_length_policy => fail' do
+          let(:pre_condition) { root_class_with_policy(234, 'fail') }
+
+          it 'fails compilation with the same message the warning carried' do
+            is_expected.to compile.and_raise_error(
+              %r{Windowspowershell::Module\[Acme\]: the longest managed path is 260 characters.*module_root '#{Regexp.escape(root_of_length(234))}', module 'Acme', version '1\.0'}
+            )
+          end
+        end
+
+        context 'with path_length_policy => fail and long paths disabled on the node' do
+          let(:pre_condition) { root_class_with_policy(234, 'fail') }
+          let(:facts) { os_facts.merge('long_paths_enabled' => false) }
+
+          it 'fails compilation' do
+            is_expected.to compile.and_raise_error(
+              %r{Windowspowershell::Module\[Acme\]: the longest managed path is 260 characters}
+            )
+          end
+        end
+
+        context 'with the longest managed path at 260 characters and path_length_policy => ignore' do
+          let(:pre_condition) { root_class_with_policy(234, 'ignore') }
+
+          it 'logs no path length warning' do
+            warnings = captured_puppet_warnings { is_expected.to compile.with_all_deps }
+            expect(warnings.grep(%r{MAX_PATH})).to be_empty
           end
         end
 

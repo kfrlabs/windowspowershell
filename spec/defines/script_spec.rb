@@ -176,6 +176,64 @@ describe 'windowspowershell::script' do
           end
         end
 
+        context 'with the script path at 260 characters and long paths enabled on the node' do
+          let(:params) { { 'modulename' => 'Acme', 'scriptname' => scriptname_for_path_length(260), 'content' => 'x' } }
+          let(:facts) { os_facts.merge('long_paths_enabled' => true) }
+
+          it 'logs no path length warning' do
+            warnings = captured_puppet_warnings { is_expected.to compile.with_all_deps }
+            expect(warnings.grep(%r{MAX_PATH})).to be_empty
+          end
+        end
+
+        context 'with the script path at 260 characters and path_length_policy => fail' do
+          let(:pre_condition) do
+            <<~PUPPET
+              class { 'windowspowershell': path_length_policy => 'fail' }
+              windowspowershell::module { 'Acme': }
+            PUPPET
+          end
+          let(:params) { { 'modulename' => 'Acme', 'scriptname' => scriptname_for_path_length(260), 'content' => 'x' } }
+
+          it 'fails compilation with the same message the warning carried' do
+            is_expected.to compile.and_raise_error(
+              %r{windowspowershell::script\[Get-Example\]: the script path is 260 characters.*modulename 'Acme', version '1\.0', folder \(none\)}
+            )
+          end
+        end
+
+        context 'with path_length_policy => fail and long paths disabled on the node' do
+          let(:pre_condition) do
+            <<~PUPPET
+              class { 'windowspowershell': path_length_policy => 'fail' }
+              windowspowershell::module { 'Acme': }
+            PUPPET
+          end
+          let(:params) { { 'modulename' => 'Acme', 'scriptname' => scriptname_for_path_length(260), 'content' => 'x' } }
+          let(:facts) { os_facts.merge('long_paths_enabled' => false) }
+
+          it 'fails compilation' do
+            is_expected.to compile.and_raise_error(
+              %r{windowspowershell::script\[Get-Example\]: the script path is 260 characters}
+            )
+          end
+        end
+
+        context 'with the script path at 260 characters and path_length_policy => ignore' do
+          let(:pre_condition) do
+            <<~PUPPET
+              class { 'windowspowershell': path_length_policy => 'ignore' }
+              windowspowershell::module { 'Acme': }
+            PUPPET
+          end
+          let(:params) { { 'modulename' => 'Acme', 'scriptname' => scriptname_for_path_length(260), 'content' => 'x' } }
+
+          it 'logs no path length warning' do
+            warnings = captured_puppet_warnings { is_expected.to compile.with_all_deps }
+            expect(warnings.grep(%r{MAX_PATH})).to be_empty
+          end
+        end
+
         context 'with a folder pushing the script path over the limit' do
           let(:params) do
             { 'modulename' => 'Acme', 'folder' => 'Deep', 'scriptname' => scriptname_for_path_length(261, folder: 'Deep'), 'content' => 'x' }
