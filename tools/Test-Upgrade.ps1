@@ -103,7 +103,7 @@ if ([string]::IsNullOrWhiteSpace($PreviousTag)) {
     Write-Host ("Auto-derived previous tag: {0}" -f $PreviousTag)
 }
 # Display-only resolve: the loop above already verified the tag. A failed
-# resolve never throws here; `git worktree add` below is the real gate and
+# resolve never throws here; the `git archive` below is the real gate and
 # reports git's own error (avoids double-resolution races, issue #132).
 $tagRef = (git -C $RepoRoot rev-parse --verify "refs/tags/$PreviousTag" 2>&1 | Select-Object -First 1).Trim()
 Write-Host ("Previous tag: {0} ({1})" -f $PreviousTag, $tagRef)
@@ -114,21 +114,27 @@ if (-not (Test-Path -LiteralPath $staged)) {
 }
 
 $prevWorktree = Join-Path $env:TEMP 'wps-prev-tag'
+$prevZip = Join-Path $env:TEMP 'wps-prev-tag.zip'
 try {
     # Check out the previous tag next to this checkout, then swap the staged
     # copy: the agent under test always sees a plain modulepath entry.
-    # Prune stale metadata and remove a leftover directory first: a previous
-    # failed run can leave a registered-but-broken worktree behind, and
-    # `worktree add` refuses to reuse it ("is not a working tree").
-    git -C $RepoRoot worktree remove --force $prevWorktree 2>$null
+    # A plain directory from `git archive` (not a linked worktree): `worktree
+    # add` refuses to reuse a path from a previous failed run ("is not a
+    # working tree") and needs worktree metadata the test never uses.
+    # Prune stale metadata and remove leftovers first.
     git -C $RepoRoot worktree prune 2>$null
     if (Test-Path -LiteralPath $prevWorktree) { Remove-Item -Recurse -Force -LiteralPath $prevWorktree }
+    if (Test-Path -LiteralPath $prevZip) { Remove-Item -Force -LiteralPath $prevZip }
     # Assignment pattern (not a direct pipeline to Write-Host): with
     # $ErrorActionPreference 'Stop', native stderr reaching the host throws
     # NativeCommandError, so capture first, log second, gate on LASTEXITCODE.
-    $wtOut = git -C $RepoRoot worktree add --detach $prevWorktree $PreviousTag 2>&1
-    $wtOut | ForEach-Object { Write-Host $_ }
-    if ($LASTEXITCODE -ne 0) { throw "git worktree add $PreviousTag failed." }
+    # No PowerShell pipeline between git and Expand-Archive: the archive is
+    # binary and a PowerShell pipeline would corrupt it.
+    $arcOut = git -C $RepoRoot archive --format=zip --output=$prevZip $PreviousTag 2>&1
+    $arcOut | ForEach-Object { Write-Host $_ }
+    if ($LASTEXITCODE -ne 0) { throw "git archive $PreviousTag failed." }
+    New-Item -ItemType Directory -Path $prevWorktree -Force | Out-Null
+    Expand-Archive -Path $prevZip -DestinationPath $prevWorktree -Force
 
     if (Test-Path -LiteralPath $staged) { Remove-Item -Recurse -Force -LiteralPath $staged }
     Copy-Item -Recurse -Force $prevWorktree $staged
@@ -211,9 +217,11 @@ try {
     Assert-True ($profileText -match 'WpsInt\.psd1') 'upgrade: WpsInt import line present'
 }
 finally {
-    # The worktree metadata lives in this checkout: always remove it. The
-    # staged copy keeps whichever tree the last completed step put there.
-    git -C $RepoRoot worktree remove --force $prevWorktree 2>$null
+    # Plain-directory cleanup to match the `git archive` extraction above: no
+    # worktree metadata is ever registered. The staged copy keeps whichever
+    # tree the last completed step put there.
+    try { if (Test-Path -LiteralPath $prevWorktree) { Remove-Item -Recurse -Force -LiteralPath $prevWorktree } } catch {}
+    try { if (Test-Path -LiteralPath $prevZip) { Remove-Item -Force -LiteralPath $prevZip } } catch {}
 }
 
 if ($failed -gt 0) { Write-Host "FAILED: $failed check(s)"; exit 1 }

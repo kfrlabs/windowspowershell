@@ -169,7 +169,12 @@ $goodZip.Entries | ForEach-Object { Write-Host ("reference nupkg entry: {0}" -f 
 $goodZip.Dispose()
 Find-Package -Source WpsLocal | ForEach-Object { Write-Host ("repo package: {0} {1}" -f $_.Name, $_.Version) }
 Write-Host "Published Bracket[Beta] 1.0.0 to $RepoDir (nupkg filename carries the brackets: the provider keys packages on filename id)"
-Assert-True ((Find-Module -Name 'Bracket`[Beta`]' -Repository WpsLocal).Version -eq '1.0.0') 'local repo serves Bracket[Beta] 1.0.0'
+# Find-Module -Name cannot match bracketed names (its PackageManagement name
+# matcher does not honor the backtick escaping that Install-Module and friends
+# accept, issue #132): assert via a wildcard-free enumeration instead. The
+# install/apply path under test is unchanged.
+$bbFound = Find-Package -Source WpsLocal | Where-Object { $_.Name -eq 'Bracket[Beta]' }
+Assert-True (($null -ne $bbFound) -and ($bbFound.Version -eq '1.0.0')) 'local repo serves Bracket[Beta] 1.0.0'
 }
 
 # Start clean so the first apply really installs.
