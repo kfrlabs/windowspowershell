@@ -99,10 +99,10 @@ if ([string]::IsNullOrWhiteSpace($PreviousTag)) {
     }
     Write-Host ("Auto-derived previous tag: {0}" -f $PreviousTag)
 }
-$tagRef = (git rev-parse --verify "refs/tags/$PreviousTag" 2>&1 | Select-Object -First 1)
-if ($LASTEXITCODE -ne 0) {
-    throw "Previous tag '$PreviousTag' not found. Fetch tags first (git fetch --tags origin)."
-}
+# Display-only resolve: the loop above already verified the tag. A failed
+# resolve never throws here; `git worktree add` below is the real gate and
+# reports git's own error (avoids double-resolution races, issue #132).
+$tagRef = (git -C $RepoRoot rev-parse --verify "refs/tags/$PreviousTag" 2>&1 | Select-Object -First 1).Trim()
 Write-Host ("Previous tag: {0} ({1})" -f $PreviousTag, $tagRef)
 
 $staged = Join-Path $Modulepath 'windowspowershell'

@@ -101,8 +101,9 @@ Assert-True ((Find-Module -Name WpsRepoTest -Repository WpsLocal).Version -eq '1
 # Publish-Module cannot publish a bracketed manifest: it runs
 # Test-ModuleManifest internally, which rejects the wildcard RootModule
 # 'Bracket[Beta].psm1'. The fixture nupkg is therefore packed by hand with
-# the .NET zip API (same layout Publish-Module would emit); the
-# install/apply path under test is unchanged.
+# the .NET zip API (same layout Publish-Module would emit, OPC parts
+# included); the nupkg filename keeps the brackets because the provider keys
+# packages on the filename id. The install/apply path under test is unchanged.
 if ($IncludeBrackets) {
 $bbStage = Join-Path $env:TEMP 'wpsrepotest\src\BracketStage\1.0.0'
 if (Test-Path $bbStage) { Remove-Item -Recurse -Force $bbStage }
@@ -150,11 +151,11 @@ Set-Content -LiteralPath (Join-Path $bbRelsDir '.rels') -Value @"
   <Relationship Type="http://schemas.microsoft.com/packaging/2010/07/manifest" Target="/BracketStage.nuspec" Id="rId1" />
 </Relationships>
 "@ -Encoding UTF8
-$bbNupkg = Join-Path $RepoDir 'BracketStage.1.0.0.nupkg'
+$bbNupkg = Join-Path $RepoDir 'Bracket[Beta].1.0.0.nupkg'
 if (Test-Path -LiteralPath $bbNupkg) { Remove-Item -Force -LiteralPath $bbNupkg }
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 [System.IO.Compression.ZipFile]::CreateFromDirectory($bbStage, $bbNupkg)
-Write-Host "Published Bracket[Beta] 1.0.0 (packed as BracketStage.1.0.0.nupkg) to $RepoDir"
+Write-Host "Published Bracket[Beta] 1.0.0 to $RepoDir (nupkg filename carries the brackets: the provider keys packages on filename id)"
 Assert-True ((Find-Module -Name 'Bracket`[Beta`]' -Repository WpsLocal).Version -eq '1.0.0') 'local repo serves Bracket[Beta] 1.0.0'
 }
 
