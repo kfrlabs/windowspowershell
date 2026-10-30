@@ -9,6 +9,21 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ### Added
 
+- Non-ASCII script content is written with a UTF-8 BOM by default
+  (issue #134): `windowspowershell::script` gains a `bom` parameter
+  (`Enum['auto', 'always', 'never']`, default `auto`). With `auto`, content
+  holding non-ASCII characters and no BOM yet gets a U+FEFF prefix, so
+  Windows PowerShell 5.1 decodes it as UTF-8 instead of ANSI (previously
+  a non-ASCII body decoded to mojibake, e.g. `Get-CafeTest` returning
+  `cafÃ© Ã¨Ã¨ Ã¼` instead of `café èè ü`). `always` stamps even ASCII-only scripts, `never`
+  keeps the old BOM-less bytes. ASCII-only scripts are byte-identical by
+  default; existing non-ASCII scripts gain a BOM (and one manifest refresh)
+  on the first run after the upgrade. Files deployed from a `source` stay
+  byte-copies. README (Limitations), the parameter docs (REFERENCE.md) and
+  `TESTING.md` record the behavior, and the per-PR integration catalogue
+  proves it on Windows (BOM bytes plus an `Import-Module` round-trip whose
+  output proves the body decoded correctly).
+
 - Opt-in ACL hardening of a custom `module_root` (issue #133): with
   `manage_module_root_acl => true`, an enforceable custom root is
   restricted to `SYSTEM` + `Administrators` Full control (by SID,

@@ -832,14 +832,18 @@ Contributions are welcome via GitHub issues and pull requests.
   fragments (see [Co-managing the profiles](#co-managing-the-profiles)), but
   lines written by a GPO startup script, another tool or an administrator are
   removed. Managing only a delimited block of the file is not supported.
-- Non-ASCII module names, script names and script content are not supported
-  where Windows PowerShell 5.1 runs the agent (issue #89): the files Puppet
-  writes are UTF-8 without a BOM, which 5.1 reads as ANSI, so e.g.
-  `Café-Tools` converges (the double apply is clean) but the deployed
-  function is unreachable under its real name. Keep names and content
-  ASCII-only where 5.1 may run; files deployed from a `source` must be saved
-  accordingly (UTF-8 with BOM also works, PowerShell 7 reads BOM-less UTF-8
-  fine). Verified on Windows Server 2025, see `TESTING.md`.
+- Non-ASCII script content passed via `content` is written with a UTF-8 BOM
+  by default (`bom => auto`, issue #134): without it Windows PowerShell 5.1
+  reads the file as ANSI, so a non-ASCII body decoded to mojibake (e.g.
+  `Get-CafeTest` returning `cafÃ© Ã¨Ã¨ Ã¼` instead of `café èè ü`).
+  `bom => always` writes a BOM even to ASCII-only scripts, `bom => never`
+  keeps the old BOM-less behavior. Files deployed from a `source` are
+  byte-copies the module never touches: save them ASCII-only (or UTF-8 with
+  BOM, which 5.1 honours) at the source. PowerShell 7 reads BOM-less UTF-8
+  fine, so this only matters where 5.1 may run. Non-ASCII module and script
+  *names* stay out of contract (paths, manifests and profile lines keep the
+  bytes, which 5.1 may misread): keep names ASCII-only. Verified on Windows
+  Server 2025, see `TESTING.md`.
 - A syntactically broken `Functions/` script fails the manifest build without
   touching the existing `.psd1` (fail-closed, issue #107): every script is
   parsed (syntax only, read as UTF-8) before `New-ModuleManifest` runs, and a

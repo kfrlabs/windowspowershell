@@ -45,6 +45,11 @@
 #   Literal content of the script. Mutually exclusive with `source`.
 # @param source
 #   Puppet file source for the script. Mutually exclusive with `content`.
+# @param bom
+#   UTF-8 BOM handling for `content`. `auto` (default) prefixes U+FEFF only
+#   when the content holds non-ASCII characters and has no BOM yet; `always`
+#   prefixes U+FEFF whenever content is given and has no BOM yet; `never`
+#   leaves the content untouched. Content read from `source` is never altered.
 #
 # @example
 #   windowspowershell::module { 'Acme': }
@@ -69,6 +74,7 @@ define windowspowershell::script (
   Optional[Windowspowershell::Name] $folder = undef,
   Optional[String[1]] $content = undef,
   Optional[String[1]] $source = undef,
+  Enum['auto', 'always', 'never'] $bom = 'auto',
 ) {
   include windowspowershell
 
@@ -129,6 +135,18 @@ define windowspowershell::script (
     warning("windowspowershell::script[${name}]: the script path is ${script_path_length} characters, over the 259-character Windows MAX_PATH limit (module_root '${windowspowershell::normalized_module_root}', modulename '${modulename}', version '${module_version}', folder ${script_folder_label}, scriptname '${scriptname}'). Without long-path support on the node, deploying it fails with an opaque path error. Shorten module_root, modulename, version, folder or scriptname, or enable long paths on the node (LongPathsEnabled).")
   }
 
+  # Issue #134: Windows PowerShell 5.1 decodes a BOM-less script as ANSI, so
+  # non-ASCII content is mangled without a UTF-8 BOM (U+FEFF). `auto` adds it
+  # only for non-ASCII content missing one; `always` adds it to any BOM-less
+  # content; `never` keeps the previous behavior.
+  $has_non_ascii = $content =~ NotUndef and $content =~ /[^\x00-\x7F]/
+  $has_bom = $content =~ NotUndef and $content =~ /\A\uFEFF/
+  $needs_bom = $content =~ NotUndef and $ensure == 'present' and $bom != 'never' and !$has_bom and ($bom == 'always' or $has_non_ascii)
+  $effective_content = $needs_bom ? {
+    true    => "\uFEFF${content}",
+    default => $content,
+  }
+
   if !$windowspowershell::supported {
     # No-op: the class declares nothing on this node, so there is no Functions
     # directory to write into and no Exec to notify.
@@ -145,7 +163,7 @@ define windowspowershell::script (
 
     file { $script_path:
       ensure  => file,
-      content => $content,
+      content => $effective_content,
       source  => $source,
       require => File[$script_folder],
       notify  => [

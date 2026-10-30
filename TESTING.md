@@ -341,13 +341,25 @@ Manual verification 2026-10-24 (Windows Server 2025, 5.1.26100.33438):
   spelling (`Get-CafÃ©Test`), so calling `Get-CaféTest` fails with
   `CommandNotFoundException`.
 
-Conclusion (documented limitation, no code change): keep module names,
-script names and script content ASCII-only wherever Windows PowerShell
-5.1 may run the agent. Files deployed from a `source` (bulk module copy,
-external-module file copy) are byte-copies -- save them ASCII-only (or
-UTF-8 with BOM, which 5.1 honours) at the source. PowerShell 7 reads
-BOM-less UTF-8 correctly, so the limitation is specific to the 5.1 host
-running the agent. See [Limitations](README.md#limitations).
+Conclusion (issue #134): script `content` is written with a UTF-8 BOM by
+default (`bom => auto`: only when non-ASCII is present and no BOM yet),
+so 5.1 decodes it correctly; `bom => always` also stamps ASCII-only
+scripts, `bom => never` keeps the old BOM-less behavior. Files deployed
+from a `source` (bulk module copy, external-module file copy) stay
+byte-copies -- save them ASCII-only (or UTF-8 with BOM, which 5.1 honours)
+at the source. Non-ASCII module and script *names* are still ASCII-only
+territory (paths, manifests and profile lines keep the bytes, which 5.1
+may misread). PowerShell 7 reads BOM-less UTF-8 correctly, so the
+limitation is specific to the 5.1 host running the agent. See
+[Limitations](README.md#limitations).
+
+Automated proof (no lab host needed): the per-PR integration catalogue
+(`spec/integration/site.pp`) ships a `CafeTools` / `Get-CafeTest` fixture
+with a non-ASCII body, and `tools/Test-PuppetApply.ps1` asserts the BOM
+bytes on disk plus an `Import-Module` round-trip whose output proves the
+body decoded correctly on every Windows runner (2022 and 2025). Module and
+script names stay ASCII on purpose: non-ASCII names remain out of contract,
+so the canary isolates content decoding.
 
 ## Release gate
 
