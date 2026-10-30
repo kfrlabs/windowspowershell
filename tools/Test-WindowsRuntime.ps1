@@ -205,6 +205,56 @@ try {
     Assert-True ((Get-FileHash -LiteralPath $psd1 -Algorithm SHA256).Hash -eq $psd1Hash) 'manifest: .psd1 byte-identical after the failed build'
     Remove-Item -LiteralPath (Join-Path $smoke '1.4\Functions\Get-WpsBroken.ps1') -Force
     Assert-Exit '*update-manifest_WpsSmoke_command*' 0 'manifest: build is green again once the broken script is gone'
+    # Issue #135, step 1: a script that defines no function of its own name
+    # fails the manifest build without touching the existing .psd1.
+    Set-Content -LiteralPath (Join-Path $smoke '1.4\Functions\Get-WpsMismatch.ps1') -Value 'function Get-SomethingElse { "x" }'
+    $mismatchHash = (Get-FileHash -LiteralPath $psd1 -Algorithm SHA256).Hash
+    $mismatchOutput = @(Invoke-RenderedWithOutput '*update-manifest_WpsSmoke_command*')
+    $mismatchExit = $LASTEXITCODE
+    $mismatchText = ($mismatchOutput | ForEach-Object { "$_" }) -join "`n"
+    Assert-True ($mismatchExit -ne 0) ("manifest: mismatched name fails the build (exit {0}, expected non-zero)" -f $mismatchExit)
+    Assert-True ($mismatchText -match 'CONTRACT ERROR' -and $mismatchText -match 'Get-WpsMismatch') 'manifest: failure names the mismatched file'
+    Assert-True ((Get-FileHash -LiteralPath $psd1 -Algorithm SHA256).Hash -eq $mismatchHash) 'manifest: .psd1 byte-identical after the mismatched build'
+    Remove-Item -LiteralPath (Join-Path $smoke '1.4\Functions\Get-WpsMismatch.ps1') -Force
+    # Issue #135, step 1: a duplicated base name fails the manifest build
+    # without touching the existing .psd1.
+    Set-Content -LiteralPath (Join-Path $smoke '1.4\Functions\Sub\Get-WpsA.ps1') -Value 'function Get-WpsA { "dup" }'
+    $duplicateHash = (Get-FileHash -LiteralPath $psd1 -Algorithm SHA256).Hash
+    $duplicateOutput = @(Invoke-RenderedWithOutput '*update-manifest_WpsSmoke_command*')
+    $duplicateExit = $LASTEXITCODE
+    $duplicateText = ($duplicateOutput | ForEach-Object { "$_" }) -join "`n"
+    Assert-True ($duplicateExit -ne 0) ("manifest: duplicate name fails the build (exit {0}, expected non-zero)" -f $duplicateExit)
+    Assert-True ($duplicateText -match 'Duplicate function names' -and $duplicateText -match 'Get-WpsA') 'manifest: failure names the duplicated function'
+    Assert-True ((Get-FileHash -LiteralPath $psd1 -Algorithm SHA256).Hash -eq $duplicateHash) 'manifest: .psd1 byte-identical after the duplicated build'
+    Remove-Item -LiteralPath (Join-Path $smoke '1.4\Functions\Sub\Get-WpsA.ps1') -Force
+    # Issue #135, step 1: the duplicate check is case-insensitive, matching
+    # PowerShell function resolution.
+    Set-Content -LiteralPath (Join-Path $smoke '1.4\Functions\Sub\get-wpsa.ps1') -Value 'function Get-WpsA { "dup-lower" }'
+    $caseInsensitiveHash = (Get-FileHash -LiteralPath $psd1 -Algorithm SHA256).Hash
+    $caseInsensitiveOutput = @(Invoke-RenderedWithOutput '*update-manifest_WpsSmoke_command*')
+    $caseInsensitiveExit = $LASTEXITCODE
+    $caseInsensitiveText = ($caseInsensitiveOutput | ForEach-Object { "$_" }) -join "`n"
+    Assert-True ($caseInsensitiveExit -ne 0) ("manifest: case-insensitive duplicate fails the build (exit {0}, expected non-zero)" -f $caseInsensitiveExit)
+    Assert-True ($caseInsensitiveText -match 'Duplicate function names' -and $caseInsensitiveText -match 'Get-WpsA') 'manifest: failure names the case-insensitive duplicate'
+    Assert-True ((Get-FileHash -LiteralPath $psd1 -Algorithm SHA256).Hash -eq $caseInsensitiveHash) 'manifest: .psd1 byte-identical after the case-insensitive duplicate'
+    Remove-Item -LiteralPath (Join-Path $smoke '1.4\Functions\Sub\get-wpsa.ps1') -Force
+    # Issue #135, step 1: the duplicate check spans extensions, so Foo.ps1
+    # and Foo.psm1 collide.
+    Set-Content -LiteralPath (Join-Path $smoke '1.4\Functions\Sub\Get-WpsB.psm1') -Value 'function Get-WpsB { "dup-psm1" }'
+    $crossExtensionHash = (Get-FileHash -LiteralPath $psd1 -Algorithm SHA256).Hash
+    $crossExtensionOutput = @(Invoke-RenderedWithOutput '*update-manifest_WpsSmoke_command*')
+    $crossExtensionExit = $LASTEXITCODE
+    $crossExtensionText = ($crossExtensionOutput | ForEach-Object { "$_" }) -join "`n"
+    Assert-True ($crossExtensionExit -ne 0) ("manifest: cross-extension duplicate fails the build (exit {0}, expected non-zero)" -f $crossExtensionExit)
+    Assert-True ($crossExtensionText -match 'Duplicate function names' -and $crossExtensionText -match 'Get-WpsB') 'manifest: failure names the cross-extension duplicate'
+    Assert-True ((Get-FileHash -LiteralPath $psd1 -Algorithm SHA256).Hash -eq $crossExtensionHash) 'manifest: .psd1 byte-identical after the cross-extension duplicate'
+    Remove-Item -LiteralPath (Join-Path $smoke '1.4\Functions\Sub\Get-WpsB.psm1') -Force
+    # Issue #135, step 1: an extra helper function next to the contracted one
+    # stays allowed.
+    Set-Content -LiteralPath (Join-Path $smoke '1.4\Functions\Get-WpsHelper.ps1') -Value "function Get-WpsHelper { 'ok' }`nfunction Get-WpsHelperInternal { 'internal' }`n"
+    Assert-Exit '*update-manifest_WpsSmoke_command*' 0 'manifest: extra helper function is allowed'
+    Remove-Item -LiteralPath (Join-Path $smoke '1.4\Functions\Get-WpsHelper.ps1') -Force
+    Assert-Exit '*update-manifest_WpsSmoke_command*' 0 'manifest: build is green again once the helper script is gone'
     Assert-Exit '*unblock-files_WpsSmoke_command*' 0 'unblock-files runs'
 
     $env:PSModulePath = "$Root;$env:PSModulePath"

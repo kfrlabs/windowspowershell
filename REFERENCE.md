@@ -434,6 +434,11 @@ directory are singletons, so declaring the same module name twice is a
 genuine conflict and fails to compile like any other duplicate resource
 declaration, rather than being silently merged.
 
+Each script under `Functions/` must define a top-level function named after
+its own base name, and base names must stay unique (case-insensitive): a
+violation fails the manifest build and leaves the `.psd1` untouched
+(fail closed, issue #135 step 1).
+
 On nodes without long-path support the paths this resource manages must stay
 under 260 characters (Windows `MAX_PATH`, terminating NUL included). With
 `ensure => present`, a longer one logs a compile-time warning (not a
@@ -673,7 +678,14 @@ Default value: `'present'`
 Data type: `Windowspowershell::Scriptname`
 
 Base name of the script, without the `.ps1` extension. Defaults to the
-resource title. This is also the name of the exported PowerShell function.
+resource title. This is also the name of the exported PowerShell function:
+the deployed `<scriptname>.ps1` must define a top-level
+`function <scriptname>` (name contract, issue #135 step 1), otherwise the
+manifest build fails closed with
+`CONTRACT ERROR <file>: no function named '<scriptname>' defined in file`
+and leaves the existing `.psd1` untouched. Base names must also be unique
+across the module's `Functions/` tree (case-insensitive, so `Foo.ps1` and
+`Foo.psm1` collide): a duplicate fails the manifest build the same way.
 A trailing `.ps1`/`.psm1` is refused: the module appends `.ps1` itself, so
 `Get-Foo.ps1` would deploy `Get-Foo.ps1.ps1` exporting a broken function
 name. Dots elsewhere stay legitimate (`Get-Example.v2`).
