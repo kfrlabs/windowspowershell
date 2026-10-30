@@ -33,7 +33,7 @@ jobs:
       - name: Set up Ruby
         uses: ruby/setup-ruby@7f797815d8adceb1c412e7abefdd1ab4abc47a5f # v1.335.0
         with:
-          ruby-version: '3.2'
+          ruby-version: '3.3'
           bundler-cache: true
       - name: puppet parser validate (manifests, types)
         run: bundle exec rake syntax
@@ -65,6 +65,8 @@ jobs:
         include:
           - puppet_version: '~> 8.0'
             ruby: '3.2'
+          - puppet_version: '~> 8.0'
+            ruby: '3.3'
     env:
       PUPPET_GEM_VERSION: ${{ matrix.puppet_version }}
     steps:
@@ -89,7 +91,7 @@ jobs:
       - name: Set up Ruby
         uses: ruby/setup-ruby@7f797815d8adceb1c412e7abefdd1ab4abc47a5f # v1.335.0
         with:
-          ruby-version: '3.2'
+          ruby-version: '3.3'
           bundler-cache: true
       - name: Render the PowerShell the module generates
         run: |
@@ -365,7 +367,7 @@ jobs:
       - name: Set up Ruby
         uses: ruby/setup-ruby@7f797815d8adceb1c412e7abefdd1ab4abc47a5f # v1.335.0
         with:
-          ruby-version: '3.2'
+          ruby-version: '3.3'
           bundler-cache: true
       - name: Install PDK
         # `rake build` (puppetlabs_spec_helper) shells out to the `pdk`
