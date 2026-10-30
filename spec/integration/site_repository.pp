@@ -11,8 +11,10 @@
 #
 # Per-PR gate catalogue: WpsRepoTest only (proven path). The bracketed
 # variant lives in site_repository_brackets.pp and runs on the weekly
-# schedule with -IncludeBrackets (issue #112, Gap 2 review: the bracket
-# publish path has zero Windows evidence yet and must not break the PR gate).
+# schedule with -IncludeBrackets (issue #132): the repository backend
+# refuses wildcard names at compile time (PowerShellGet cannot address
+# them), so the brackets job asserts the loud refusal instead of an
+# install. Bracketed modules stay supported through the source backend.
 class { 'windowspowershell':
   module_root => 'C:\Program Files\WindowsPowerShell\Modules',
 }

@@ -55,8 +55,13 @@ function Invoke-PuppetApply([string] $Label, [string] $ApplySite = $Site) {
     Write-Host "--- $Label : puppet apply $ApplySite"
     $envArgs = @()
     if ($Environment -ne '') { $envArgs = @('--environment', $Environment) }
+    # Puppet failures are data, not script bugs: relax the preference for the
+    # call only (see Test-RepositoryBackend.ps1), so the exit code decides.
+    $oldEAP = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
     $output = & puppet apply --detailed-exitcodes @envArgs --modulepath $Modulepath --verbose $ApplySite 2>&1
     $code = $LASTEXITCODE
+    $ErrorActionPreference = $oldEAP
     $output | ForEach-Object { Write-Host $_ }
     Write-Host ("exit code: {0}" -f $code)
     $code
@@ -72,27 +77,50 @@ if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
     throw 'git is not on PATH (needed to check out the previous tag).'
 }
 
+$oldEAP0 = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
 $RepoRoot = (git rev-parse --show-toplevel 2>&1 | Select-Object -First 1).Trim()
+$ErrorActionPreference = $oldEAP0
 if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $RepoRoot)) {
     throw 'Not inside a git repository (git rev-parse --show-toplevel failed).'
 }
 Write-Host ("Repository root: {0}" -f $RepoRoot)
 if ([string]::IsNullOrWhiteSpace($PreviousTag)) {
+    # Dispatch checkouts may lack tags: fetch best-effort so auto-derive sees them.
+    # Offline lab clones must still work, so a failed fetch never fails this script.
+    # Native stderr throws NativeCommandError under 'Stop', so relax the
+    # preference for these calls (same pattern as Invoke-PuppetApply in
+    # Test-RepositoryBackend.ps1) and gate on LASTEXITCODE instead.
+    $oldEAP = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    $fetchOut = git -C $RepoRoot fetch --tags origin 2>&1
+    $fetchOut | ForEach-Object { Write-Host $_ }
     # Lightweight robust fix for the hardcoded-tag drift (issue #112 review):
     # pick the newest v* tag at run time. Needs full history + tags
     # (ci.yml uses fetch-depth: 0 with fetch-tags: true; lab clones need
     # `git fetch --tags origin`).
     $tags = @(git -C $RepoRoot tag --list 'v*' --sort=-v:refname 2>&1)
-    if ($LASTEXITCODE -ne 0 -or $tags.Count -eq 0 -or [string]::IsNullOrWhiteSpace($tags[0])) {
-        throw "No v* tags found. Fetch tags first (git fetch --tags origin)."
+    # Newest-first: keep the first listed tag that rev-parse can verify.
+    $PreviousTag = ''
+    foreach ($candidate in $tags) {
+        $name = "$candidate".Trim()
+        if ([string]::IsNullOrWhiteSpace($name)) { continue }
+        git -C $RepoRoot rev-parse --verify "refs/tags/$name" 2>&1 | Out-Null
+        if ($LASTEXITCODE -eq 0) { $PreviousTag = $name; break }
     }
-    $PreviousTag = $tags[0].Trim()
+    $ErrorActionPreference = $oldEAP
+    if ([string]::IsNullOrWhiteSpace($PreviousTag)) {
+        throw "No verifiable v* tag found (listed $($tags.Count)). Fetch tags first (git fetch --tags origin)."
+    }
     Write-Host ("Auto-derived previous tag: {0}" -f $PreviousTag)
 }
-$tagRef = (git rev-parse --verify "refs/tags/$PreviousTag" 2>&1 | Select-Object -First 1)
-if ($LASTEXITCODE -ne 0) {
-    throw "Previous tag '$PreviousTag' not found. Fetch tags first (git fetch --tags origin)."
-}
+# Display-only resolve: the loop above already verified the tag. A failed
+# resolve never throws here; the `git archive` below is the real gate and
+# reports git's own error (avoids double-resolution races, issue #132).
+$oldEAP3 = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
+$tagRef = (git -C $RepoRoot rev-parse --verify "refs/tags/$PreviousTag" 2>&1 | Select-Object -First 1).Trim()
+$ErrorActionPreference = $oldEAP3
 Write-Host ("Previous tag: {0} ({1})" -f $PreviousTag, $tagRef)
 
 $staged = Join-Path $Modulepath 'windowspowershell'
@@ -101,12 +129,29 @@ if (-not (Test-Path -LiteralPath $staged)) {
 }
 
 $prevWorktree = Join-Path $env:TEMP 'wps-prev-tag'
+$prevZip = Join-Path $env:TEMP 'wps-prev-tag.zip'
 try {
     # Check out the previous tag next to this checkout, then swap the staged
     # copy: the agent under test always sees a plain modulepath entry.
-    git worktree remove --force $prevWorktree 2>$null
-    git -C $RepoRoot worktree add --detach $prevWorktree $PreviousTag 2>&1 | ForEach-Object { Write-Host $_ }
-    if ($LASTEXITCODE -ne 0) { throw "git worktree add $PreviousTag failed." }
+    # A plain directory from `git archive` (not a linked worktree): `worktree
+    # add` refuses to reuse a path from a previous failed run ("is not a
+    # working tree") and needs worktree metadata the test never uses.
+    # Prune stale metadata and remove leftovers first.
+    git -C $RepoRoot worktree prune 2>$null
+    if (Test-Path -LiteralPath $prevWorktree) { Remove-Item -Recurse -Force -LiteralPath $prevWorktree }
+    if (Test-Path -LiteralPath $prevZip) { Remove-Item -Force -LiteralPath $prevZip }
+    # Native stderr throws NativeCommandError under 'Stop' (see above), so
+    # relax the preference for the archive call and gate on LASTEXITCODE.
+    # No PowerShell pipeline between git and Expand-Archive: the archive is
+    # binary and a PowerShell pipeline would corrupt it.
+    $oldEAP2 = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    $arcOut = git -C $RepoRoot archive --format=zip --output=$prevZip $PreviousTag 2>&1
+    $arcOut | ForEach-Object { Write-Host $_ }
+    $ErrorActionPreference = $oldEAP2
+    if ($LASTEXITCODE -ne 0) { throw "git archive $PreviousTag failed." }
+    New-Item -ItemType Directory -Path $prevWorktree -Force | Out-Null
+    Expand-Archive -Path $prevZip -DestinationPath $prevWorktree -Force
 
     if (Test-Path -LiteralPath $staged) { Remove-Item -Recurse -Force -LiteralPath $staged }
     Copy-Item -Recurse -Force $prevWorktree $staged
@@ -189,9 +234,11 @@ try {
     Assert-True ($profileText -match 'WpsInt\.psd1') 'upgrade: WpsInt import line present'
 }
 finally {
-    # The worktree metadata lives in this checkout: always remove it. The
-    # staged copy keeps whichever tree the last completed step put there.
-    git -C $RepoRoot worktree remove --force $prevWorktree 2>$null
+    # Plain-directory cleanup to match the `git archive` extraction above: no
+    # worktree metadata is ever registered. The staged copy keeps whichever
+    # tree the last completed step put there.
+    try { if (Test-Path -LiteralPath $prevWorktree) { Remove-Item -Recurse -Force -LiteralPath $prevWorktree } } catch {}
+    try { if (Test-Path -LiteralPath $prevZip) { Remove-Item -Force -LiteralPath $prevZip } } catch {}
 }
 
 if ($failed -gt 0) { Write-Host "FAILED: $failed check(s)"; exit 1 }

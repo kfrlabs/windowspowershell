@@ -46,8 +46,15 @@ function Invoke-PuppetApply([string] $Label) {
     Write-Host "--- $Label : puppet apply $Site"
     $envArgs = @()
     if ($Environment -ne '') { $envArgs = @('--environment', $Environment) }
+    # Puppet failures are data, not script bugs: a failing catalogue writes
+    # to stderr, which would throw NativeCommandError under 'Stop' before the
+    # exit code is even read. Relax the preference for the call only, so the
+    # exit code decides the asserts below.
+    $oldEAP = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
     $output = & puppet apply --detailed-exitcodes @envArgs --modulepath $Modulepath --verbose $Site 2>&1
     $code = $LASTEXITCODE
+    $ErrorActionPreference = $oldEAP
     $output | ForEach-Object { Write-Host $_ }
     Write-Host ("exit code: {0}" -f $code)
     $code

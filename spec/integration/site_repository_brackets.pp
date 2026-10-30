@@ -1,16 +1,17 @@
 # Bracketed repository-backend catalogue for the weekly schedule
-# (issue #112, Gap 2).
+# (issue #112, Gap 2; decided in issue #132).
 #
 # Applied by tools/Test-RepositoryBackend.ps1 -IncludeBrackets, which publishes
-# both fixture modules into the local `WpsLocal` file repository: the proven
-# `WpsRepoTest 1.0.0` plus the literal `Bracket[Beta] 1.0.0` that proves the
-# wildcard-escaped install path converges for real (the Gallery has no
-# bracketed names, so only a file repo can cover it). The install check only
-# requires the .psd1 to exist for wildcard names (see
-# templates/check_psmodule.ps1.epp), which still repairs an empty folder.
-# Kept out of the per-PR gate until the first Windows green run: the bracket
-# publish path (Publish-Module with bracketed filenames) has zero Windows
-# evidence yet.
+# a literal `Bracket[Beta] 1.0.0` fixture into the local `WpsLocal` file
+# repository (proving the hand-packed nupkg serves and enumerates) and then
+# asserts this catalogue FAILS TO COMPILE with the wildcard refusal: the
+# repository backend cannot install wildcard names (PowerShellGet cannot
+# address them, so installing would silently do nothing and reinstall on
+# every run). Bracketed modules stay supported through the `source` backend
+# and in-house modules, whose file operations use literal paths.
+# Kept out of the per-PR gate: the brackets-free catalogue
+# (`site_repository.pp`) converges per-PR while the refusal is proven on the
+# weekly schedule.
 class { 'windowspowershell':
   module_root => 'C:\Program Files\WindowsPowerShell\Modules',
 }

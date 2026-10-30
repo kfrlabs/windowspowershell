@@ -46,14 +46,20 @@ describe 'windowspowershell', type: :class do
       windowspowershell::external_module { 'ShortPin': ensure => '2', repository => 'PSGallery' }
       windowspowershell::external_module { 'FourPartPin': ensure => '2.2.1.5', repository => 'PSGallery' }
       windowspowershell::external_module { 'Latest': ensure => present, repository => 'PSGallery' }
-      windowspowershell::external_module { 'Bracket[Beta]': ensure => '1.0.0', repository => 'PSGallery' }
       windowspowershell::external_module { 'Gone': ensure => absent }
     PUPPET
+    # Bracketed names stay supported through the file-copy backend (issue
+    # #132): the repository backend refuses wildcard names at compile time
+    # because PowerShellGet cannot address them.
     'external_from_source' => <<~PUPPET,
       windowspowershell::external_module { 'Copied':
         ensure            => '3.0.1',
         source            => 'puppet:///modules/profile/copied',
         import_in_profile => false,
+      }
+      windowspowershell::external_module { 'Bracket[Beta]':
+        ensure => '1.0.0',
+        source => 'puppet:///modules/profile/bracket',
       }
     PUPPET
     'proxy' => <<~PUPPET,

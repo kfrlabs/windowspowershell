@@ -221,9 +221,12 @@ jobs:
           ./tools/Test-RepositoryBackend.ps1 -Site spec/integration/site_repository.pp -Modulepath 'C:\wps-int\modules'
 
   integration_repository_brackets_windows:
-    # Issue #112, Gap 2 review: the bracketed publish path has zero Windows
-    # evidence yet, so it stays out of the per-PR gate (and the `tests`
-    # aggregator and release gate) until the first green run. Weekly + manual dispatch only.
+    # Issue #132 decision: the repository backend refuses wildcard names at
+    # compile time (PowerShellGet cannot address them), so this job asserts
+    # the loud refusal instead of an install. It stays out of the per-PR gate
+    # (and the `tests` aggregator and release gate): brackets stay supported
+    # through the source backend, and there is no converging repository
+    # install to promote. Weekly + manual dispatch only.
     name: 'Puppet apply (repository backend, brackets) on ${{ matrix.os }}'
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     needs: powershell_windows
