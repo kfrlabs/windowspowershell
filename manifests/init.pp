@@ -100,6 +100,19 @@
 #   compiles without ACL resources): restrict those by hand. Pre-existing
 #   content under the root keeps its old entries until recreated; content
 #   deployed after the first hardened run inherits the two entries.
+# @param path_length_policy
+#   What to do when a `windowspowershell::module` or
+#   `windowspowershell::script` with `ensure => present` manages a path
+#   longer than 259 characters (Windows `MAX_PATH`, terminating NUL
+#   included) on a node without long-path support, i.e. where the
+#   `long_paths_enabled` fact is `false` or missing (issue #137).
+#   `warn` (the default) logs a compile-time warning, `fail` fails
+#   compilation instead, and `ignore` stays silent. On a node with
+#   long-path support (fact is `true`) over-limit paths are legitimate and
+#   nothing is logged, whatever this is set to. `ensure => absent`
+#   resources are exempt. The fact is delivered by pluginsync, so the
+#   first run after enabling it may still warn or fail before the agent
+#   has the fact.
 #
 # @example Build an in-house module and deploy a script into it
 #   include windowspowershell
@@ -139,6 +152,7 @@ class windowspowershell (
         password => Sensitive[String[1]],
   }]] $proxy_credential = undef,
   Boolean $manage_module_root_acl = false,
+  Enum['warn', 'fail', 'ignore'] $path_length_policy = 'warn',
 ) {
   # Whether this node gets any resources at all. Read by
   # windowspowershell::script, windowspowershell::module and

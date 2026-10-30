@@ -26,6 +26,10 @@ such as the PowerShell Gallery or by copying files from a Puppet source.
 * [`windowspowershell::module`](#windowspowershell--module): Builds a custom per-node PowerShell module dynamically from Puppet sources.
 * [`windowspowershell::script`](#windowspowershell--script): Deploys a PowerShell script as a function of an in-house module.
 
+### Functions
+
+* [`windowspowershell::check_path_length`](#windowspowershell--check_path_length): Applies the path-length policy to an over-limit managed path.
+
 ### Data types
 
 * [`Windowspowershell::Externalmoduleensure`](#Windowspowershell--Externalmoduleensure): Desired state of an external PowerShell module, mirroring the `package` type: a literal version pins that exact version, `present` accepts an
@@ -104,6 +108,7 @@ The following parameters are available in the `windowspowershell` class:
 * [`proxy`](#-windowspowershell--proxy)
 * [`proxy_credential`](#-windowspowershell--proxy_credential)
 * [`manage_module_root_acl`](#-windowspowershell--manage_module_root_acl)
+* [`path_length_policy`](#-windowspowershell--path_length_policy)
 
 ##### <a name="-windowspowershell--module_root"></a>`module_root`
 
@@ -235,6 +240,25 @@ content under the root keeps its old entries until recreated; content
 deployed after the first hardened run inherits the two entries.
 
 Default value: `false`
+
+##### <a name="-windowspowershell--path_length_policy"></a>`path_length_policy`
+
+Data type: `Enum['warn', 'fail', 'ignore']`
+
+What to do when a `windowspowershell::module` or
+`windowspowershell::script` with `ensure => present` manages a path
+longer than 259 characters (Windows `MAX_PATH`, terminating NUL
+included) on a node without long-path support, i.e. where the
+`long_paths_enabled` fact is `false` or missing (issue #137).
+`warn` (the default) logs a compile-time warning, `fail` fails
+compilation instead, and `ignore` stays silent. On a node with
+long-path support (fact is `true`) over-limit paths are legitimate and
+nothing is logged, whatever this is set to. `ensure => absent`
+resources are exempt. The fact is delivered by pluginsync, so the
+first run after enabling it may still warn or fail before the agent
+has the fact.
+
+Default value: `'warn'`
 
 ## Defined types
 
@@ -454,10 +478,11 @@ violation fails the manifest build and leaves the `.psd1` untouched
 
 On nodes without long-path support the paths this resource manages must stay
 under 260 characters (Windows `MAX_PATH`, terminating NUL included). With
-`ensure => present`, a longer one logs a compile-time warning (not a
-failure: a node may have long paths enabled, which the compiler cannot see)
-naming `module_root`, the module name and `version`. Scripts under
-`Functions` add their own length, and files deployed in bulk through
+`ensure => present`, a longer one applies the `path_length_policy` class
+parameter (`warn` by default, `fail` to fail compilation, `ignore` to stay
+silent), unless the node reports long paths enabled (the
+`long_paths_enabled` fact is `true`), which silences the check. Scripts
+under `Functions` add their own length, and files deployed in bulk through
 `source` are not checked.
 
 #### Examples
@@ -622,9 +647,10 @@ on the next PowerShell session. Removing it is the same resource with
 On nodes without long-path support the script path
 (`<module_root>\<module>\<version>\Functions\<folder>\<script>.ps1`) must stay
 under 260 characters (Windows `MAX_PATH`, terminating NUL included). With
-`ensure => present`, a longer path logs a compile-time warning (not a
-failure: a node may have long paths enabled, which the compiler cannot see)
-naming `module_root`, the module, its version, `folder` and `scriptname`.
+`ensure => present`, a longer path applies the `path_length_policy` class
+parameter (`warn` by default, `fail` to fail compilation, `ignore` to stay
+silent), unless the node reports long paths enabled (the
+`long_paths_enabled` fact is `true`), which silences the check.
 
 #### Examples
 
@@ -740,6 +766,38 @@ prefixes U+FEFF whenever content is given and has no BOM yet; `never`
 leaves the content untouched. Content read from `source` is never altered.
 
 Default value: `'auto'`
+
+## Functions
+
+### <a name="windowspowershell--check_path_length"></a>`windowspowershell::check_path_length`
+
+Type: Puppet Language
+
+Called by `windowspowershell::module` and `windowspowershell::script` when
+a managed path exceeds the 259-character Windows `MAX_PATH` limit. On a
+node with long-path support (the `long_paths_enabled` fact is `true`) the
+message is dropped: the path is legitimate there. Otherwise the
+`windowspowershell::path_length_policy` class parameter decides: `fail`
+fails compilation with the message, `ignore` drops it, and `warn` (the
+default) logs it as a compile-time warning.
+
+#### `windowspowershell::check_path_length(String[1] $message)`
+
+Called by `windowspowershell::module` and `windowspowershell::script` when
+a managed path exceeds the 259-character Windows `MAX_PATH` limit. On a
+node with long-path support (the `long_paths_enabled` fact is `true`) the
+message is dropped: the path is legitimate there. Otherwise the
+`windowspowershell::path_length_policy` class parameter decides: `fail`
+fails compilation with the message, `ignore` drops it, and `warn` (the
+default) logs it as a compile-time warning.
+
+Returns: `Any`
+
+##### `message`
+
+Data type: `String[1]`
+
+
 
 ## Data types
 

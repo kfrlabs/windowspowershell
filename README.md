@@ -773,19 +773,25 @@ Contributions are welcome via GitHub issues and pull requests.
   `<module_root>\<module>\<version>\.manifest-params` (or the `.psm1` /
   `.psd1`, whichever is longer) and
   `<module_root>\<module>\<version>\Functions\<folder>\<script>.ps1`; past
-  the limit the apply fails with an opaque path error. The compiler logs a
-  **warning** (not a failure) naming the length, `module_root`, module,
-  version, folder and script when a `windowspowershell::module` or
-  `windowspowershell::script` with `ensure => present` crosses it. The
-  warning goes to the Puppet server log, not to the agent report. It is not
-  an error because a node may have long paths enabled
-  (`HKLM\SYSTEM\CurrentControlSet\Control\FileSystem\LongPathsEnabled`
-  set to 1, Windows 10 1607 and later), which the compiler cannot see, so a
-  hard failure would reject a valid setup. Shorten `module_root`, the names
-  or the version, or enable long paths on the node (not every tool there is
-  guaranteed to honor them). Files deployed in bulk through
-  `windowspowershell::module` `source` are not checked: their length
-  depends on the source tree, and each adds to the `Functions` path.
+  the limit the apply fails with an opaque path error. When a
+  `windowspowershell::module` or `windowspowershell::script` with
+  `ensure => present` crosses it, the compiler applies the
+  `path_length_policy` class parameter (issue #137): `warn` (the default)
+  logs a compile-time warning naming the length, `module_root`, module,
+  version, folder and script, `fail` fails compilation with the same
+  message, and `ignore` stays silent. The message goes to the Puppet
+  server log, not to the agent report. On a node with long-path support --
+  the `long_paths_enabled` custom fact shipped by this module reads
+  `HKLM\SYSTEM\CurrentControlSet\Control\FileSystem\LongPathsEnabled`
+  (Windows 10 1607 and later), `true` when set to 1, `false` otherwise --
+  over-limit paths are legitimate and nothing is logged, whatever the
+  policy is. The fact reaches the compiler through pluginsync, so the
+  first run after enabling it may still warn or fail before the agent has
+  the fact. Shorten `module_root`, the names or the version, or enable
+  long paths on the node (not every tool there is guaranteed to honor
+  them). Files deployed in bulk through `windowspowershell::module`
+  `source` are not checked: their length depends on the source tree, and
+  each adds to the `Functions` path.
 - A custom `module_root` is not on `PSModulePath`, so module auto-loading
   is broken there (issue #110): the default root is discovered on first
   use, a custom root is not. Set `import_in_profile => true` with managed
