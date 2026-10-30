@@ -97,11 +97,33 @@ jobs:
         run: |
           bundle exec rake spec_prep
           bundle exec rspec --pattern spec/unit/rendered_powershell_spec.rb
+      - name: Render version-compare helper per pin for Pester (issue #139)
+        # The Pester suite dot-sources one rendering per pinned version.
+        # Rendered here (Linux has the Puppet gem) and shipped to the
+        # Windows legs inside the rendered-powershell artifact below, so no
+        # Ruby/Puppet is needed on the replay hosts. Runs before lint so
+        # both platforms lint the identical file set.
+        run: |
+          mkdir -p .rendered-powershell/version-compare
+          for pin in 2.1 2.3 2 1.999999999; do
+            bundle exec puppet epp render --values "{ version => '$pin' }" templates/_version_compare.ps1.epp > ".rendered-powershell/version-compare/VersionCompare.${pin}.ps1"
+          done
+          ls .rendered-powershell/version-compare
       - name: Parse and lint with PSScriptAnalyzer (PowerShell 7)
         shell: pwsh
         run: |
           ./tools/Install-PSScriptAnalyzer.ps1
           ./tools/Test-RenderedPowerShell.ps1 -Path .rendered-powershell, files, spec/integration/modules/wps_integration/files
+      - name: Version-compare helper unit tests (PowerShell 7)
+        # Issue #139: pure-function Pester suite over the shared
+        # _version_compare.ps1.epp partial (milliseconds per row). Pester is
+        # bootstrapped the same way as PSScriptAnalyzer.
+        shell: pwsh
+        run: |
+          ./tools/Install-PSScriptAnalyzer.ps1 -Name Pester
+          $container = New-PesterContainer -Path tools/tests/VersionCompare.Tests.ps1 -Data @{ RenderedDir = '.rendered-powershell/version-compare' }
+          $result = Invoke-Pester -Container $container -Output Detailed -PassThru
+          if ($result.FailedCount -gt 0 -or $result.FailedBlocksCount -gt 0 -or $result.FailedContainersCount -gt 0) { exit 1 }
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: rendered-powershell
@@ -144,6 +166,26 @@ jobs:
         # scripts are cross-edition clean (see TESTING.md).
         shell: pwsh
         run: ./tools/Test-WindowsRuntime.ps1 -RenderedPath .rendered-powershell/runtime -Shell pwsh
+      - name: Version-compare helper unit tests (Windows PowerShell 5.1)
+        # Issue #139: same pure-function suite as the Linux powershell job,
+        # replayed through the provider's own host (5.1, primary leg). The
+        # per-pin renderings travel inside the downloaded
+        # rendered-powershell artifact, so no Ruby/Puppet is needed here.
+        shell: powershell
+        run: |
+          ./tools/Install-PSScriptAnalyzer.ps1 -Name Pester
+          $container = New-PesterContainer -Path tools/tests/VersionCompare.Tests.ps1 -Data @{ RenderedDir = '.rendered-powershell/version-compare' }
+          $result = Invoke-Pester -Container $container -Output Detailed -PassThru
+          if ($result.FailedCount -gt 0 -or $result.FailedBlocksCount -gt 0 -or $result.FailedContainersCount -gt 0) { exit 1 }
+      - name: Version-compare helper unit tests (PowerShell 7)
+        # Issue #139: same suite through pwsh (shared-subset leg, mirroring
+        # the Test-WindowsRuntime -Shell pwsh leg above).
+        shell: pwsh
+        run: |
+          ./tools/Install-PSScriptAnalyzer.ps1 -Name Pester
+          $container = New-PesterContainer -Path tools/tests/VersionCompare.Tests.ps1 -Data @{ RenderedDir = '.rendered-powershell/version-compare' }
+          $result = Invoke-Pester -Container $container -Output Detailed -PassThru
+          if ($result.FailedCount -gt 0 -or $result.FailedBlocksCount -gt 0 -or $result.FailedContainersCount -gt 0) { exit 1 }
 
   integration_windows:
     name: 'Puppet apply on ${{ matrix.os }}'

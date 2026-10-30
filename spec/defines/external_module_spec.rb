@@ -16,6 +16,19 @@ describe 'windowspowershell::external_module' do
     catalogue.resource('Exec', title)[:unless]
   end
 
+  # Version comparison lives in the shared _version_compare.ps1.epp partial
+  # (issue #52); its numeric behaviour is covered by
+  # tools/tests/VersionCompare.Tests.ps1 (issue #139). These examples only
+  # assert the wiring: the Exec is declared, its script attribute is present,
+  # and it calls the shared helper by name (one smoke regex per helper).
+  shared_examples 'a pinned version check' do |exec_title, attribute, helper|
+    it "wires #{helper} into #{exec_title} (#{attribute})" do
+      script = catalogue.resource('Exec', exec_title)[attribute]
+      expect(script).not_to be_nil
+      expect(script.to_s).to match(%r{#{helper}})
+    end
+  end
+
   on_supported_os.each do |os, os_facts|
     context "on #{os}" do
       let(:facts) { os_facts }
@@ -70,14 +83,9 @@ describe 'windowspowershell::external_module' do
           expect(unless_of('windowspowershell install ExampleModule')).to match(%r{Where-Object \{ Test-ModuleHealthy})
         end
 
-        it 'treats a normalised folder as the pinned version' do
-          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{function Test-PinnedVersionMatch})
-          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$dirAs = Get-NormalizedVersion \$DirName})
-          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$dirAs\.Major -eq \$pinnedAs\.Major})
-          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$dirBuild -eq \$pinnedBuild})
-          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$dirRevision -eq \$pinnedRevision})
-          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{Where-Object \{ Test-PinnedVersionMatch})
-        end
+        # Numeric behaviour (2.1 vs 2.1.0, 2.1 and 2.10.0) is covered by
+        # tools/tests/VersionCompare.Tests.ps1 (issue #139).
+        it_behaves_like 'a pinned version check', 'windowspowershell install ExampleModule', :unless, 'Test-PinnedVersionMatch'
 
         it 'purges the other versions after installing' do
           is_expected.to contain_exec('windowspowershell purge other versions of ExampleModule').
@@ -116,18 +124,16 @@ describe 'windowspowershell::external_module' do
           it { is_expected.to compile.with_all_deps }
 
           it 'normalises the pin before casting so folder 2.0 counts as installed' do
-            expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$pinned = '2'})
-            expect(unless_of('windowspowershell install ExampleModule')).to match(%r{function Get-NormalizedVersion})
-            expect(unless_of('windowspowershell install ExampleModule')).to match(%r{-match '\^\\d\+\$'})
-            expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\+ '\.0'})
-            expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$pinnedAs = Get-NormalizedVersion \$pinned})
+            # Single-component normalisation (2 vs 2.0) is covered by
+            # tools/tests/VersionCompare.Tests.ps1 (issue #139).
+            is_expected.to contain_exec('windowspowershell install ExampleModule').
+              with_unless(%r{\$pinned = '2'}).
+              with_unless(%r{Test-PinnedVersionMatch})
           end
 
-          it 'normalises the pin before casting so folder 2.0 is kept by the purge' do
-            expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{function Get-NormalizedVersion})
-            expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$pinnedAs = Get-NormalizedVersion \$pinned})
-            expect(unless_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$pinnedAs = Get-NormalizedVersion \$pinned})
-          end
+          it_behaves_like 'a pinned version check', 'windowspowershell purge other versions of ExampleModule', :command, 'Test-IsExtraVersion'
+
+          it_behaves_like 'a pinned version check', 'windowspowershell purge other versions of ExampleModule', :unless, 'Test-IsExtraVersion'
         end
 
         # Behaviour table, negative row: pin 2.2 against folder 2.2.1.5. All
@@ -141,34 +147,27 @@ describe 'windowspowershell::external_module' do
           it { is_expected.to compile.with_all_deps }
 
           it 'compares build and revision numerically, so 2.2.1.5 counts as different from 2.2' do
-            expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$pinned = '2\.2'})
-            expect(unless_of('windowspowershell install ExampleModule')).to match(%r{Test-PinnedVersionMatch})
-            expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$dirBuild -eq \$pinnedBuild})
-            expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$dirRevision -eq \$pinnedRevision})
-            expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$pinned = '2\.2'})
-            expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{Test-IsExtraVersion})
-            expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$dirBuild -eq \$pinnedBuild})
-            expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$dirRevision -eq \$pinnedRevision})
-            expect(unless_of('windowspowershell purge other versions of ExampleModule')).to match(%r{Test-IsExtraVersion})
-            expect(unless_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$dirBuild -eq \$pinnedBuild})
-            expect(unless_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$dirRevision -eq \$pinnedRevision})
+            # Behaviour table (2.2 vs 2.2.1.5) is covered by
+            # tools/tests/VersionCompare.Tests.ps1 (issue #139).
+            is_expected.to contain_exec('windowspowershell install ExampleModule').
+              with_unless(%r{\$pinned = '2\.2'}).
+              with_unless(%r{Test-PinnedVersionMatch})
+            is_expected.to contain_exec('windowspowershell purge other versions of ExampleModule').
+              with_command(%r{\$pinned = '2\.2'}).
+              with_command(%r{Test-IsExtraVersion}).
+              with_unless(%r{Test-IsExtraVersion}).
+              that_requires('Exec[windowspowershell install ExampleModule]')
           end
         end
 
-        it 'keeps a non-version directory instead of purging it' do
-          expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{function Test-IsExtraVersion})
-          expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{if \(\$null -eq \$dirAs\) \{ return \$false \}})
-        end
+        # Unparseable folders are kept (never purged): the behaviour is
+        # covered by tools/tests/VersionCompare.Tests.ps1 (issue #139).
+        # (The install Exec smoke check lives once above with the pinned
+        # version context; repeated here it would trip
+        # RSpec/RepeatedIncludeExample.)
+        it_behaves_like 'a pinned version check', 'windowspowershell purge other versions of ExampleModule', :command, 'Test-IsExtraVersion'
 
-        it 'keeps a non-version directory in the install check' do
-          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{function Test-PinnedVersionMatch})
-          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{if \(\$null -eq \$dirAs\) \{ return \$false \}})
-        end
-
-        it 'keeps a non-version directory in the purge check' do
-          expect(unless_of('windowspowershell purge other versions of ExampleModule')).to match(%r{function Test-IsExtraVersion})
-          expect(unless_of('windowspowershell purge other versions of ExampleModule')).to match(%r{if \(\$null -eq \$dirAs\) \{ return \$false \}})
-        end
+        it_behaves_like 'a pinned version check', 'windowspowershell purge other versions of ExampleModule', :unless, 'Test-IsExtraVersion'
 
         it 'declares no file resource for a repository-backed module' do
           is_expected.not_to contain_file("#{modules}\\ExampleModule")
@@ -432,15 +431,13 @@ describe 'windowspowershell::external_module' do
         end
 
         it 'keeps the literal 4-segment folder and compares versions numerically' do
-          expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$pinned = '2\.2\.1\.5'})
-          expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{Test-IsExtraVersion})
-          expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{Get-NormalizedVersion})
-          expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$dirBuild -eq \$pinnedBuild})
-          expect(command_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$dirRevision -eq \$pinnedRevision})
-          expect(unless_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$pinned = '2\.2\.1\.5'})
-          expect(unless_of('windowspowershell purge other versions of ExampleModule')).to match(%r{Test-IsExtraVersion})
-          expect(unless_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$dirBuild -eq \$pinnedBuild})
-          expect(unless_of('windowspowershell purge other versions of ExampleModule')).to match(%r{\$dirRevision -eq \$pinnedRevision})
+          # Numeric comparison (2.2.1.5) is covered by
+          # tools/tests/VersionCompare.Tests.ps1 (issue #139).
+          is_expected.to contain_exec('windowspowershell purge other versions of ExampleModule').
+            with_command(%r{\$pinned = '2\.2\.1\.5'}).
+            with_command(%r{Test-IsExtraVersion}).
+            with_unless(%r{\$pinned = '2\.2\.1\.5'}).
+            with_unless(%r{Test-IsExtraVersion})
         end
       end
 

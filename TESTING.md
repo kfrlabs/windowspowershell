@@ -8,6 +8,7 @@ two run on the weekly schedule only, so per-PR jobs stay offline.
 | --- | --- | --- |
 | rspec-puppet | The catalogue compiles, resources and parameters are right | Linux CI (`spec`) |
 | Rendered PowerShell | Every script the module sends to a node parses and passes PSScriptAnalyzer | Linux CI (`powershell`), Windows CI (`powershell_windows`) |
+| Version-compare unit tests | The shared version helpers match, normalise and keep the right folders on both editions | Linux CI (`powershell`), Windows CI (`powershell_windows`, 5.1 and 7) |
 | Runtime smoke test | The rendered scripts actually do what they say on a real Windows node | Windows CI (`powershell_windows`, 5.1 and 7) |
 | Integration test | A real agent applies a catalogue twice; the second run changes nothing | Windows CI (`integration_windows`) |
 | Repository backend test | The `repository` backend installs for real from a local file repo | Windows CI (`integration_repository_windows`) |
@@ -51,6 +52,29 @@ environment (`WPS_PROXY_PASSWORD`), never from the script text. A
 `SuppressMessage` attribute is not an option: the provider wraps the script
 before it reaches PowerShell, so an attribute at the top would not sit before a
 `param` block.
+
+### Version-compare unit tests (issue #139)
+
+`tools/tests/VersionCompare.Tests.ps1` is a Pester 5 suite over the shared
+`templates/_version_compare.ps1.epp` partial: it dot-sources one rendering
+per pin and checks `Test-PinnedVersionMatch` / `Test-IsExtraVersion`
+against a behaviour table (2.1 vs 2.1.0, 2.1, 2.10.0; 2.3 vs 2.3.0;
+single-component, unparseable and nine-digit-component edges). The
+rspec-puppet specs only assert the helpers are wired into the guards; the
+behaviour lives here. CI renders the pins once per pin in the Linux
+`powershell` job (`puppet epp render`, same renderer the module uses),
+ships them to Windows inside the `rendered-powershell` artifact, and runs
+the suite on Linux (pwsh) plus Windows (5.1 and pwsh). For a local run,
+render first, then pass the directory:
+
+```powershell
+mkdir .rendered-powershell/version-compare -Force
+foreach ($pin in '2.1', '2.3', '2', '1.999999999') {
+    bundle exec puppet epp render --values "{ version => '$pin' }" templates/_version_compare.ps1.epp |
+        Set-Content -Path ".rendered-powershell/version-compare/VersionCompare.$pin.ps1" -Encoding utf8
+}
+Invoke-Pester -Container (New-PesterContainer -Path tools/tests/VersionCompare.Tests.ps1 -Data @{ RenderedDir = '.rendered-powershell/version-compare' }) -Output Detailed
+```
 
 ## Runtime smoke test (Windows only)
 

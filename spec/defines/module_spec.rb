@@ -6,6 +6,19 @@ describe 'windowspowershell::module' do
 
   modules = 'C:\Program Files\WindowsPowerShell\Modules'
 
+  # Version comparison lives in the shared _version_compare.ps1.epp partial
+  # (issue #52); its numeric behaviour is covered by
+  # tools/tests/VersionCompare.Tests.ps1 (issue #139). These examples only
+  # assert the wiring: the Exec is declared, its script attribute is present,
+  # and it calls the shared helper by name (one smoke regex per helper).
+  shared_examples 'a pinned version check' do |exec_title, attribute, helper|
+    it "wires #{helper} into #{exec_title} (#{attribute})" do
+      script = catalogue.resource('Exec', exec_title)[attribute]
+      expect(script).not_to be_nil
+      expect(script.to_s).to match(%r{#{helper}})
+    end
+  end
+
   on_supported_os.each do |os, os_facts|
     context "on #{os}" do
       let(:facts) { os_facts }
@@ -212,20 +225,12 @@ describe 'windowspowershell::module' do
         # Numeric equivalence is shared with external_module on purpose: pin
         # 2.3 also keeps a 2.3.0 folder, missing segments counting as zero,
         # while a folder that does not parse as [version] is kept, never
-        # purged. The comparison lives in _version_compare.ps1.epp (issue #52).
-        it 'compares versions numerically, so a 2.3.0 folder counts as the pinned 2.3' do
-          is_expected.to contain_exec('windowspowershell purge other in-house versions of Acme').
-            with_command(%r{function Test-IsExtraVersion}).
-            with_command(%r{\$dirAs\.Major -eq \$pinnedAs\.Major}).
-            with_command(%r{\$dirBuild -eq \$pinnedBuild}).
-            with_command(%r{\$dirRevision -eq \$pinnedRevision}).
-            with_command(%r{if \(\$null -eq \$dirAs\) \{ return \$false \}}).
-            with_unless(%r{Test-IsExtraVersion}).
-            with_unless(%r{\$dirAs\.Major -eq \$pinnedAs\.Major}).
-            with_unless(%r{\$dirBuild -eq \$pinnedBuild}).
-            with_unless(%r{\$dirRevision -eq \$pinnedRevision}).
-            with_unless(%r{if \(\$null -eq \$dirAs\) \{ return \$false \}})
-        end
+        # purged. The comparison lives in _version_compare.ps1.epp (issue #52)
+        # and its behaviour is covered by
+        # tools/tests/VersionCompare.Tests.ps1 (issue #139).
+        it_behaves_like 'a pinned version check', 'windowspowershell purge other in-house versions of Acme', :command, 'Test-IsExtraVersion'
+
+        it_behaves_like 'a pinned version check', 'windowspowershell purge other in-house versions of Acme', :unless, 'Test-IsExtraVersion'
       end
 
       it 'declares the refresh-only unblock-files exec over the module tree' do
