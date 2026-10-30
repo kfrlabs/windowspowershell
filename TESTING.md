@@ -480,3 +480,12 @@ below are the procedure to run, not a report.
    `profile.ps1` hash matches the post-step-3 value -- the files stay as-last-written,
    unmanaged. Clean up by hand-deleting the left-over files or by
    re-managing (`manage_profiles => true`).
+
+`tools/Test-ProfilesUpgrade.ps1` automates the managed-to-implicit proof on
+CI (`integration_windows`, after `Test-PuppetApply.ps1`): it applies
+`spec/integration/site_profiles_managed.pp` twice (exits 2 then 0),
+snapshots the SHA-256 of each managed profile, then applies
+`spec/integration/site_profiles_implicit.pp` twice (exits 0 both, the class
+omits `manage_profiles`). The hashes must stay byte-identical and the
+`WpsProfTest` import line must still be present, proving the files were
+preserved as-last-written, deterministically, rather than rebuilt.

@@ -68,6 +68,34 @@ Checklist when coming from 1.x (details in [CHANGELOG.md](CHANGELOG.md#200---202
 - Roll out in rings: pilot new nodes with the defaults before opting in
   (see [Production rollout](#production-rollout)).
 
+### Upgrading to 3.0
+
+Checklist when coming from 2.x (details in [CHANGELOG.md](CHANGELOG.md#300---2026-10-30)):
+
+- `manage_profiles` still defaults to `false` (since 2.2): sites that relied
+  on the managed profiles must keep opting in explicitly:
+  ```yaml
+  windowspowershell::manage_profiles: true
+  ```
+- File titles use the stripped form (issue #111): a trailing separator in
+  `module_root` no longer appears in managed File titles (e.g.
+  `File[C:\Modules]`, not `File[C:\Modules\]`); co-managing code must use
+  the stripped spelling or `$windowspowershell::normalized_module_root`.
+- Name contract (issue #135, breaking): every `Functions/` script must define
+  a top-level function named after its own base name, and base names must be
+  unique; fix mismatched or duplicated function names or the manifest build
+  fails.
+- Parent guard removed for the default root (issue #136): no behavior
+  change, but co-managing code must not require or order on the removed
+  `Exec[windowspowershell module_root parent exists]` title (it was never
+  in the stability-policy allowlist).
+- Non-ASCII scripts regenerate once (issue #134): scripts holding non-ASCII
+  characters gain a UTF-8 BOM on the first run after the upgrade (with one
+  manifest refresh).
+- Compile-time guards (issues #85, #88): a `repository` backend with a custom
+  `module_root` fails compilation (use the `source` backend there), and the
+  protected system names (`PowerShellGet`, `PackageManagement`) stay refused.
+
 ### In-house modules: `windowspowershell::module`
 
 One resource is one module identity. Every module has to be declared: a

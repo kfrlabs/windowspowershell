@@ -7,6 +7,8 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-10-30
+
 ### Added
 
 - Non-ASCII script content is written with a UTF-8 BOM by default
@@ -49,10 +51,12 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   guard in `windowspowershell::external_module` now reuses instead of its
   own normalization). Default-root runs save one `unless` PowerShell spawn
   per run (~0.6 s); custom roots still fail fast naming `module_root` and
-  the missing parent. README (per-run cost, Troubleshooting) records the
+  the missing parent. Co-managing code that ordered on the guard Exec title
+  must drop that edge (the title was never in the stability-policy
+  allowlist). README (per-run cost, Troubleshooting) records the
   behavior.
 
-- Enforce the `Functions/` file-to-function name contract when building the
+- **Breaking change:** enforce the `Functions/` file-to-function name contract when building the
   manifest (issue #135, step 1): each `Functions/` script must define a
   top-level function named after its own base name, and base names must be
   unique across `Functions/` (case-insensitive, so `Foo.ps1` and `Foo.psm1`

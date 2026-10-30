@@ -2,13 +2,19 @@
 
 ## Supported Versions
 
-Only the latest `2.x` release of `kfrlabs-windowspowershell` is supported
+Only the latest `3.x` release of `kfrlabs-windowspowershell` is supported
 with security updates.
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 2.x     | :white_check_mark: |
-| < 2.0   | :x:                |
+| Version | Supported                        |
+| ------- | ---------------------------------- |
+| 3.x     | :white_check_mark:                 |
+| 2.x     | :white_check_mark: until 2027-01-30 |
+| < 2.0   | :x:                                |
+
+Only the latest major line gets new features; 2.x receives security fixes
+until 2027-01-30, then reaches end of life.
+
+> **Note:** 2.x security fixes continue until 2027-01-30.
 
 ## Reporting a Vulnerability
 
