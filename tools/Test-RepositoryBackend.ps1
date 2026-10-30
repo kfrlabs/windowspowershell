@@ -257,6 +257,10 @@ try {
 } catch {
     Write-Host ("dbg installraw FAILED: {0}" -f $_)
 }
+# Where did anything Bracket-related land? The install exits 0 but the seeded
+# tree stays empty, so look for mangled directory names elsewhere under the
+# AllUsers root (read-only; the '*racket*' pattern itself has no brackets).
+Get-ChildItem -LiteralPath 'C:\Program Files\WindowsPowerShell\Modules' -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like '*racket*' } | ForEach-Object { Write-Host ("dbg bracket dirs: {0}" -f $_.FullName) }
 } # end if ($IncludeBrackets): bracket-only diagnostics
 
 try {
