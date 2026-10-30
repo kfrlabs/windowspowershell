@@ -9,9 +9,11 @@
     Scheduled Task: Register-PSRepository is per-user and a repository
     registered interactively is invisible to the agent), publishes a minimal
     WpsRepoTest 1.0.0 module and, with -IncludeBrackets, a literal
-    Bracket[Beta] 1.0.0 module (the
-    Gallery has no bracketed names, so only a file repo can prove the
-    wildcard-escaped install path — issue #112, Gap 2) into it, then applies
+    Bracket[Beta] 1.0.0 package (the
+    Gallery has no bracketed names, so only a file repo can carry one — and
+    PowerShellGet cannot address wildcard names at all, so the repository
+    backend refuses them at compile time instead of silently reinstalling
+    forever: issue #132) into it, then applies
     the site catalogue passed via -Site twice with `puppet apply
     --detailed-exitcodes`. The first run may change resources (exit 2); the
     second must change nothing (exit 0). A third cycle then proves a partial
@@ -19,7 +21,8 @@
     one behind — issue #112, Gap 5) reinstalls for real. Functional checks
     verify the converged state: Get-InstalledModule, directory layout,
     Import-Module round-trips. Installed versions are uninstalled at the end
-    so the node is left as found.
+    so the node is left as found. With -IncludeBrackets the applies must
+    FAIL instead, with the refusal message, deterministically.
 
     Run from Windows PowerShell 5.1, the host of the `powershell` provider.
     See TESTING.md. On a node enrolled with a non-default environment, pass
@@ -38,13 +41,14 @@ param(
 
     [string] $Environment = '',
 
-    # Issue #112 review (HIGH): the bracketed fixture publish path
-    # (Publish-Module with bracketed filenames, New-ModuleManifest
-    # -RootModule 'Bracket[Beta].psm1') has zero Windows evidence yet.
-    # Keep it out of the per-PR gate: only -IncludeBrackets runs publish,
-    # seed and assert the Bracket[Beta] resource. Per-PR applies the
-    # brackets-free catalogue (WpsRepoTest only) and stays green while the
-    # wildcard path is proven on the weekly schedule.
+    # Issue #132: the repository backend cannot install bracketed names
+    # (PowerShellGet cannot address wildcard names, so the install would
+    # silently do nothing and reinstall on every run). -IncludeBrackets
+    # publishes the bracketed fixture (proving the hand-packed nupkg serves
+    # and enumerates) and then asserts the catalogue refuses it at compile
+    # time with the actionable message. Kept out of the per-PR gate: the
+    # brackets-free catalogue (WpsRepoTest only) converges per-PR while the
+    # refusal is proven on the weekly schedule.
     [switch] $IncludeBrackets
 )
 
@@ -65,6 +69,9 @@ function Invoke-PuppetApply([string] $Label) {
     $code = $LASTEXITCODE
     $output | ForEach-Object { Write-Host $_ }
     Write-Host ("exit code: {0}" -f $code)
+    # Kept for message asserts (e.g. the brackets refusal text): the rendered
+    # lines as plain strings.
+    $script:lastApplyOutput = @($output | ForEach-Object { "$_" })
     $code
 }
 
@@ -95,15 +102,18 @@ Publish-Module -Path $srcRoot -Repository WpsLocal -Force
 Write-Host "Published WpsRepoTest 1.0.0 to $RepoDir"
 Assert-True ((Find-Module -Name WpsRepoTest -Repository WpsLocal).Version -eq '1.0.0') 'local repo serves WpsRepoTest 1.0.0'
 
-# Issue #112, Gap 2: the Gallery has no bracketed names, so only this local
-# repo can prove the wildcard-escaped install path converges for real.
-# Scheduled-only until the first Windows green run (see -IncludeBrackets):
+# Issue #112, Gap 2, decided in issue #132: the Gallery has no bracketed
+# names, so only this local repo can carry a bracketed fixture — but the
+# repository backend refuses wildcard names at compile time (PowerShellGet
+# cannot address them: Install-Module refuses wildcard names, name lookups
+# never match). Scheduled-only: publish the fixture (proving the hand-packed
+# nupkg serves and enumerates) and assert the catalogue refusal below.
 # Publish-Module cannot publish a bracketed manifest: it runs
 # Test-ModuleManifest internally, which rejects the wildcard RootModule
 # 'Bracket[Beta].psm1'. The fixture nupkg is therefore packed by hand with
 # the .NET zip API (same layout Publish-Module would emit, OPC parts
 # included); the nupkg filename keeps the brackets because the provider keys
-# packages on the filename id. The install/apply path under test is unchanged.
+# packages on the filename id.
 if ($IncludeBrackets) {
 $bbStage = Join-Path $env:TEMP 'wpsrepotest\src\BracketStage\1.0.0'
 if (Test-Path $bbStage) { Remove-Item -Recurse -Force $bbStage }
@@ -180,7 +190,13 @@ Assert-True (($null -ne $bbFound) -and ($bbFound.Version -eq '1.0.0')) 'local re
 # Start clean so the first apply really installs.
 try { Uninstall-Module -Name WpsRepoTest -AllVersions -Force -ErrorAction SilentlyContinue } catch {}
 if ($IncludeBrackets) {
+# Nothing was ever installed (the catalogue never compiles), but the seeds
+# and probe trees are this script's litter: sweep them. Uninstall-Module
+# cannot remove the WpsRepoTest seed (a PowerShellGet-unknown empty folder),
+# so remove it literally like the bracketed tree.
 try { Uninstall-Module -Name 'Bracket[Beta]' -AllVersions -Force -ErrorAction SilentlyContinue } catch {}
+try { if (Test-Path -LiteralPath 'C:\Program Files\WindowsPowerShell\Modules\Bracket[Beta]') { Remove-Item -Recurse -Force -LiteralPath 'C:\Program Files\WindowsPowerShell\Modules\Bracket[Beta]' } } catch {}
+try { if (Test-Path -LiteralPath 'C:\Program Files\WindowsPowerShell\Modules\WpsRepoTest') { Remove-Item -Recurse -Force -LiteralPath 'C:\Program Files\WindowsPowerShell\Modules\WpsRepoTest' } } catch {}
 }
 
 # Issue #106: an interrupted install leaves an empty version folder behind,
@@ -201,68 +217,31 @@ try { if (Test-Path -LiteralPath $bbSeedParent) { Remove-Item -Recurse -Force -L
 }
 
 $first = Invoke-PuppetApply 'first run'
-Assert-True (($first -band 1) -eq 0) ("first run succeeded (exit $first)")
-Assert-True ($first -eq 2) ("first run reinstalled the seeded empty folder (exit $first, expected 2)")
-
-$second = Invoke-PuppetApply 'second run'
-Assert-True (($second -band 1) -eq 0) ("second run succeeded (exit $second)")
-Assert-True ($second -eq 0) ("second run changed nothing (exit $second, expected 0)")
-
-# Gap-2 diagnostics (issue #132): the bracketed resource reinstalls every run
-# while the plain one converges. Evaluate each install-check link literally
-# so the log shows which one fails for bracketed names. Bracket-only: the
-# per-PR job has no bracketed fixture, so this block must not run there.
 if ($IncludeBrackets) {
-$bbDbgDir = 'C:\Program Files\WindowsPowerShell\Modules\Bracket[Beta]'
-Write-Host ("dbg bracket dir exists: {0}" -f (Test-Path -LiteralPath $bbDbgDir))
-Get-ChildItem -LiteralPath $bbDbgDir -Directory -ErrorAction SilentlyContinue | ForEach-Object { Write-Host ("dbg bracket child: {0}" -f $_.Name) }
-$bbDbgPsd1 = Join-Path (Join-Path $bbDbgDir '1.0.0') 'Bracket[Beta].psd1'
-Write-Host ("dbg bracket psd1 exists: {0}" -f (Test-Path -LiteralPath $bbDbgPsd1))
-# Full installed tree via .NET (no wildcard layer at all): shows whether
-# Install-Module laid down the psd1/psm1 or left the seeded dir behind.
-[System.IO.Directory]::EnumerateFileSystemEntries($bbDbgDir, '*', [System.IO.SearchOption]::AllDirectories) | ForEach-Object { Write-Host ("dbg bracket tree: {0}" -f $_) }
-# Save-Module probe: Install-Module reports success but lays down no files.
-# Save-Module exercises the same provider download+extract machinery without
-# touching AllUsers, showing whether the failure is in the provider download
-# or in the AllUsers install step.
-$bbSaveDir = Join-Path $env:TEMP 'wpsrepotest\saveprobe'
-if (Test-Path -LiteralPath $bbSaveDir) { Remove-Item -Recurse -Force -LiteralPath $bbSaveDir }
-New-Item -ItemType Directory -Path $bbSaveDir -Force | Out-Null
-try {
-    Save-Module -Name 'Bracket`[Beta`]' -RequiredVersion '1.0.0' -Repository WpsLocal -Path $bbSaveDir -Force
-    Get-ChildItem -LiteralPath $bbSaveDir -Recurse | ForEach-Object { Write-Host ("dbg saveprobe: {0}" -f $_.FullName) }
-} catch {
-    Write-Host ("dbg saveprobe FAILED: {0}" -f $_)
-}
-# Name-matcher matrix (read-only): Find-Package enumeration sees the package,
-# but every -Name lookup fails. Try raw, escaped and wildcard spellings to
-# learn which matcher PackageManagement actually applies to bracketed ids.
-foreach ($bbProbeName in @('Bracket[Beta]', 'Bracket`[Beta`]', 'Bracket*')) {
-    try {
-        $bbProbeFound = Find-Module -Name $bbProbeName -Repository WpsLocal -ErrorAction Stop
-        Write-Host ("dbg findmodule [{0}]: FOUND {1} {2}" -f $bbProbeName, $bbProbeFound.Name, $bbProbeFound.Version)
-    } catch {
-        Write-Host ("dbg findmodule [{0}]: NoMatch" -f $bbProbeName)
-    }
-}
-# Raw-name Install-Module diagnostic: the matrix above shows the escaped name
-# never matches while the raw name does. Install-Module with the escaped name
-# exits 0 but lays down no files, so install the bracketed module by its raw
-# name and list the tree right away.
-try {
-    $bbInstallOut = Install-Module -Name 'Bracket[Beta]' -RequiredVersion '1.0.0' -Repository WpsLocal -Scope AllUsers -Force -AllowClobber -Verbose 4>&1
-    $bbInstallOut | ForEach-Object { Write-Host ("dbg installraw: {0}" -f $_) }
-    Write-Host "dbg installraw: exit ok"
-    Get-ChildItem -LiteralPath $bbDbgDir -Recurse | ForEach-Object { Write-Host ("dbg installraw tree: {0}" -f $_.FullName) }
-} catch {
-    Write-Host ("dbg installraw FAILED: {0}" -f $_)
-}
-# Where did anything Bracket-related land? The install exits 0 but the seeded
-# tree stays empty, so look for mangled directory names elsewhere under the
-# AllUsers root (read-only; the '*racket*' pattern itself has no brackets).
-Get-ChildItem -LiteralPath 'C:\Program Files\WindowsPowerShell\Modules' -Directory -ErrorAction SilentlyContinue | Where-Object { $_.Name -like '*racket*' } | ForEach-Object { Write-Host ("dbg bracket dirs: {0}" -f $_.FullName) }
-} # end if ($IncludeBrackets): bracket-only diagnostics
+    # Repository backend refuses wildcard module names at compile time
+    # (issue #132: PowerShellGet cannot address them, so the install would
+    # silently do nothing and reinstall on every run). The catalogue must
+    # fail with the refusal message and change nothing; a second identical
+    # apply must fail the same way (deterministic, no drift).
+    Assert-True (($first -band 1) -ne 0) ("brackets first run failed as designed (exit $first, expected non-zero)")
+    Assert-True ((($script:lastApplyOutput -join "`n") -match 'cannot install the wildcard module name')) 'brackets refusal names the wildcard contract'
 
+    $second = Invoke-PuppetApply 'second run'
+    Assert-True (($second -band 1) -ne 0) ("brackets second run failed as designed (exit $second, expected non-zero)")
+    Assert-True ((($script:lastApplyOutput -join "`n") -match 'cannot install the wildcard module name')) 'brackets refusal is deterministic'
+} else {
+    Assert-True (($first -band 1) -eq 0) ("first run succeeded (exit $first)")
+    Assert-True ($first -eq 2) ("first run reinstalled the seeded empty folder (exit $first, expected 2)")
+
+    $second = Invoke-PuppetApply 'second run'
+    Assert-True (($second -band 1) -eq 0) ("second run succeeded (exit $second)")
+    Assert-True ($second -eq 0) ("second run changed nothing (exit $second, expected 0)")
+}
+
+# The install-converges path below only runs brackets-free: with
+# -IncludeBrackets the catalogue never compiles (refusal asserted above),
+# so no module is installed and there is nothing to verify or purge.
+if (-not $IncludeBrackets) {
 try {
     $installed = Get-InstalledModule -Name WpsRepoTest -AllVersions -ErrorAction Stop
     Assert-True (($installed.Version -join ',') -eq '1.0.0') 'repository: pinned 1.0.0 installed'
@@ -271,20 +250,6 @@ try {
     Import-Module WpsRepoTest -Force -ErrorAction Stop
     Assert-True ((Get-WpsRepoTest) -eq 'repo-ok') 'repository: imported module runs'
     Remove-Module WpsRepoTest -Force -ErrorAction SilentlyContinue
-
-    if ($IncludeBrackets) {
-    # PackageManagement compares -Name literally (no backtick unescaping):
-    # the escaped spelling never matches while the raw name does (see the
-    # dbg findmodule matrix above). Remove-Module is session-local and
-    # PowerShell-native, so it keeps the backtick escaping.
-    $bbInstalled = Get-InstalledModule -Name 'Bracket[Beta]' -AllVersions -ErrorAction Stop
-    Assert-True (($bbInstalled.Version -join ',') -eq '1.0.0') 'repository: pinned bracketed 1.0.0 installed'
-    $bbDir = 'C:\Program Files\WindowsPowerShell\Modules\Bracket[Beta]\1.0.0'
-    Assert-True (Test-Path -LiteralPath (Join-Path $bbDir 'Bracket[Beta].psm1')) 'repository: bracketed module files under AllUsers scope'
-    Import-Module -FullyQualifiedName @{ ModuleName = 'Bracket[Beta]'; ModuleVersion = '1.0.0' } -Force -ErrorAction Stop
-    Assert-True ((Get-BracketBeta) -eq 'bracket') 'repository: bracketed module imports and runs'
-    Remove-Module -Name 'Bracket`[Beta`]' -Force -ErrorAction SilentlyContinue
-    }
 }
 catch {
     Write-Host ("FAIL exception: {0}" -f $_)
@@ -311,13 +276,21 @@ $fourth = Invoke-PuppetApply 'fourth run'
 Assert-True (($fourth -band 1) -eq 0) ("fourth run succeeded (exit $fourth)")
 Assert-True ($fourth -eq 0) ("fourth run changed nothing (exit $fourth, expected 0)")
 Assert-True (Test-Path -LiteralPath (Join-Path $repoModDir 'WpsRepoTest.psd1')) 'repository: manifest restored after the partial reinstall'
+} # end if (-not $IncludeBrackets): install-converges path is brackets-free only
 
 # Leave the node as found: uninstall what the catalogue installed, drop the
 # test repository registration and remove the staging trees. The converged
-# state was already asserted above.
+# state was already asserted above. Bracketed runs never install (compile
+# refusal), so only the seeded probe trees need sweeping there.
 try { Uninstall-Module -Name WpsRepoTest -AllVersions -Force -ErrorAction SilentlyContinue } catch {}
 if ($IncludeBrackets) {
+# Nothing was ever installed (the catalogue never compiles), but the seeds
+# and probe trees are this script's litter: sweep them. Uninstall-Module
+# cannot remove the WpsRepoTest seed (a PowerShellGet-unknown empty folder),
+# so remove it literally like the bracketed tree.
 try { Uninstall-Module -Name 'Bracket[Beta]' -AllVersions -Force -ErrorAction SilentlyContinue } catch {}
+try { if (Test-Path -LiteralPath 'C:\Program Files\WindowsPowerShell\Modules\Bracket[Beta]') { Remove-Item -Recurse -Force -LiteralPath 'C:\Program Files\WindowsPowerShell\Modules\Bracket[Beta]' } } catch {}
+try { if (Test-Path -LiteralPath 'C:\Program Files\WindowsPowerShell\Modules\WpsRepoTest') { Remove-Item -Recurse -Force -LiteralPath 'C:\Program Files\WindowsPowerShell\Modules\WpsRepoTest' } } catch {}
 }
 try { Unregister-PSRepository -Name WpsLocal -ErrorAction SilentlyContinue } catch {}
 try { if (Test-Path -LiteralPath $RepoDir) { Remove-Item -Recurse -Force -LiteralPath $RepoDir } } catch {}

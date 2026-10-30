@@ -161,19 +161,21 @@ round-trip. The installed versions are uninstalled, the `WpsLocal`
 registration dropped and the staging trees removed at the end, so the node is
 left as found.
 
-The same catalogue also installs a literal `Bracket[Beta] 1.0.0` module from
-the same file repository on the weekly schedule only (issue #112, Gap 2):
-`spec/integration/site_repository_brackets.pp` (both modules) with
-`Test-RepositoryBackend.ps1 -IncludeBrackets`. The Gallery has no bracketed
-names, so only a file repo can prove the wildcard-escaped install path
-converges for real. The fixture is published from a bracket-free staging
-directory (`New-ModuleManifest -Path` rejects brackets and `Publish-Module
--Path` is a wildcard path); the install check only requires the `.psd1` to
-exist for wildcard names (see `templates/check_psmodule.ps1.epp`), which
-still repairs the seeded empty folder. Per-PR applies the brackets-free
-`site_repository.pp` (WpsRepoTest only): the bracket publish path has zero
-Windows evidence yet and stays out of the PR gate until the first scheduled
-green run.
+The same script also publishes a literal `Bracket[Beta] 1.0.0` package into
+the same file repository on the weekly schedule only (issue #112, Gap 2,
+decided in issue #132): `spec/integration/site_repository_brackets.pp`
+(both modules) with `Test-RepositoryBackend.ps1 -IncludeBrackets`. The
+Gallery has no bracketed names, so only a file repo can carry one — but
+PowerShellGet cannot address wildcard names (`Install-Module` with a
+bracketed name is refused as a wildcard; name lookups never match, escaped
+or not), so the install would silently do nothing and reinstall on every
+run. The catalogue therefore refuses bracketed repository modules at
+compile time with an actionable message (use the `source` backend instead),
+and the brackets run asserts that refusal is loud and deterministic. The
+fixture is hand-packed into a nupkg (the .NET zip API inside a bracket-free
+staging directory: `Publish-Module` runs `Test-ModuleManifest` internally,
+which rejects the wildcard `RootModule`). Per-PR applies the brackets-free
+`site_repository.pp` (WpsRepoTest only).
 
 Two findings from the first SYSTEM run are now enforced or documented:
 
@@ -280,7 +282,7 @@ Each gap below gets a test, or a documented reason it cannot be tested:
 | Gap | Disposition |
 | --- | --- |
 | 1. Scheduled Gallery e2e as SYSTEM | Tested: `integration_gallery_windows` (weekly) installs pinned `PSScriptAnalyzer 1.21.0` from the real Gallery as SYSTEM; see Gallery backend test above. |
-| 2. Bracketed runtime through a local repo | Tested (scheduled): `site_repository_brackets.pp` + `Test-RepositoryBackend.ps1 -IncludeBrackets` publish and install literal `Bracket[Beta]` 1.0.0 from `WpsLocal`, converging and idempotent; `.psd1`-exists degradation respected per `check_psmodule.ps1.epp:26`. Per-PR stays on the brackets-free `site_repository.pp` until the first scheduled green run. |
+| 2. Bracketed runtime through a local repo | Decided (issue #132): the repository backend cannot install bracketed names — PowerShellGet cannot address wildcard names (`Install-Module` refuses them, name lookups never match), proven over repeated scheduled dispatches — so the catalogue refuses them at compile time with an actionable message instead of silently reinstalling forever. `site_repository_brackets.pp` + `Test-RepositoryBackend.ps1 -IncludeBrackets` publish the `Bracket[Beta]` fixture (proving the hand-packed nupkg serves and enumerates) and assert the refusal is loud and deterministic. Bracketed modules stay supported through the `source` backend and in-house modules (literal paths). Kept out of the per-PR gate (scheduled only); not a candidate for promotion since there is no converging install to promote. |
 | 3. pwsh leg | Tested: `Test-WindowsRuntime.ps1 -Shell pwsh` replays the shared subset under PowerShell 7 in CI; provider stdin wiring stays 5.1-only by design (non-goal: running the agent/provider under pwsh). |
 | 4. Upgrade scenario | Tested: `integration_upgrade_windows` (weekly) upgrades the previous tag to the current code; see Upgrade scenario above. |
 | 5. Interrupted install | Covered: `Test-WindowsRuntime.ps1` replays empty, partial and corrupt-manifest folders offline (all must reinstall); `Test-RepositoryBackend.ps1` proves the empty and partial shapes reinstall for real. The corrupt-manifest shape shares the same guard outcome (`Test-ModuleHealthy` `$false` → reinstall) with the proven partial shape, so no separate real-apply cycle was added for it. (Note: "see issue 2" in the original report is unrelated — repo issue #2 is a closed rename PR, not interrupted-install coverage, which lives under #106.) |

@@ -312,19 +312,12 @@ try {
         -RootModule 'Latest.psm1' -FunctionsToExport @('Get-Latest')
     Assert-RepositoryExit '*install_Latest_unless*' $latestDir 0 'check: healthy manifest satisfies present'
 
-    # Bracketed name: wildcard names are excluded from the Test-ModuleManifest
-    # parse (it rejects wildcards in RootModule, which would reinstall a
-    # healthy wildcard module on every run), so for those names the .psd1
-    # only has to exist. Uses the .NET API because New-Item has no
-    # -LiteralPath on 5.1 and New-ModuleManifest -Path rejects brackets.
-    $bracketDir = Join-Path $checkRoot 'Bracket[Beta]'
-    $bracketVersion = Join-Path $bracketDir '1.0.0'
-    [void][System.IO.Directory]::CreateDirectory($bracketVersion)
-    Assert-RepositoryExit '*install_Bracket*_unless*' $bracketDir 1 'check: empty bracketed version folder reinstalls'
-    Set-Content -LiteralPath (Join-Path $bracketVersion 'Bracket[Beta].psm1') -Value "function Get-BracketBeta { 'bracket' }`n"
-    Assert-RepositoryExit '*install_Bracket*_unless*' $bracketDir 1 'check: partial bracketed folder without a manifest reinstalls'
-    Set-Content -LiteralPath (Join-Path $bracketVersion 'Bracket[Beta].psd1') -Value "@{ ModuleVersion = '1.0.0' }`n"
-    Assert-RepositoryExit '*install_Bracket*_unless*' $bracketDir 0 'check: bracketed folder with a psd1 satisfies the pin (manifest parse excluded)'
+    # Bracketed name: wildcard names used to skip the Test-ModuleManifest
+    # parse (a healthy wildcard module would otherwise reinstall on every
+    # run), but that branch is gone with issue #132 — the repository backend
+    # refuses wildcard names at compile time, so the check only ever sees
+    # wildcard-free names. The `source` backend (literal file copy) keeps
+    # working with brackets; it has no rendered check script to replay here.
 
     # Issue #133: opt-in ACL hardening replay on a throw-away directory.
     # Needs an elevated host: Set-Acl requires a privilege the suite

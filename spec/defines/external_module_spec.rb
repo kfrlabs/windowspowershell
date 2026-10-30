@@ -378,24 +378,31 @@ describe 'windowspowershell::external_module' do
         it { is_expected.not_to contain_exec('windowspowershell purge other versions of ExampleModule') }
       end
 
-      # Install-Module reads -Name as a wildcard (issue #73), while a module
-      # name may legally hold brackets (issue #15): escape them so the
-      # literal module is installed.
+      # The repository backend cannot install wildcard names (issue #132):
+      # PowerShellGet cannot address them (Install-Module refuses wildcard
+      # names outright and its provider never matches them, escaped or
+      # not), so the install would silently do nothing and reinstall on
+      # every run. Refuse at compile time with an actionable message; the
+      # source backend (literal file copy) keeps working with brackets.
       context 'from a repository, with a modulename holding wildcards' do
         let(:params) { { 'ensure' => '2.1.0', 'repository' => 'PSGallery', 'modulename' => 'Bracket[Beta]' } }
 
-        it { is_expected.to compile.with_all_deps }
+        it { is_expected.to compile.and_raise_error(%r{cannot install the wildcard module name}) }
+      end
 
-        it 'escapes the -Name wildcards in the install command' do
-          is_expected.to contain_exec('windowspowershell install ExampleModule').
-            with_command(%r{Install-Module -Name 'Bracket`\[Beta`\]'}).
-            with_command(%r{-RequiredVersion '2\.1\.0'})
+      context 'from a Puppet file source, with a modulename holding wildcards' do
+        let(:params) do
+          { 'ensure' => '2.2.1.5', 'source' => 'puppet:///modules/windowsupdate/PSWindowsUpdate/2.2.1.5/', 'modulename' => 'Bracket[Beta]' }
         end
 
-        it 'excludes wildcard names from the manifest parse but still requires the psd1 (issue #106)' do
-          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$moduleName = 'Bracket\[Beta\]'})
-          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{Test-Path -LiteralPath \$psd1})
-          expect(unless_of('windowspowershell install ExampleModule')).to match(%r{\$moduleName -match})
+        it { is_expected.to compile.with_all_deps }
+
+        it 'copies the version directory for the bracketed module' do
+          is_expected.to contain_file("#{modules}\\Bracket[Beta]\\2.2.1.5").with(
+            'ensure' => 'directory',
+            'recurse' => true,
+            'source' => 'puppet:///modules/windowsupdate/PSWindowsUpdate/2.2.1.5/'
+          )
         end
       end
 
@@ -530,7 +537,9 @@ describe 'windowspowershell::external_module' do
       end
 
       # Uninstall-Module and Get-InstalledModule read -Name as a wildcard
-      # too (issue #73): escape it so the literal module is removed.
+      # too (issue #73): escape it so the literal module is removed. Removal
+      # never installs, so the repository wildcard refusal (issue #132) does
+      # not apply -- even with a repository set, absent compiles.
       context 'with ensure => absent and a modulename holding wildcards' do
         let(:params) { { 'ensure' => 'absent', 'modulename' => 'Bracket[Beta]' } }
 
@@ -541,6 +550,12 @@ describe 'windowspowershell::external_module' do
             with_command(%r{Uninstall-Module -Name 'Bracket`\[Beta`\]' -AllVersions -Force})
           expect(unless_of('windowspowershell uninstall ExampleModule')).to match(%r{Get-InstalledModule -Name 'Bracket`\[Beta`\]' -AllVersions})
         end
+      end
+
+      context 'with ensure => absent, a repository and a modulename holding wildcards' do
+        let(:params) { { 'ensure' => 'absent', 'repository' => 'PSGallery', 'modulename' => 'Bracket[Beta]' } }
+
+        it { is_expected.to compile.with_all_deps }
       end
 
       context 'with ensure => absent and a modulename that breaks out of the quoted string' do
@@ -718,8 +733,9 @@ describe 'windowspowershell::external_module' do
         end
       end
 
-      # Import-Module reads -Name as a wildcard as well (issue #73), so the
-      # profile fragment escapes a bracketed modulename literally.
+      # The repository backend refuses wildcard names (see above), so a
+      # bracketed module with import_in_profile fails the same way: the
+      # fragment is never declared because the catalogue never compiles.
       context 'with import_in_profile => true and a modulename holding wildcards' do
         let(:params) { { 'ensure' => '2.1.0', 'repository' => 'PSGallery', 'modulename' => 'Bracket[Beta]', 'import_in_profile' => true } }
         let(:pre_condition) do
@@ -728,15 +744,7 @@ describe 'windowspowershell::external_module' do
           PUPPET
         end
 
-        it { is_expected.to compile.with_all_deps }
-
-        it 'escapes the -Name wildcards in the profile import' do
-          profile = 'C:\Windows\System32\WindowsPowerShell\v1.0\profile.ps1'
-          is_expected.to contain_concat_fragment("windowspowershell import external ExampleModule in #{profile}").
-            with_target(profile).
-            with_order('60').
-            with_content(%r{Import-Module 'Bracket`\[Beta`\]' -RequiredVersion '2\.1\.0'})
-        end
+        it { is_expected.to compile.and_raise_error(%r{cannot install the wildcard module name}) }
       end
 
       context 'with PowerShell 7 installed and import_in_profile => true' do

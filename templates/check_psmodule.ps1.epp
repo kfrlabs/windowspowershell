@@ -14,16 +14,14 @@ if (-not (Test-Path -LiteralPath $moduleDir)) { exit 1 }
 # Join-Path plus -LiteralPath keeps bracketed names literal; the -Path
 # argument of Test-ModuleManifest is wildcard-escaped at runtime. Offline:
 # no module-discovery cmdlets, no network.
-# Wildcard names (` * ? [ ] and backtick) are excluded from the manifest
-# parse: Test-ModuleManifest rejects wildcards in RootModule/ModuleToProcess,
-# so a healthy wildcard-named module would reinstall on every run. For those
-# names the .psd1 only has to exist, which still repairs empty folders and
-# folders without a manifest.
+# (Wildcard module names used to skip the manifest parse here; that branch
+# is gone with issue #132, which refuses wildcard names for the repository
+# backend at compile time, so this check only ever sees wildcard-free names.
+# The `source` backend does not use this check.)
 function Test-ModuleHealthy {
     param([string]$DirPath)
     $psd1 = Join-Path -Path $DirPath -ChildPath "${moduleName}.psd1"
     if (-not (Test-Path -LiteralPath $psd1)) { return $false }
-    if ($moduleName -match '[`*?\[\]]') { return $true }
     $escaped = $psd1 -replace '([`*?\[\]])', '`$1'
     return ($null -ne (Test-ModuleManifest -Path $escaped -ErrorAction SilentlyContinue))
 }

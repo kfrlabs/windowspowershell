@@ -28,6 +28,8 @@
 #   manifest parse -- `Test-ModuleManifest` rejects wildcards in
 #   `RootModule`/`ModuleToProcess`, which would reinstall a healthy wildcard
 #   module on every run -- so for those names the `.psd1` only has to exist.
+#   (With the `repository` backend this exclusion is unreachable: wildcard
+#   names fail compilation before any install check runs, see `repository`.)
 #   `absent` is refused for the protected system modules `PowerShellGet` and
 #   `PackageManagement` (issue #88): removing them breaks Install-Module for
 #   every later run.
@@ -36,8 +38,12 @@
 #   `Install-Module`, `Get-InstalledModule`, `Uninstall-Module` and
 #   `Import-Module` interpret `-Name` as a wildcard: `*`, `?`, `[` `]` and
 #   the backtick itself are escaped with a backtick in the generated scripts,
-#   so a literal name is always targeted (in-house names such as `Acme[Beta]`
-#   keep working, e.g. via the file-copy backend).
+#   so a literal name is always targeted for file paths and session imports
+#   (in-house names such as `Acme[Beta]` keep working, e.g. via the file-copy
+#   backend). The `repository` backend is exempt from that promise:
+#   PowerShellGet cannot address wildcard names at all (issue #132), so a
+#   wildcard `modulename` with `repository` fails compilation (see
+#   `repository`).
 #   Declare one resource per `modulename`: two resources sharing a
 #   `modulename` under different titles each purge the other side's version
 #   (see `purge_versions`), so the node flaps between both versions and never
@@ -63,6 +69,13 @@
 #   The custom repository itself must be registered for the `SYSTEM` account
 #   (`Register-PSRepository` is per-user): a repository registered in an
 #   interactive session is invisible to the agent (see README).
+#   Wildcard module names (`` ` ``, `*`, `?`, `[`, `]`) are refused with the
+#   `repository` backend at compile time (issue #132): PowerShellGet cannot
+#   address them (`Install-Module` refuses wildcard names outright and its
+#   provider never matches them, escaped or not), so the install would
+#   silently do nothing and reinstall on every run. Deploy wildcard-named
+#   modules with the `source` backend instead, which copies literal file
+#   paths.
 # @param source
 #   Puppet file source holding the module files, for nodes that cannot reach a
 #   repository. Mutually exclusive with `repository`.
@@ -143,6 +156,18 @@ define windowspowershell::external_module (
     'present' => undef,
     'absent'  => undef,
     default   => $ensure,
+  }
+
+  # The repository backend installs with `Install-Module`, which cannot address
+  # wildcard module names (issue #132): PowerShellGet refuses them outright
+  # (`Install-Module` rejects names holding wildcards) and its provider never
+  # matches them, escaped or not, so the install would silently do nothing and
+  # reinstall on every run. Refuse loudly at compile time and point at the
+  # `source` backend, whose file copy uses literal paths. Removal
+  # (`ensure => absent`) is unaffected: it never installs, and the literal
+  # directory purge applies regardless.
+  if $repository =~ NotUndef and $ensure != 'absent' and $modulename =~ /[`*?\[\]]/ {
+    fail("windowspowershell::external_module[${name}]: 'repository' cannot install the wildcard module name '${modulename}': PowerShellGet cannot address wildcard names (Install-Module refuses them, name lookups never match), so the install would silently reinstall on every run. Deploy wildcard-named modules with the 'source' backend instead, which copies literal file paths.")
   }
 
   # The repository backend installs with `Install-Module -Scope AllUsers`,
