@@ -10,3 +10,8 @@
 #   GitHub Actions-template-generated), to match this module's own Gemfile
 #   and Rakefile (puppetlabs_spec_helper + puppet-blacksmith for Forge
 #   publishing).
+# - PDK itself is used only to build the packaging tarball that the payload
+#   gate compares (`pdk build` in the `module_build` job); CI linting is the
+#   hand-maintained `rake syntax lint metadata_lint rubocop` suite instead of
+#   `pdk validate`, and releases are published with
+#   `bundle exec rake module:push` (blacksmith), not `pdk push`.

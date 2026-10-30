@@ -1,8 +1,12 @@
 # Testing
 
-The module is tested at seven levels. The first three run on every pull request
-(see `.github/workflows/ci.yml`); the next two need a Windows node; the last
-two run on the weekly schedule only, so per-PR jobs stay offline.
+The module is tested at ten levels. Six run on every pull request (see
+`.github/workflows/ci.yml`): rspec-puppet, rendered PowerShell,
+version-compare unit tests, the runtime smoke test (5.1 and PowerShell 7
+replays), the double-apply integration test, and the repository backend
+test. Three run on the weekly schedule only, so per-PR jobs stay offline:
+the Gallery backend, the upgrade scenario, and the bracketed repository
+guard. The last level is the manual validation matrix below.
 
 | Level | What it checks | Where |
 | --- | --- | --- |
@@ -14,7 +18,7 @@ two run on the weekly schedule only, so per-PR jobs stay offline.
 | Repository backend test | The `repository` backend installs for real from a local file repo | Windows CI (`integration_repository_windows`) |
 | Gallery backend test | The `repository` backend installs for real from the PowerShell Gallery | Weekly schedule (`integration_gallery_windows`), informational |
 | Upgrade scenario | A node converges from the previous release tag to the current code | Weekly schedule (`integration_upgrade_windows`), informational |
-| Bracketed repository test | The wildcard-escaped `Bracket[Beta]` path installs for real from a local file repo | Weekly schedule (`integration_repository_brackets_windows`), informational |
+| Bracketed repository test | Asserts the compile-time refusal of bracketed repository names is loud and deterministic (use the `source` backend for brackets) | Weekly schedule (`integration_repository_brackets_windows`), informational |
 | Manual matrix | Windows releases the CI does not offer | By hand, see below |
 
 ## Rendered PowerShell
