@@ -245,6 +245,7 @@ foreach ($bbProbeName in @('Bracket[Beta]', 'Bracket`[Beta`]', 'Bracket*')) {
         Write-Host ("dbg findmodule [{0}]: NoMatch" -f $bbProbeName)
     }
 }
+} # end if ($IncludeBrackets): bracket-only diagnostics
 
 try {
     $installed = Get-InstalledModule -Name WpsRepoTest -AllVersions -ErrorAction Stop

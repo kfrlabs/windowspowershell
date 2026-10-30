@@ -389,8 +389,8 @@ on demand via workflow_dispatch (Actions -> CI -> Run workflow).
 | Job | Runner images | First green run date | Run URL |
 | --- | --- | --- | --- |
 | `integration_repository_brackets_windows` | windows-2022, windows-2025 | TBD | TBD |
-| `integration_gallery_windows` | windows-2022, windows-2025 | TBD | TBD |
-| `integration_upgrade_windows` | windows-2022, windows-2025 | TBD | TBD |
+| `integration_gallery_windows` | windows-2022, windows-2025 | 2026-10-30 | https://github.com/kfrlabs/windowspowershell/actions/runs/41052437564 (dispatch; green on both images, repeated on later dispatch runs) |
+| `integration_upgrade_windows` | windows-2022, windows-2025 | 2026-10-30 | https://github.com/kfrlabs/windowspowershell/actions/runs/41052437564 (dispatch; green on both images after the `git archive` fix) |
 
 The pwsh leg already runs per-PR in `powershell_windows`
 (windows-2022 + windows-2025); find a green per-PR run under
