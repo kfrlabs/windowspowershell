@@ -20,6 +20,8 @@ jobs:
       PUPPET_GEM_VERSION: '~> 8.0'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-tags: true
 
       - name: Set up Ruby
         uses: ruby/setup-ruby@7f797815d8adceb1c412e7abefdd1ab4abc47a5f # v1.335.0
@@ -35,6 +37,40 @@ jobs:
             echo "::error::Tag v${tag_version} does not match metadata.json version ${metadata_version}."
             exit 1
           fi
+
+      - name: Breaking changes require a major version bump
+        run: |
+          set -euo pipefail
+          tag_version="${GITHUB_REF_NAME#v}"
+          new_tag="$GITHUB_REF_NAME"
+          section="$(awk -v ver="$tag_version" 'index($0, "## [" ver "]") == 1 { in_section=1; print; next } in_section && /^## \[/ { exit } in_section { print }' CHANGELOG.md)"
+          if [ -z "$section" ]; then
+            echo "::error::No CHANGELOG section [${tag_version}] found (expected a '## [${tag_version}]' heading): cannot verify the breaking-change marker (fail-closed: release blocked)."
+            exit 1
+          fi
+          if ! printf '%s\n' "$section" | grep -F -q '**Breaking'; then
+            echo "No **Breaking marker in CHANGELOG section [${tag_version}]; no major bump required."
+            exit 0
+          fi
+          prev_tag="$(git tag --sort=-v:refname | grep -F -v -x "$new_tag" | head -n 1 || true)"
+          if [ -z "${prev_tag:-}" ]; then
+            echo "::error::CHANGELOG section [${tag_version}] contains a **Breaking marker, but no previous tag could be determined for ${new_tag} (fail-closed: release blocked)."
+            exit 1
+          fi
+          new_major="${tag_version%%.*}"
+          prev_major="${prev_tag#v}"
+          prev_major="${prev_major%%.*}"
+          case "${new_major}${prev_major}" in
+            *[!0-9]*)
+              echo "::error::CHANGELOG section [${tag_version}] contains a **Breaking marker, but the majors of ${new_tag} and previous tag ${prev_tag} are not numeric (fail-closed: release blocked)."
+              exit 1
+              ;;
+          esac
+          if [ "$new_major" -le "$prev_major" ]; then
+            echo "::error::CHANGELOG section [${tag_version}] contains a **Breaking marker, but ${new_tag} (major ${new_major}) is not a major bump over previous tag ${prev_tag} (major ${prev_major})."
+            exit 1
+          fi
+          echo "CHANGELOG section [${tag_version}] flags a breaking change and ${new_tag} is a major bump over ${prev_tag}."
 
       - name: Syntax, lint, metadata and rubocop
         run: |

@@ -11,3 +11,5 @@
 - [ ] `REFERENCE.md` regenerated if Puppet strings changed
       (`bundle exec rake strings:generate:reference`)
 - [ ] `CHANGELOG.md` updated if user-visible
+- [ ] Breaking change flagged with `**Breaking` in its `CHANGELOG.md` entry, if any
+      (see [Stability policy](README.md#stability-policy))
