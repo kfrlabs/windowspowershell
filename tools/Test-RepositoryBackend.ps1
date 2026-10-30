@@ -180,7 +180,7 @@ Assert-True (($null -ne $bbFound) -and ($bbFound.Version -eq '1.0.0')) 'local re
 # Start clean so the first apply really installs.
 try { Uninstall-Module -Name WpsRepoTest -AllVersions -Force -ErrorAction SilentlyContinue } catch {}
 if ($IncludeBrackets) {
-try { Uninstall-Module -Name 'Bracket`[Beta`]' -AllVersions -Force -ErrorAction SilentlyContinue } catch {}
+try { Uninstall-Module -Name 'Bracket[Beta]' -AllVersions -Force -ErrorAction SilentlyContinue } catch {}
 }
 
 # Issue #106: an interrupted install leaves an empty version folder behind,
@@ -245,6 +245,18 @@ foreach ($bbProbeName in @('Bracket[Beta]', 'Bracket`[Beta`]', 'Bracket*')) {
         Write-Host ("dbg findmodule [{0}]: NoMatch" -f $bbProbeName)
     }
 }
+# Raw-name Install-Module diagnostic: the matrix above shows the escaped name
+# never matches while the raw name does. Install-Module with the escaped name
+# exits 0 but lays down no files, so install the bracketed module by its raw
+# name and list the tree right away.
+try {
+    $bbInstallOut = Install-Module -Name 'Bracket[Beta]' -RequiredVersion '1.0.0' -Repository WpsLocal -Scope AllUsers -Force -AllowClobber -Verbose 4>&1
+    $bbInstallOut | ForEach-Object { Write-Host ("dbg installraw: {0}" -f $_) }
+    Write-Host "dbg installraw: exit ok"
+    Get-ChildItem -LiteralPath $bbDbgDir -Recurse | ForEach-Object { Write-Host ("dbg installraw tree: {0}" -f $_.FullName) }
+} catch {
+    Write-Host ("dbg installraw FAILED: {0}" -f $_)
+}
 } # end if ($IncludeBrackets): bracket-only diagnostics
 
 try {
@@ -257,10 +269,11 @@ try {
     Remove-Module WpsRepoTest -Force -ErrorAction SilentlyContinue
 
     if ($IncludeBrackets) {
-    # -Name is a wildcard: escape the brackets with a backtick (same escaping
-    # the generated scripts use, issue #73). -FullyQualifiedName takes the
-    # literal name for the import.
-    $bbInstalled = Get-InstalledModule -Name 'Bracket`[Beta`]' -AllVersions -ErrorAction Stop
+    # PackageManagement compares -Name literally (no backtick unescaping):
+    # the escaped spelling never matches while the raw name does (see the
+    # dbg findmodule matrix above). Remove-Module is session-local and
+    # PowerShell-native, so it keeps the backtick escaping.
+    $bbInstalled = Get-InstalledModule -Name 'Bracket[Beta]' -AllVersions -ErrorAction Stop
     Assert-True (($bbInstalled.Version -join ',') -eq '1.0.0') 'repository: pinned bracketed 1.0.0 installed'
     $bbDir = 'C:\Program Files\WindowsPowerShell\Modules\Bracket[Beta]\1.0.0'
     Assert-True (Test-Path -LiteralPath (Join-Path $bbDir 'Bracket[Beta].psm1')) 'repository: bracketed module files under AllUsers scope'
@@ -300,7 +313,7 @@ Assert-True (Test-Path -LiteralPath (Join-Path $repoModDir 'WpsRepoTest.psd1')) 
 # state was already asserted above.
 try { Uninstall-Module -Name WpsRepoTest -AllVersions -Force -ErrorAction SilentlyContinue } catch {}
 if ($IncludeBrackets) {
-try { Uninstall-Module -Name 'Bracket`[Beta`]' -AllVersions -Force -ErrorAction SilentlyContinue } catch {}
+try { Uninstall-Module -Name 'Bracket[Beta]' -AllVersions -Force -ErrorAction SilentlyContinue } catch {}
 }
 try { Unregister-PSRepository -Name WpsLocal -ErrorAction SilentlyContinue } catch {}
 try { if (Test-Path -LiteralPath $RepoDir) { Remove-Item -Recurse -Force -LiteralPath $RepoDir } } catch {}
