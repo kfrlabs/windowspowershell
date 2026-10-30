@@ -184,6 +184,9 @@ jobs:
         run: |
           Stop-Service puppet -ErrorAction SilentlyContinue
           ./tools/Test-PuppetApply.ps1 -Site spec/integration/site.pp -Modulepath 'C:\wps-int\modules'
+      - name: Profiles upgrade proof (managed then implicit)
+        shell: powershell
+        run: ./tools/Test-ProfilesUpgrade.ps1 -ManagedSite spec/integration/site_profiles_managed.pp -ImplicitSite spec/integration/site_profiles_implicit.pp -Modulepath 'C:\wps-int\modules'
 
   integration_repository_windows:
     name: 'Puppet apply (repository backend) on ${{ matrix.os }}'
