@@ -234,6 +234,16 @@ try {
 } catch {
     Write-Host ("dbg saveprobe FAILED: {0}" -f $_)
 }
+# Name-matcher matrix (read-only): Find-Package enumeration sees the package,
+# but every -Name lookup fails. Try raw, escaped and wildcard spellings to
+# learn which matcher PackageManagement actually applies to bracketed ids.
+foreach ($bbProbeName in @('Bracket[Beta]', 'Bracket`[Beta`]', 'Bracket*')) {
+    try {
+        $bbProbeFound = Find-Module -Name $bbProbeName -Repository WpsLocal -ErrorAction Stop
+        Write-Host ("dbg findmodule [{0}]: FOUND {1} {2}" -f $bbProbeName, $bbProbeFound.Name, $bbProbeFound.Version)
+    } catch {
+        Write-Host ("dbg findmodule [{0}]: NoMatch" -f $bbProbeName)
+    }
 }
 
 try {
