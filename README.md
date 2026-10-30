@@ -13,9 +13,10 @@
 
 1. [Description](#description)
 2. [Usage](#usage)
-3. [Reference](#reference)
-4. [Limitations](#limitations)
+3. [Stability policy](#stability-policy)
+4. [Reference](#reference)
 5. [Development](#development)
+6. [Limitations](#limitations)
 
 ## Description
 
@@ -730,6 +731,78 @@ otherwise it inherits the parent's; see [Limitations](#limitations)).
 `import_in_profile => true` repairs in-house imports
 (absolute manifest path); external `source`-backend modules on a custom
 root still need explicit `PSModulePath` handling.
+
+## Stability policy
+
+Applies prospectively from adoption (issue #130): earlier releases are not
+reclassified retroactively.
+
+### Public API
+
+The public surface is exactly this list:
+
+- The `windowspowershell` class and the `windowspowershell::module`,
+  `windowspowershell::script` and `windowspowershell::external_module`
+  defined types: parameter names, types and defaults as documented in
+  [REFERENCE.md](REFERENCE.md).
+- The `Exec` titles other code may reference or order on:
+  `windowspowershell update-manifest <module>`,
+  `windowspowershell create-manifest <module>`,
+  `windowspowershell unblock-files <module>`,
+  `windowspowershell install <module>`,
+  `windowspowershell uninstall <module>`,
+  `windowspowershell purge other versions of <module>` (external modules)
+  and `windowspowershell purge other in-house versions of <module>`
+  (in-house modules),
+  `windowspowershell manage module_root acl` and
+  `windowspowershell install nuget provider`.
+- The `concat::fragment` titles and orders on the managed profiles:
+  `windowspowershell header <profile>` (`00`),
+  `windowspowershell import <module> in <profile>` (`50`) and
+  `windowspowershell import external <module> in <profile>` (`60`).
+  Orders `01`-`49` and `70`-`99` stay free for site fragments, and
+  `$windowspowershell::profile_paths` is the exact list of managed profile
+  targets to attach them to.
+- The documented `$windowspowershell::*` variables
+  (`profile_paths`, `supported`, `normalized_module_root`), the
+  `Windowspowershell::*` data types and the shipped facts (`powershell7`,
+  `long_paths_enabled`).
+- The on-disk layout: one version folder per module version under
+  `module_root` (`<module>\<version>\` with `Functions\`, the root `.psm1`
+  and the generated `.psd1`) plus the `.manifest-params` witness file
+  beside them.
+
+Any change to the above defaults to a **major** version bump. Non-breaking
+fixes and additions ship as patch or minor releases.
+
+### Deprecation flow
+
+Breaking changes go through a deprecation first: the new behavior ships in a
+minor release with the old behavior kept for at least one minor, and the old
+behavior warns through stdlib's `deprecation()`:
+
+```puppet
+if $legacy_param {
+  deprecation('windowspowershell', 'legacy_param is deprecated, use new_param instead; support ends in 3.0.0.')
+}
+```
+
+Removal happens in the next major at the earliest.
+
+### Internal surface
+
+Everything else may change in any release: classes marked `@api private`
+(`windowspowershell::install`, `windowspowershell::config`,
+`windowspowershell::psget`), undocumented variables and helper functions
+(including `windowspowershell::check_path_length`), and template file names
+under `templates/`.
+
+### CHANGELOG marker
+
+Every breaking change is flagged in the tagged version's own CHANGELOG
+section with the case-sensitive literal marker `**Breaking`. The release
+workflow greps that section and fails the publish unless the tag is a major
+bump over the previous tag.
 
 ## Reference
 
