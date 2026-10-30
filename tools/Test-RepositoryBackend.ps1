@@ -210,7 +210,9 @@ Assert-True ($second -eq 0) ("second run changed nothing (exit $second, expected
 
 # Gap-2 diagnostics (issue #132): the bracketed resource reinstalls every run
 # while the plain one converges. Evaluate each install-check link literally
-# so the log shows which one fails for bracketed names.
+# so the log shows which one fails for bracketed names. Bracket-only: the
+# per-PR job has no bracketed fixture, so this block must not run there.
+if ($IncludeBrackets) {
 $bbDbgDir = 'C:\Program Files\WindowsPowerShell\Modules\Bracket[Beta]'
 Write-Host ("dbg bracket dir exists: {0}" -f (Test-Path -LiteralPath $bbDbgDir))
 Get-ChildItem -LiteralPath $bbDbgDir -Directory -ErrorAction SilentlyContinue | ForEach-Object { Write-Host ("dbg bracket child: {0}" -f $_.Name) }
@@ -219,6 +221,20 @@ Write-Host ("dbg bracket psd1 exists: {0}" -f (Test-Path -LiteralPath $bbDbgPsd1
 # Full installed tree via .NET (no wildcard layer at all): shows whether
 # Install-Module laid down the psd1/psm1 or left the seeded dir behind.
 [System.IO.Directory]::EnumerateFileSystemEntries($bbDbgDir, '*', [System.IO.SearchOption]::AllDirectories) | ForEach-Object { Write-Host ("dbg bracket tree: {0}" -f $_) }
+# Save-Module probe: Install-Module reports success but lays down no files.
+# Save-Module exercises the same provider download+extract machinery without
+# touching AllUsers, showing whether the failure is in the provider download
+# or in the AllUsers install step.
+$bbSaveDir = Join-Path $env:TEMP 'wpsrepotest\saveprobe'
+if (Test-Path -LiteralPath $bbSaveDir) { Remove-Item -Recurse -Force -LiteralPath $bbSaveDir }
+New-Item -ItemType Directory -Path $bbSaveDir -Force | Out-Null
+try {
+    Save-Module -Name 'Bracket`[Beta`]' -RequiredVersion '1.0.0' -Repository WpsLocal -Path $bbSaveDir -Force
+    Get-ChildItem -LiteralPath $bbSaveDir -Recurse | ForEach-Object { Write-Host ("dbg saveprobe: {0}" -f $_.FullName) }
+} catch {
+    Write-Host ("dbg saveprobe FAILED: {0}" -f $_)
+}
+}
 
 try {
     $installed = Get-InstalledModule -Name WpsRepoTest -AllVersions -ErrorAction Stop
