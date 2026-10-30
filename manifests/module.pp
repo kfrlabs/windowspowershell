@@ -29,6 +29,11 @@
 # genuine conflict and fails to compile like any other duplicate resource
 # declaration, rather than being silently merged.
 #
+# Each script under `Functions/` must define a top-level function named after
+# its own base name, and base names must stay unique (case-insensitive): a
+# violation fails the manifest build and leaves the `.psd1` untouched
+# (fail closed, issue #135 step 1).
+#
 # On nodes without long-path support the paths this resource manages must stay
 # under 260 characters (Windows `MAX_PATH`, terminating NUL included). With
 # `ensure => present`, a longer one logs a compile-time warning (not a

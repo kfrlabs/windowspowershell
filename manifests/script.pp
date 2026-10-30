@@ -28,7 +28,14 @@
 #   without notifying the manifest refresh, which no longer exists.
 # @param scriptname
 #   Base name of the script, without the `.ps1` extension. Defaults to the
-#   resource title. This is also the name of the exported PowerShell function.
+#   resource title. This is also the name of the exported PowerShell function:
+#   the deployed `<scriptname>.ps1` must define a top-level
+#   `function <scriptname>` (name contract, issue #135 step 1), otherwise the
+#   manifest build fails closed with
+#   `CONTRACT ERROR <file>: no function named '<scriptname>' defined in file`
+#   and leaves the existing `.psd1` untouched. Base names must also be unique
+#   across the module's `Functions/` tree (case-insensitive, so `Foo.ps1` and
+#   `Foo.psm1` collide): a duplicate fails the manifest build the same way.
 #   A trailing `.ps1`/`.psm1` is refused: the module appends `.ps1` itself, so
 #   `Get-Foo.ps1` would deploy `Get-Foo.ps1.ps1` exporting a broken function
 #   name. Dots elsewhere stay legitimate (`Get-Example.v2`).

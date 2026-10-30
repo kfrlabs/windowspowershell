@@ -843,5 +843,13 @@ Contributions are welcome via GitHub issues and pull requests.
 - A syntactically broken `Functions/` script fails the manifest build without
   touching the existing `.psd1` (fail-closed, issue #107): every script is
   parsed (syntax only, read as UTF-8) before `New-ModuleManifest` runs, and a
-  `PARSE ERROR <file>:<line>` names the culprit. Anything beyond syntax (a
-  missing command, a wrong export list) is not checked.
+  `PARSE ERROR <file>:<line>` names the culprit. Each script must also define
+  the function it is named after, and base names must be unique across
+  `Functions/` (name contract, fail-closed, issue #135 step 1): a script with
+  no top-level `function <basename>` fails with e.g.
+  `CONTRACT ERROR C:\...\Functions\Get-Foo.ps1: no function named 'Get-Foo' defined in file, manifest not written`,
+  and a duplicated base name (case-insensitive, `Foo.ps1` vs `Foo.psm1`
+  collide) fails with `Duplicate function names in Functions/ scripts, manifest not written: ...`.
+  Anything beyond the name contract and syntax (a missing command inside the
+  function body) is not checked. Selecting the export mode (`export_mode`,
+  step 2) is deferred.

@@ -51,18 +51,44 @@ foreach ($functionFile in $functions) {
     $scriptText = [System.IO.File]::ReadAllText($functionFile.FullName, [System.Text.Encoding]::UTF8)
     $tokens = $null
     $fileParseErrors = $null
-    [void][System.Management.Automation.Language.Parser]::ParseInput($scriptText, [ref]$tokens, [ref]$fileParseErrors)
+    $ast = [System.Management.Automation.Language.Parser]::ParseInput($scriptText, [ref]$tokens, [ref]$fileParseErrors)
     foreach ($parseError in $fileParseErrors) {
         Write-Error ("PARSE ERROR {0}:{1}: {2}" -f $functionFile.FullName, $parseError.Extent.StartLineNumber, $parseError.Message) -ErrorAction Continue
     }
     if ($fileParseErrors.Count -gt 0) { $failedFiles += $functionFile.FullName }
+    else {
+        # Name contract (issue #135, step 1): each Functions/ script must
+        # define a top-level function named after its own base name,
+        # otherwise FunctionsToExport would list a function PowerShell
+        # cannot load. $false keeps nested script blocks out of the search;
+        # the comparison stays case-insensitive, like PowerShell function
+        # resolution. Files are reached through .FullName, so a bracketed
+        # path stays literal (issue #15).
+        $definedFunctions = $ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] }, $false)
+        if ($functionFile.BaseName -notin @($definedFunctions | ForEach-Object { $_.Name })) {
+            Write-Error ("CONTRACT ERROR {0}: no function named '{1}' defined in file, manifest not written" -f $functionFile.FullName, $functionFile.BaseName) -ErrorAction Continue
+            $failedFiles += $functionFile.FullName
+        }
+    }
 }
 if ($failedFiles.Count -gt 0) {
     # `throw` must not be used here: Windows PowerShell 5.1 fed via stdin
     # swallows a `throw` inside a multi-line block and keeps running
     # (exit 0), so Write-Error plus `exit 1` guarantees the failure exit
     # code and keeps New-ModuleManifest from running (issue #107).
-    Write-Error ("Syntax errors in Functions/ scripts, manifest not written: {0}" -f ($failedFiles -join ', ')) -ErrorAction Continue
+    Write-Error ("Errors in Functions/ scripts, manifest not written: {0}" -f ($failedFiles -join ', ')) -ErrorAction Continue
+    exit 1
+}
+# Name contract, duplicates (issue #135, step 1): base names must be unique
+# across Functions/, otherwise two NestedModules export the same function
+# and the manifest is ambiguous. Group-Object is case-insensitive, matching
+# PowerShell function resolution, and BaseName already strips the
+# extension, so Foo.ps1 and Foo.psm1 collide on purpose. Same Write-Error
+# plus `exit 1` pattern as above: never `throw` (5.1 stdin).
+$duplicateGroups = @($functions | Group-Object { $_.BaseName } | Where-Object { $_.Count -gt 1 })
+if ($duplicateGroups.Count -gt 0) {
+    $duplicateNames = @($duplicateGroups | ForEach-Object { $_.Name }) -join ', '
+    Write-Error ("Duplicate function names in Functions/ scripts, manifest not written: {0}" -f $duplicateNames) -ErrorAction Continue
     exit 1
 }
 

@@ -347,6 +347,27 @@ describe 'windowspowershell::module' do
         end
       end
 
+      # Name contract (issue #135, step 1; export_mode selection is step 2
+      # and stays deferred): each Functions/ script must define a top-level
+      # function named after its own base name, and base names must be unique
+      # across Functions/ (case-insensitive, Foo.ps1 vs Foo.psm1 collide). A
+      # violation fails the manifest build without touching the existing
+      # .psd1. Both Execs share the same manifest command, so both carry
+      # the checks.
+      it 'fails the manifest build when a Functions script defines no function of its own name' do
+        ['windowspowershell create-manifest Acme', 'windowspowershell update-manifest Acme'].each do |exec_name|
+          is_expected.to contain_exec(exec_name).
+            with_command(%r{FunctionDefinitionAst[\s\S]*CONTRACT ERROR[\s\S]*exit 1[\s\S]*New-ModuleManifest})
+        end
+      end
+
+      it 'fails the manifest build on duplicated Functions base names' do
+        ['windowspowershell create-manifest Acme', 'windowspowershell update-manifest Acme'].each do |exec_name|
+          is_expected.to contain_exec(exec_name).
+            with_command(%r{Group-Object[\s\S]*Duplicate function names[\s\S]*exit 1[\s\S]*New-ModuleManifest})
+        end
+      end
+
       it 'adds no Import-Module fragment to the profiles by default' do
         [
           'C:\Windows\System32\WindowsPowerShell\v1.0\profile.ps1',

@@ -23,6 +23,22 @@ and this module adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.
   docs (REFERENCE.md), the `TESTING.md` manual matrix and the Windows runtime
   smoke test record the behavior.
 
+### Changed
+
+- Enforce the `Functions/` file-to-function name contract when building the
+  manifest (issue #135, step 1): each `Functions/` script must define a
+  top-level function named after its own base name, and base names must be
+  unique across `Functions/` (case-insensitive, so `Foo.ps1` and `Foo.psm1`
+  collide). A violation fails the manifest Exec (`CONTRACT ERROR <file>: no
+  function named '<name>' ...` or `Duplicate function names ...`) and leaves
+  the existing `.psd1` untouched (fail closed, `Write-Error` plus `exit 1`,
+  never `throw`). This is intentionally breaking-ish: a module that
+  previously converged with a mismatched or duplicated name now fails its
+  manifest build instead of shipping a manifest that lists a function
+  PowerShell cannot load. Selecting the export mode (`export_mode`, step 2)
+  is deferred. README (Limitations) and the `windowspowershell::script`
+  `scriptname` docs record the contract.
+
 ### Fixed
 
 - Narrow the claimed OS support matrix to the validated releases
