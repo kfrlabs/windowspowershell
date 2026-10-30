@@ -52,7 +52,7 @@ include windowspowershell
 
 Checklist when coming from 2.x (details in [CHANGELOG.md](CHANGELOG.md#300---2026-10-30)):
 
-- `manage_profiles` still defaults to `false` (since 2.2): sites that relied
+- `manage_profiles` still defaults to `false` (since 2.2, issue #109): sites that relied
   on the managed profiles must keep opting in explicitly:
   ```yaml
   windowspowershell::manage_profiles: true
